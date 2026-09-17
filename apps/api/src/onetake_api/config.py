@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     minio_region: str = "us-east-1"
     mock_providers: bool = True
     mock_recognition_mode: str = "success"
+    dashscope_api_key: str = ""
+    image_edit_model: str = "qwen-image-edit-plus"
+    image_edit_endpoint: str = "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
+    photoroom_api_key: str = ""
+    photoroom_endpoint: str = "https://sdk.photoroom.com/v1/segment"
     project_ttl_hours: int = 24
 
     model_config = SettingsConfigDict(

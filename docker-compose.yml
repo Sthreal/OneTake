@@ -93,6 +93,11 @@ services:
       MINIO_SECURE: ${MINIO_SECURE:-false}
       MINIO_REGION: ${MINIO_REGION:-us-east-1}
       MOCK_PROVIDERS: ${MOCK_PROVIDERS:-true}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      IMAGE_EDIT_MODEL: ${IMAGE_EDIT_MODEL:-qwen-image-edit-plus}
+      IMAGE_EDIT_ENDPOINT: ${IMAGE_EDIT_ENDPOINT:-https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation}
+      PHOTOROOM_API_KEY: ${PHOTOROOM_API_KEY:-}
+      PHOTOROOM_ENDPOINT: ${PHOTOROOM_ENDPOINT:-https://sdk.photoroom.com/v1/segment}
       PROJECT_TTL_HOURS: ${PROJECT_TTL_HOURS:-24}
     ports:
       - "8000:8000"
@@ -123,8 +128,20 @@ services:
       APP_ENV: development
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://onetake:onetake_dev_password@postgres:5432/onetake}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
+      MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-localhost:9000}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-onetake}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-onetake_dev_password}
+      MINIO_BUCKET: ${MINIO_BUCKET:-onetake-media}
+      MINIO_SECURE: ${MINIO_SECURE:-false}
+      MINIO_REGION: ${MINIO_REGION:-us-east-1}
       MOCK_PROVIDERS: ${MOCK_PROVIDERS:-true}
       MOCK_RECOGNITION_MODE: ${MOCK_RECOGNITION_MODE:-success}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      IMAGE_EDIT_MODEL: ${IMAGE_EDIT_MODEL:-qwen-image-edit-plus}
+      IMAGE_EDIT_ENDPOINT: ${IMAGE_EDIT_ENDPOINT:-https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation}
+      PHOTOROOM_API_KEY: ${PHOTOROOM_API_KEY:-}
+      PHOTOROOM_ENDPOINT: ${PHOTOROOM_ENDPOINT:-https://sdk.photoroom.com/v1/segment}
     depends_on:
       postgres:
         condition: service_healthy
@@ -132,7 +149,7 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    command: rq worker recognition --url redis://redis:6379/0
+    command: rq worker image_edit matting main_image recognition --url redis://redis:6379/0
     volumes:
       - ./apps/api/src:/app/src
 

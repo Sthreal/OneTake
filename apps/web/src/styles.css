@@ -466,3 +466,38 @@ button:disabled { cursor: not-allowed; }
 .candidate-copy small { margin-top: 3px; color: var(--soft); font-size: 9px; }
 .candidate-copy p { margin: 4px 0 0; color: var(--muted); font-size: 10px; }
 @media (max-width: 640px) { .recognition-empty { align-items: stretch; flex-direction: column; } }
+
+.main-image-status { padding: 6px 9px; border-radius: 9px; color: var(--soft); background: rgba(118,118,128,.09); font-size: 9px; font-weight: 750; white-space: nowrap; }
+.main-image-status.is-ready { color: #8a5a00; background: rgba(255,159,10,.12); }
+.main-image-status.is-confirmed { color: #16823b; background: rgba(52,199,89,.12); }
+.main-image-status.is-failed { color: #b42318; background: rgba(255,59,48,.1); }
+.main-image-empty, .main-image-error { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 15px; border: 1px solid var(--line-soft); border-radius: 13px; background: rgba(255,255,255,.56); }
+.main-image-empty strong, .main-image-error strong { display: block; font-size: 12px; }
+.main-image-empty p, .main-image-error p { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.main-image-error { align-items: flex-start; background: rgba(255,59,48,.055); }
+.main-image-working { display: grid; gap: 14px; }
+.main-image-stage-track { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.main-image-stage { display: flex; align-items: center; gap: 9px; padding: 11px; border: 1px solid var(--line-soft); border-radius: 12px; color: var(--soft); background: rgba(255,255,255,.48); }
+.main-image-stage > span { display: grid; width: 24px; height: 24px; flex: 0 0 auto; place-items: center; border-radius: 8px; background: rgba(118,118,128,.11); font-size: 10px; font-weight: 750; }
+.main-image-stage strong, .main-image-stage small { display: block; }
+.main-image-stage strong { font-size: 11px; }
+.main-image-stage small { margin-top: 2px; font-size: 9px; }
+.main-image-stage.is-active { color: var(--blue); border-color: rgba(0,122,255,.32); background: rgba(0,122,255,.065); }
+.main-image-stage.is-active > span { color: white; background: var(--blue); }
+.main-image-stage.is-done { color: #16823b; background: rgba(52,199,89,.07); }
+.main-image-stage.is-done > span { color: white; background: var(--green); }
+.main-image-working-copy { display: flex; align-items: center; gap: 10px; padding: 13px 15px; border-radius: 12px; background: rgba(118,118,128,.07); }
+.main-image-working-copy strong { font-size: 11px; }
+.main-image-working-copy p { margin: 0 0 0 auto; color: var(--muted); font-size: 10px; }
+.main-image-preview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.main-image-preview { margin: 0; overflow: hidden; border: 1px solid var(--line-soft); border-radius: 14px; background: white; }
+.main-image-preview img { display: block; width: 100%; aspect-ratio: 1; object-fit: contain; }
+.checkerboard img { background-color: #f5f5f7; background-image: linear-gradient(45deg, #e8e8ed 25%, transparent 25%), linear-gradient(-45deg, #e8e8ed 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e8e8ed 75%), linear-gradient(-45deg, transparent 75%, #e8e8ed 75%); background-size: 18px 18px; background-position: 0 0, 0 9px, 9px -9px, -9px 0; }
+.white-preview img { background: white; }
+.main-image-preview figcaption { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line-soft); }
+.main-image-preview figcaption strong { font-size: 11px; }
+.main-image-preview figcaption span { color: var(--soft); font-size: 9px; }
+.main-image-meta { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
+.main-image-meta span { padding: 6px 9px; border-radius: 999px; color: var(--muted); background: rgba(118,118,128,.075); font-size: 9px; font-weight: 650; }
+.main-image-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 13px; }
+@media (max-width: 760px) { .main-image-stage-track, .main-image-preview-grid { grid-template-columns: 1fr; } .main-image-working-copy, .main-image-empty { align-items: flex-start; flex-direction: column; } .main-image-working-copy p { margin-left: 0; } }

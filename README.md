@@ -4,31 +4,22 @@ One Take 商品 AI 视频生成 MVP 的工程仓库。
 
 ## 当前阶段
 
-当前为 **M1-05：Pipeline + Mock 商品识别**。
+当前为 **M1-06：主图处理链路**。
 
 已具备：
 
 - React + TypeScript 响应式工作台
-- FastAPI API
-- Worker
-- PostgreSQL
-- Redis
-- MinIO
+- FastAPI API、RQ Worker、PostgreSQL、Redis、MinIO
 - Alembic 数据库迁移
-- Project、Asset、Outbox 模块
-- 项目创建、素材预签名、完成复核与列表 API
-- 苹果风三栏工作台
-- 顶部四段流程进度条
-- 左侧项目列表与项目切换
-- 创建后编辑商品名称和补充说明
-- ProjectUpdated 事件与最近编辑排序
-- Pipeline 状态机和四段进度同步
-- RQ 异步识别任务
-- Mock 商品候选和人工确认
-- 图片本地校验、MinIO 直传、进度和失败重试
-- 最近项目恢复
+- Project、Asset、Outbox、Recognition、Image Edit、Matting、Main Image 模块
+- 项目创建、素材预签名、复核、列表和项目切换
+- Mock 商品识别与人工确认
+- 主图处理 Pipeline：图像编辑 → 智能去背 → Pillow 标准化 → 人工确认
+- 2000 × 2000 透明 PNG 与 1000 × 1000 白底 JPG
+- PNG/JPG 预览、重新生成和确认
+- 苹果风三栏工作台、四段流程进度和最近项目恢复
 
-默认启用 Mock Provider，不调用任何付费 AI 接口。
+默认启用 Mock Provider，不调用任何付费 AI 接口。真实 Qwen Image Edit 和 Photoroom Adapter 已预留，必须显式关闭 Mock 并配置 API Key 后才会启用。
 
 ## 启动
 
@@ -65,11 +56,14 @@ npm run build
 填写商品名称
 → 创建项目
 → 上传并复核素材
-→ 素材 ready
 → 开始识别
 → RQ Worker 执行 Mock 识别
 → 用户确认候选商品
-→ Pipeline 进入 recognition_confirmed
+→ 生成主图
+→ 图像编辑、去背、标准化
+→ 预览 PNG / JPG
+→ 用户确认主图
+→ Pipeline 进入 main_image_confirmed
 ```
 
 ## 架构与方案

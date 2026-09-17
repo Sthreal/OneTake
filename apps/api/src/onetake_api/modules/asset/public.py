@@ -48,5 +48,8 @@ class AssetPublicService:
             storage=storage,
         )
 
+    def get_asset(self, session: Session, *, asset_id: str) -> Asset | None:
+        return self._service.get_asset(session, asset_id=asset_id)
+
     def list_assets(self, session: Session, *, project_id: str) -> list[Asset]:
         return self._service.list_assets(session, ListAssetsQuery(project_id=project_id))

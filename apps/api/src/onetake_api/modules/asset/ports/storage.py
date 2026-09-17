@@ -14,6 +14,12 @@ class PresignedPut:
 
 
 @dataclass(frozen=True)
+class PresignedGet:
+    url: str
+    expires_at: datetime
+
+
+@dataclass(frozen=True)
 class ObjectInfo:
     size: int
     content_type: str | None
@@ -29,6 +35,21 @@ class AssetStoragePort(Protocol):
         expires_seconds: int,
     ) -> PresignedPut: ...
 
+    def create_get_url(
+        self,
+        *,
+        object_key: str,
+        expires_seconds: int,
+    ) -> PresignedGet: ...
+
     def stat_object(self, *, object_key: str) -> ObjectInfo | None: ...
 
     def read_object(self, *, object_key: str) -> Iterator[bytes]: ...
+
+    def put_bytes(
+        self,
+        *,
+        object_key: str,
+        content: bytes,
+        mime_type: str,
+    ) -> ObjectInfo: ...

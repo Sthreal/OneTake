@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 
 import { FlowProgress } from "./FlowProgress";
 import { ProjectRail } from "./ProjectRail";
+import { MainImagePanel } from "../main-image/MainImagePanel";
+import { useMainImage } from "../main-image/useMainImage";
 import { RecognitionPanel } from "../recognition/RecognitionPanel";
 import { useRecognition } from "../recognition/useRecognition";
 import { MAX_ASSETS_PER_PROJECT } from "./validation";
@@ -33,6 +35,7 @@ export function InputWorkspace() {
   } = useProjectWorkspace();
   const uploads = useAssetUploads(project?.project_id ?? null);
   const recognition = useRecognition(project?.project_id ?? null);
+  const mainImage = useMainImage(project?.project_id ?? null);
   const [productName, setProductName] = useState("");
   const [productNote, setProductNote] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
@@ -139,7 +142,7 @@ export function InputWorkspace() {
         </div>
       </header>
 
-      <FlowProgress currentStep={recognition.pipeline?.current_step ?? 1} />
+      <FlowProgress currentStep={mainImage.pipeline?.current_step ?? recognition.pipeline?.current_step ?? 1} />
 
       <div className="workspace">
         <ProjectRail
@@ -278,6 +281,18 @@ export function InputWorkspace() {
                 onConfirm={(assetId, candidateId) => void recognition.confirm(assetId, candidateId)}
               />
 
+              {recognition.recognition.run?.status === "confirmed" || mainImage.state.version ? (
+                <MainImagePanel
+                  state={mainImage.state}
+                  canStart={recognition.recognition.run?.status === "confirmed"}
+                  isStarting={mainImage.isStarting}
+                  isConfirming={mainImage.isConfirming}
+                  error={mainImage.error}
+                  onStart={() => void mainImage.start()}
+                  onConfirm={() => void mainImage.confirm()}
+                />
+              ) : null}
+
               <section className="surface-card asset-section">
                 <div className="section-heading">
                   <div>
@@ -333,7 +348,7 @@ export function InputWorkspace() {
 
           <section className="inspector-card soft-card">
             <strong>当前边界</strong>
-            <p>本阶段只验证素材输入和 MinIO 直传。识别、主图和视频生成将在后续切片接入。</p>
+            <p>当前已完成素材输入、商品识别和主图处理；文案与视频生成将在后续切片接入。</p>
           </section>
         </aside>
       </div>

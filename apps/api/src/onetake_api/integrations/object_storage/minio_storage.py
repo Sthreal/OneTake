@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
+from io import BytesIO
 
 from minio import Minio
 from minio.error import S3Error
 
-from onetake_api.modules.asset.ports.storage import ObjectInfo, PresignedPut
+from onetake_api.modules.asset.ports.storage import ObjectInfo, PresignedGet, PresignedPut
 
 
 class MinioAssetStorage:
@@ -39,6 +40,17 @@ class MinioAssetStorage:
             headers={"Content-Type": mime_type},
         )
 
+    def create_get_url(self, *, object_key: str, expires_seconds: int) -> PresignedGet:
+        url = self._public_client.presigned_get_object(
+            self._bucket,
+            object_key,
+            expires=timedelta(seconds=expires_seconds),
+        )
+        return PresignedGet(
+            url=url,
+            expires_at=datetime.now(UTC) + timedelta(seconds=expires_seconds),
+        )
+
     def stat_object(self, *, object_key: str) -> ObjectInfo | None:
         try:
             result = self._internal_client.stat_object(self._bucket, object_key)
@@ -63,3 +75,14 @@ class MinioAssetStorage:
         finally:
             response.close()
             response.release_conn()
+
+    def put_bytes(self, *, object_key: str, content: bytes, mime_type: str) -> ObjectInfo:
+        stream = BytesIO(content)
+        result = self._internal_client.put_object(
+            self._bucket,
+            object_key,
+            stream,
+            length=len(content),
+            content_type=mime_type,
+        )
+        return ObjectInfo(size=len(content), content_type=mime_type, etag=result.etag)

@@ -10,6 +10,7 @@ from sqlalchemy import text
 from onetake_api.config import get_settings
 from onetake_api.modules.asset.api import router as asset_router
 from onetake_api.modules.job.api import router as job_router
+from onetake_api.modules.main_image.api import router as main_image_router
 from onetake_api.modules.pipeline.api import router as pipeline_router
 from onetake_api.modules.project.api import router as project_router
 from onetake_api.modules.recognition.api import router as recognition_router
@@ -21,7 +22,7 @@ configure_logging()
 settings = get_settings()
 app = FastAPI(
     title="One Take API",
-    version="0.3.0",
+    version="0.4.0",
     description="One Take 商品 AI 视频生成 MVP API",
 )
 
@@ -38,6 +39,7 @@ app.include_router(project_router)
 app.include_router(asset_router)
 app.include_router(pipeline_router)
 app.include_router(recognition_router)
+app.include_router(main_image_router)
 app.include_router(job_router)
 
 
@@ -90,7 +92,7 @@ def health() -> JSONResponse:
         status_code=200 if is_ready else 503,
         content={
             "status": "ok" if is_ready else "degraded",
-            "stage": "m1-recognition",
+            "stage": "m1-main-image",
             "mock_providers": settings.mock_providers,
             "services": services,
         },
@@ -101,14 +103,14 @@ def health() -> JSONResponse:
 def info() -> dict[str, object]:
     return {
         "name": "One Take",
-        "version": "0.3.0",
-        "stage": "m1-recognition-baseline",
+        "version": "0.4.0",
+        "stage": "m1-main-image-baseline",
         "architecture": "modular-monolith",
         "orchestration": "pipeline",
         "providers": {
             "recognition": "mock",
-            "image_edit": "mock",
-            "matting": "mock",
+            "image_edit": "mock" if settings.mock_providers else settings.image_edit_model,
+            "matting": "mock" if settings.mock_providers else "photoroom",
             "tts": "mock",
             "avatar_video": "mock",
             "product_video": "mock",

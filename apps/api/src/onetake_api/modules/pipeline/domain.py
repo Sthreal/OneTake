@@ -5,6 +5,11 @@ STATUS_ASSETS_READY = "assets_ready"
 STATUS_RECOGNIZING = "recognizing"
 STATUS_RECOGNITION_READY = "recognition_ready"
 STATUS_RECOGNITION_CONFIRMED = "recognition_confirmed"
+STATUS_MAIN_IMAGE_QUEUED = "main_image_queued"
+STATUS_IMAGE_EDITING = "image_editing"
+STATUS_MATTING = "matting"
+STATUS_MAIN_IMAGE_READY = "main_image_ready"
+STATUS_MAIN_IMAGE_CONFIRMED = "main_image_confirmed"
 STATUS_FAILED = "failed"
 
 

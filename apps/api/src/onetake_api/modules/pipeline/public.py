@@ -5,8 +5,17 @@ from dataclasses import replace
 from sqlalchemy.orm import Session
 
 from onetake_api.modules.pipeline.domain import (
-    STATUS_ASSETS_READY, STATUS_FAILED, STATUS_RECOGNITION_CONFIRMED,
-    STATUS_RECOGNITION_READY, STATUS_RECOGNIZING, PipelineRun,
+    STATUS_ASSETS_READY,
+    STATUS_FAILED,
+    STATUS_IMAGE_EDITING,
+    STATUS_MAIN_IMAGE_CONFIRMED,
+    STATUS_MAIN_IMAGE_QUEUED,
+    STATUS_MAIN_IMAGE_READY,
+    STATUS_MATTING,
+    STATUS_RECOGNITION_CONFIRMED,
+    STATUS_RECOGNITION_READY,
+    STATUS_RECOGNIZING,
+    PipelineRun,
 )
 from onetake_api.modules.pipeline.repository import PipelineRepository
 from onetake_api.platform.clock import SystemClock
@@ -30,7 +39,13 @@ class PipelinePublicService:
 
     def _transition(self, session: Session, project_id: str, status: str, step: int) -> PipelineRun:
         current = self.get_or_create(session, project_id)
-        updated = replace(current, status=status, current_step=step, state_version=current.state_version + 1, updated_at=self._clock.now())
+        updated = replace(
+            current,
+            status=status,
+            current_step=step,
+            state_version=current.state_version + 1,
+            updated_at=self._clock.now(),
+        )
         self._repository.update(session, updated)
         session.flush()
         return updated
@@ -49,3 +64,21 @@ class PipelinePublicService:
 
     def mark_failed(self, session: Session, project_id: str) -> PipelineRun:
         return self._transition(session, project_id, STATUS_FAILED, 2)
+
+    def mark_main_image_failed(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_FAILED, 3)
+
+    def mark_main_image_queued(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_MAIN_IMAGE_QUEUED, 3)
+
+    def mark_image_editing(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_IMAGE_EDITING, 3)
+
+    def mark_matting(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_MATTING, 3)
+
+    def mark_main_image_ready(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_MAIN_IMAGE_READY, 3)
+
+    def mark_main_image_confirmed(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_MAIN_IMAGE_CONFIRMED, 3)

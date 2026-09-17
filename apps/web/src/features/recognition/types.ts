@@ -1,4 +1,14 @@
-export type PipelineStatus = "assets_ready" | "recognizing" | "recognition_ready" | "recognition_confirmed" | "failed";
+export type PipelineStatus =
+  | "assets_ready"
+  | "recognizing"
+  | "recognition_ready"
+  | "recognition_confirmed"
+  | "main_image_queued"
+  | "image_editing"
+  | "matting"
+  | "main_image_ready"
+  | "main_image_confirmed"
+  | "failed";
 
 export interface PipelineState {
   pipeline_run_id: string;

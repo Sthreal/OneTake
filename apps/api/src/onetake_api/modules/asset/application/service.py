@@ -233,6 +233,9 @@ class AssetApplicationService:
             raise AssetDuplicateError("该图片已存在于当前项目") from exc
         return completed
 
+    def get_asset(self, session: Session, *, asset_id: str) -> Asset | None:
+        return self._repository.get(session, asset_id)
+
     def list_assets(self, session: Session, query: ListAssetsQuery) -> list[Asset]:
         self._projects.get_project(session, project_id=query.project_id)
         return self._repository.list_by_project(session, query.project_id)

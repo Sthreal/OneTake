@@ -30,6 +30,11 @@ vi.mock("../../shared/api/recognitionApi", () => ({
   requestRecognition: vi.fn().mockResolvedValue({ run: null, candidates: [] }),
   confirmRecognition: vi.fn().mockResolvedValue({ run: null, candidates: [] }),
 }));
+vi.mock("../../shared/api/mainImageApi", () => ({
+  getMainImage: vi.fn().mockResolvedValue({ version: null }),
+  requestMainImage: vi.fn().mockResolvedValue({ version: null }),
+  confirmMainImage: vi.fn().mockResolvedValue({ version: null }),
+}));
 vi.mock("../../shared/api/assetApi", () => ({
   listAssets: vi.fn(),
   presignAsset: vi.fn(),
