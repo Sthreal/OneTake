@@ -3,7 +3,9 @@ import { useEffect, useState } from "react";
 import { FlowProgress } from "./FlowProgress";
 import { ProjectRail } from "./ProjectRail";
 import { MainImagePanel } from "../main-image/MainImagePanel";
+import { ScriptPanel } from "../script/ScriptPanel";
 import { useMainImage } from "../main-image/useMainImage";
+import { useScript } from "../script/useScript";
 import { RecognitionPanel } from "../recognition/RecognitionPanel";
 import { useRecognition } from "../recognition/useRecognition";
 import { MAX_ASSETS_PER_PROJECT } from "./validation";
@@ -36,6 +38,7 @@ export function InputWorkspace() {
   const uploads = useAssetUploads(project?.project_id ?? null);
   const recognition = useRecognition(project?.project_id ?? null);
   const mainImage = useMainImage(project?.project_id ?? null);
+  const script = useScript(project?.project_id ?? null);
   const [productName, setProductName] = useState("");
   const [productNote, setProductNote] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
@@ -142,7 +145,7 @@ export function InputWorkspace() {
         </div>
       </header>
 
-      <FlowProgress currentStep={mainImage.pipeline?.current_step ?? recognition.pipeline?.current_step ?? 1} />
+      <FlowProgress currentStep={script.pipeline?.current_step ?? mainImage.pipeline?.current_step ?? recognition.pipeline?.current_step ?? 1} />
 
       <div className="workspace">
         <ProjectRail
@@ -293,6 +296,20 @@ export function InputWorkspace() {
                 />
               ) : null}
 
+              {mainImage.state.version?.status === "confirmed" || script.state.version ? (
+                <ScriptPanel
+                  state={script.state}
+                  canStart={mainImage.state.version?.status === "confirmed"}
+                  isStarting={script.isStarting}
+                  isSaving={script.isSaving}
+                  isConfirming={script.isConfirming}
+                  error={script.error}
+                  onStart={(input) => void script.start(input)}
+                  onSave={(input) => void script.save(input)}
+                  onConfirm={() => void script.confirm()}
+                />
+              ) : null}
+
               <section className="surface-card asset-section">
                 <div className="section-heading">
                   <div>
@@ -348,7 +365,7 @@ export function InputWorkspace() {
 
           <section className="inspector-card soft-card">
             <strong>当前边界</strong>
-            <p>当前已完成素材输入、商品识别和主图处理；文案与视频生成将在后续切片接入。</p>
+            <p>当前已完成素材输入、商品识别、主图和文案；语音与视频生成将在后续切片接入。</p>
           </section>
         </aside>
       </div>

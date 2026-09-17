@@ -15,6 +15,10 @@ from onetake_api.modules.pipeline.domain import (
     STATUS_RECOGNITION_CONFIRMED,
     STATUS_RECOGNITION_READY,
     STATUS_RECOGNIZING,
+    STATUS_SCRIPT_CONFIRMED,
+    STATUS_SCRIPT_GENERATING,
+    STATUS_SCRIPT_QUEUED,
+    STATUS_SCRIPT_READY,
     PipelineRun,
 )
 from onetake_api.modules.pipeline.repository import PipelineRepository
@@ -82,3 +86,18 @@ class PipelinePublicService:
 
     def mark_main_image_confirmed(self, session: Session, project_id: str) -> PipelineRun:
         return self._transition(session, project_id, STATUS_MAIN_IMAGE_CONFIRMED, 3)
+
+    def mark_script_queued(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_SCRIPT_QUEUED, 3)
+
+    def mark_script_generating(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_SCRIPT_GENERATING, 3)
+
+    def mark_script_ready(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_SCRIPT_READY, 3)
+
+    def mark_script_confirmed(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_SCRIPT_CONFIRMED, 4)
+
+    def mark_script_failed(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_FAILED, 3)

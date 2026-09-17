@@ -8,6 +8,10 @@ export type PipelineStatus =
   | "matting"
   | "main_image_ready"
   | "main_image_confirmed"
+  | "script_queued"
+  | "script_generating"
+  | "script_ready"
+  | "script_confirmed"
   | "failed";
 
 export interface PipelineState {

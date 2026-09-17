@@ -13,6 +13,7 @@ from onetake_api.modules.matting.repository import MattingRunModel  # noqa: F401
 from onetake_api.modules.pipeline.repository import PipelineRunModel  # noqa: F401
 from onetake_api.modules.project.adapters.sqlalchemy_repository import ProjectModel  # noqa: F401
 from onetake_api.modules.recognition.repository import CandidateModel, RecognitionRunModel  # noqa: F401
+from onetake_api.modules.script.repository import ScriptVersionModel  # noqa: F401
 from onetake_api.platform.database import Base
 
 config = context.config

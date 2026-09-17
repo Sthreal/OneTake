@@ -10,6 +10,10 @@ STATUS_IMAGE_EDITING = "image_editing"
 STATUS_MATTING = "matting"
 STATUS_MAIN_IMAGE_READY = "main_image_ready"
 STATUS_MAIN_IMAGE_CONFIRMED = "main_image_confirmed"
+STATUS_SCRIPT_QUEUED = "script_queued"
+STATUS_SCRIPT_GENERATING = "script_generating"
+STATUS_SCRIPT_READY = "script_ready"
+STATUS_SCRIPT_CONFIRMED = "script_confirmed"
 STATUS_FAILED = "failed"
 
 
