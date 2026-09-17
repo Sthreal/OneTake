@@ -1,0 +1,1 @@
+"""Shared technical primitives. Business concepts must not live here."""

@@ -1,0 +1,10 @@
+from typing import Protocol
+
+from sqlalchemy.orm import Session
+
+from onetake_api.modules.project.domain.model import Project
+
+
+class ProjectRepository(Protocol):
+    def add(self, session: Session, project: Project) -> None: ...
+    def get(self, session: Session, project_id: str) -> Project | None: ...
