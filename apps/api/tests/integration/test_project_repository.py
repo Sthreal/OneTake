@@ -18,3 +18,11 @@ def test_create_and_get_project(db_session: Session) -> None:
     assert loaded.product_note == "白色杯身"
     assert loaded.status == "draft"
     assert created.id.startswith("prj_")
+
+def test_list_projects_returns_newest_first(db_session: Session) -> None:
+    service = ProjectPublicService()
+    first = service.create_project(db_session, product_name="项目一", product_note=None)
+    second = service.create_project(db_session, product_name="项目二", product_note=None)
+
+    items = service.list_projects(db_session, limit=2)
+    assert [item.id for item in items] == [second.id, first.id]

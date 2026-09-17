@@ -68,3 +68,19 @@ def test_project_created_event_exists(client, db_session: Session) -> None:
     assert event.event_name == "ProjectCreated"
     assert event.event_version == 1
     assert event.status == "pending"
+
+def test_list_projects_api(client) -> None:
+    first = client.post("/api/v1/projects", json={"product_name": "项目一"}).json()["data"]
+    second = client.post("/api/v1/projects", json={"product_name": "项目二"}).json()["data"]
+
+    response = client.get("/api/v1/projects?limit=2")
+    assert response.status_code == 200
+    assert [item["project_id"] for item in response.json()["data"]] == [
+        second["project_id"],
+        first["project_id"],
+    ]
+
+
+def test_project_list_limit_validation(client) -> None:
+    assert client.get("/api/v1/projects?limit=0").status_code == 422
+    assert client.get("/api/v1/projects?limit=51").status_code == 422

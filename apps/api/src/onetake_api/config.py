@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     minio_root_password: str = "onetake_dev_password"
     minio_bucket: str = "onetake-media"
     minio_secure: bool = False
+    minio_region: str = "us-east-1"
     mock_providers: bool = True
     project_ttl_hours: int = 24
 

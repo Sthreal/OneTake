@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel, StringConstraints
 from sqlalchemy.orm import Session
 from typing_extensions import Annotated
 
 from onetake_api.config import get_settings
+from onetake_api.modules.project.domain.model import Project
 from onetake_api.modules.project.public import ProjectPublicService
 from onetake_api.platform.database import get_session
 from onetake_api.platform.request_context import get_request_id
@@ -37,6 +38,22 @@ class ProjectResponse(BaseModel):
     request_id: str
 
 
+class ProjectListResponse(BaseModel):
+    data: list[ProjectData]
+    request_id: str
+
+
+def _project_data(project: Project) -> ProjectData:
+    return ProjectData(
+        project_id=project.id,
+        product_name=project.product_name,
+        product_note=project.product_note,
+        status=project.status,
+        created_at=project.created_at,
+        updated_at=project.updated_at,
+    )
+
+
 @router.post("", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 def create_project(
     payload: ProjectCreateRequest,
@@ -48,15 +65,17 @@ def create_project(
         product_name=payload.product_name,
         product_note=payload.product_note,
     )
-    return ProjectResponse(
-        data=ProjectData(
-            project_id=project.id,
-            product_name=project.product_name,
-            product_note=project.product_note,
-            status=project.status,
-            created_at=project.created_at,
-            updated_at=project.updated_at,
-        ),
+    return ProjectResponse(data=_project_data(project), request_id=get_request_id())
+
+
+@router.get("", response_model=ProjectListResponse)
+def list_projects(
+    limit: int = Query(default=20, ge=1, le=50),
+    session: Session = Depends(get_session),
+) -> ProjectListResponse:
+    projects = ProjectPublicService().list_projects(session, limit=limit)
+    return ProjectListResponse(
+        data=[_project_data(project) for project in projects],
         request_id=get_request_id(),
     )
 
@@ -71,14 +90,4 @@ def get_project(
         session,
         project_id=project_id,
     )
-    return ProjectResponse(
-        data=ProjectData(
-            project_id=project.id,
-            product_name=project.product_name,
-            product_note=project.product_note,
-            status=project.status,
-            created_at=project.created_at,
-            updated_at=project.updated_at,
-        ),
-        request_id=get_request_id(),
-    )
+    return ProjectResponse(data=_project_data(project), request_id=get_request_id())

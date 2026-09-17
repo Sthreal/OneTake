@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from onetake_api.modules.outbox.public import OutboxPublicService
 from onetake_api.modules.project.adapters.sqlalchemy_repository import SqlAlchemyProjectRepository
 from onetake_api.modules.project.application.commands import CreateProjectCommand
-from onetake_api.modules.project.application.queries import GetProjectQuery
+from onetake_api.modules.project.application.queries import GetProjectQuery, ListProjectsQuery
 from onetake_api.modules.project.domain.errors import ProjectNotFoundError
 from onetake_api.modules.project.domain.model import Project, create_project_entity
 from onetake_api.platform.clock import SystemClock
@@ -50,3 +50,6 @@ class ProjectApplicationService:
         if project is None:
             raise ProjectNotFoundError("项目不存在")
         return project
+
+    def list_projects(self, session: Session, query: ListProjectsQuery) -> list[Project]:
+        return self._repository.list_projects(session, query.limit)

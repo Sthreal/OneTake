@@ -91,6 +91,7 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-onetake_dev_password}
       MINIO_BUCKET: ${MINIO_BUCKET:-onetake-media}
       MINIO_SECURE: ${MINIO_SECURE:-false}
+      MINIO_REGION: ${MINIO_REGION:-us-east-1}
       MOCK_PROVIDERS: ${MOCK_PROVIDERS:-true}
       PROJECT_TTL_HOURS: ${PROJECT_TTL_HOURS:-24}
     ports:
