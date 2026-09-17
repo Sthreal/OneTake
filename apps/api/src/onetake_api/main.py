@@ -9,7 +9,10 @@ from sqlalchemy import text
 
 from onetake_api.config import get_settings
 from onetake_api.modules.asset.api import router as asset_router
+from onetake_api.modules.job.api import router as job_router
+from onetake_api.modules.pipeline.api import router as pipeline_router
 from onetake_api.modules.project.api import router as project_router
+from onetake_api.modules.recognition.api import router as recognition_router
 from onetake_api.platform.database import engine
 from onetake_api.platform.errors import register_error_handlers
 from onetake_api.platform.logging import configure_logging, register_request_logging
@@ -33,6 +36,9 @@ app.add_middleware(
 register_error_handlers(app)
 app.include_router(project_router)
 app.include_router(asset_router)
+app.include_router(pipeline_router)
+app.include_router(recognition_router)
+app.include_router(job_router)
 
 
 def check_postgres() -> tuple[bool, str]:
@@ -84,7 +90,7 @@ def health() -> JSONResponse:
         status_code=200 if is_ready else 503,
         content={
             "status": "ok" if is_ready else "degraded",
-            "stage": "m1",
+            "stage": "m1-recognition",
             "mock_providers": settings.mock_providers,
             "services": services,
         },
@@ -96,7 +102,7 @@ def info() -> dict[str, object]:
     return {
         "name": "One Take",
         "version": "0.3.0",
-        "stage": "m1-asset-baseline",
+        "stage": "m1-recognition-baseline",
         "architecture": "modular-monolith",
         "orchestration": "pipeline",
         "providers": {

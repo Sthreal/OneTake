@@ -443,3 +443,26 @@ button:disabled { cursor: not-allowed; }
 @media (max-width: 640px) {
   .project-edit-grid { grid-template-columns: 1fr; }
 }
+
+
+.recognition-status { padding: 6px 9px; border-radius: 9px; color: var(--soft); background: rgba(118,118,128,.09); font-size: 9px; font-weight: 750; }
+.recognition-status.is-ready { color: #8a5a00; background: rgba(255,159,10,.12); }
+.recognition-status.is-confirmed { color: #16823b; background: rgba(52,199,89,.12); }
+.recognition-status.is-failed { color: #b42318; background: rgba(255,59,48,.1); }
+.recognition-empty, .recognition-working, .recognition-success, .recognition-error { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 15px; border: 1px solid var(--line-soft); border-radius: 13px; background: rgba(255,255,255,.56); }
+.recognition-empty p, .recognition-working p, .recognition-success p, .recognition-error p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.recognition-working { justify-content: flex-start; }
+.recognition-working .spinner { margin: 0; }
+.recognition-success span { display: grid; width: 28px; height: 28px; flex: 0 0 auto; place-items: center; border-radius: 50%; color: white; background: var(--green); font-weight: 800; }
+.recognition-success strong, .recognition-error strong { display: block; font-size: 12px; }
+.recognition-error { align-items: flex-start; flex-direction: column; background: rgba(255,59,48,.055); }
+.candidate-list { display: grid; gap: 10px; }
+.candidate-card { display: grid; grid-template-columns: 20px 28px minmax(0,1fr); gap: 10px; align-items: center; padding: 12px; border: 1px solid var(--line-soft); border-radius: 13px; background: rgba(255,255,255,.62); cursor: pointer; }
+.candidate-card.is-selected { border-color: rgba(0,122,255,.45); box-shadow: 0 0 0 3px rgba(0,122,255,.08); }
+.candidate-card input { accent-color: var(--blue); }
+.candidate-index { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 9px; color: var(--blue); background: rgba(0,122,255,.09); font-size: 11px; font-weight: 750; }
+.candidate-copy strong, .candidate-copy small { display: block; }
+.candidate-copy strong { font-size: 12px; }
+.candidate-copy small { margin-top: 3px; color: var(--soft); font-size: 9px; }
+.candidate-copy p { margin: 4px 0 0; color: var(--muted); font-size: 10px; }
+@media (max-width: 640px) { .recognition-empty { align-items: stretch; flex-direction: column; } }

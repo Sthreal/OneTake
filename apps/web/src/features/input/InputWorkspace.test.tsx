@@ -17,6 +17,19 @@ vi.mock("../../shared/api/projectApi", () => ({
   listProjects: vi.fn(),
   updateProject: vi.fn(),
 }));
+vi.mock("../../shared/api/recognitionApi", () => ({
+  getPipeline: vi.fn().mockResolvedValue({
+    pipeline_run_id: "run_test",
+    project_id: "prj_created",
+    status: "assets_ready",
+    current_step: 1,
+    state_version: 1,
+    updated_at: "2026-09-17T00:00:00Z",
+  }),
+  getRecognition: vi.fn().mockResolvedValue({ run: null, candidates: [] }),
+  requestRecognition: vi.fn().mockResolvedValue({ run: null, candidates: [] }),
+  confirmRecognition: vi.fn().mockResolvedValue({ run: null, candidates: [] }),
+}));
 vi.mock("../../shared/api/assetApi", () => ({
   listAssets: vi.fn(),
   presignAsset: vi.fn(),

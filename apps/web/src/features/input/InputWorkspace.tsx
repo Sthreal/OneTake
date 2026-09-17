@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 
 import { FlowProgress } from "./FlowProgress";
 import { ProjectRail } from "./ProjectRail";
+import { RecognitionPanel } from "../recognition/RecognitionPanel";
+import { useRecognition } from "../recognition/useRecognition";
 import { MAX_ASSETS_PER_PROJECT } from "./validation";
 import { UploadAssetCard } from "./UploadAssetCard";
 import { UploadDropzone } from "./UploadDropzone";
@@ -30,6 +32,7 @@ export function InputWorkspace() {
     startNewProject,
   } = useProjectWorkspace();
   const uploads = useAssetUploads(project?.project_id ?? null);
+  const recognition = useRecognition(project?.project_id ?? null);
   const [productName, setProductName] = useState("");
   const [productNote, setProductNote] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
@@ -136,7 +139,7 @@ export function InputWorkspace() {
         </div>
       </header>
 
-      <FlowProgress currentStep={1} />
+      <FlowProgress currentStep={recognition.pipeline?.current_step ?? 1} />
 
       <div className="workspace">
         <ProjectRail
@@ -264,6 +267,16 @@ export function InputWorkspace() {
                   </button>
                 </div>
               </section>
+
+              <RecognitionPanel
+                state={recognition.recognition}
+                readyAssetCount={uploads.readyCount}
+                isStarting={recognition.isStarting}
+                isConfirming={recognition.isConfirming}
+                error={recognition.error}
+                onStart={() => void recognition.start()}
+                onConfirm={(assetId, candidateId) => void recognition.confirm(assetId, candidateId)}
+              />
 
               <section className="surface-card asset-section">
                 <div className="section-heading">

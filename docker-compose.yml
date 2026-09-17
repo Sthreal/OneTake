@@ -118,12 +118,13 @@ services:
 
   worker:
     build:
-      context: ./apps/worker
+      context: ./apps/api
     environment:
       APP_ENV: development
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://onetake:onetake_dev_password@postgres:5432/onetake}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       MOCK_PROVIDERS: ${MOCK_PROVIDERS:-true}
+      MOCK_RECOGNITION_MODE: ${MOCK_RECOGNITION_MODE:-success}
     depends_on:
       postgres:
         condition: service_healthy
@@ -131,9 +132,9 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    command: python -m onetake_worker.main
+    command: rq worker recognition --url redis://redis:6379/0
     volumes:
-      - ./apps/worker/src:/app/src
+      - ./apps/api/src:/app/src
 
   web:
     build:

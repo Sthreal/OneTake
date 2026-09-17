@@ -21,7 +21,7 @@ def db_session() -> Generator[Session, None, None]:
     engine = create_engine(get_settings().database_url, pool_pre_ping=True)
     connection = engine.connect()
     transaction = connection.begin()
-    session = Session(bind=connection, expire_on_commit=False)
+    session = Session(bind=connection, expire_on_commit=False, join_transaction_mode="create_savepoint")
     try:
         yield session
     finally:

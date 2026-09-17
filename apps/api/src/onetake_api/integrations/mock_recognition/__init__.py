@@ -1,0 +1,1 @@
+"""Mock recognition integration."""

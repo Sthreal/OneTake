@@ -37,6 +37,7 @@ from onetake_api.modules.asset.domain.model import (
     validate_image_metadata,
 )
 from onetake_api.modules.outbox.public import OutboxPublicService
+from onetake_api.modules.pipeline.public import PipelinePublicService
 from onetake_api.modules.project.public import ProjectPublicService
 from onetake_api.platform.clock import SystemClock
 from onetake_api.platform.ids import new_id
@@ -208,6 +209,7 @@ class AssetApplicationService:
             completed_at=now,
         )
         self._repository.update(session, completed)
+        PipelinePublicService().mark_assets_ready(session, project_id)
         OutboxPublicService().enqueue(
             session,
             event_name="AssetRegistered",

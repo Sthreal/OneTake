@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     minio_secure: bool = False
     minio_region: str = "us-east-1"
     mock_providers: bool = True
+    mock_recognition_mode: str = "success"
     project_ttl_hours: int = 24
 
     model_config = SettingsConfigDict(
