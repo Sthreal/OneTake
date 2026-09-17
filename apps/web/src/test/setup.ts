@@ -15,3 +15,7 @@ Object.defineProperty(URL, "revokeObjectURL", {
   writable: true,
   value: vi.fn(),
 });
+Object.defineProperty(navigator, "clipboard", {
+  configurable: true,
+  value: { writeText: vi.fn().mockResolvedValue(undefined) },
+});

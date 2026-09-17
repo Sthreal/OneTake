@@ -32,13 +32,26 @@ export function InputWorkspace() {
   const [productName, setProductName] = useState("");
   const [productNote, setProductNote] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  const [copiedProjectId, setCopiedProjectId] = useState(false);
 
   useEffect(() => {
     if (project) {
       setProductName(project.product_name);
       setProductNote(project.product_note ?? "");
     }
+    setCopiedProjectId(false);
   }, [project]);
+
+  async function copyProjectId() {
+    if (!project) return;
+    try {
+      await navigator.clipboard.writeText(project.project_id);
+      setCopiedProjectId(true);
+      window.setTimeout(() => setCopiedProjectId(false), 1500);
+    } catch {
+      setCopiedProjectId(false);
+    }
+  }
 
   async function handleCreateProject(event: React.FormEvent) {
     event.preventDefault();
@@ -149,9 +162,26 @@ export function InputWorkspace() {
                 <div className="section-heading">
                   <div>
                     <h2>商品信息</h2>
-                    <p>{project.project_id}</p>
+                    <p>当前项目的商品名称、补充说明和项目标识。</p>
                   </div>
                   <span className="saved-indicator">已保存</span>
+                </div>
+                <div className="project-info-grid">
+                  <div className="project-info-item project-info-primary">
+                    <span>商品名称</span>
+                    <strong>{project.product_name}</strong>
+                  </div>
+                  <div className="project-info-item">
+                    <span>补充说明</span>
+                    <p>{project.product_note || "暂无"}</p>
+                  </div>
+                  <div className="project-id-row">
+                    <span>项目 ID</span>
+                    <code>{project.project_id}</code>
+                    <button className="copy-button" type="button" onClick={() => void copyProjectId()}>
+                      {copiedProjectId ? "已复制" : "复制"}
+                    </button>
+                  </div>
                 </div>
               </section>
 

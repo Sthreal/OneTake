@@ -80,7 +80,14 @@ describe("InputWorkspace", () => {
       });
     });
     expect(await screen.findByText("商品图片")).toBeInTheDocument();
+    expect(screen.getByText("商品名称")).toBeInTheDocument();
     expect(screen.getAllByText("榨汁杯").length).toBeGreaterThan(0);
+    expect(screen.getByText("白色杯身")).toBeInTheDocument();
+    expect(screen.getAllByText("prj_created").length).toBeGreaterThan(0);
+
+    await userEvent.click(screen.getByRole("button", { name: "复制" }));
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("prj_created");
+    expect(await screen.findByText("已复制")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: /新建项目/ }));
     expect(screen.getByText("创建新的商品项目")).toBeInTheDocument();
