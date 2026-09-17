@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -16,6 +17,12 @@ class Settings(BaseSettings):
     minio_region: str = "us-east-1"
     mock_providers: bool = True
     mock_recognition_mode: str = "success"
+    recognition_provider: Literal["mock", "real"] = "mock"
+    image_edit_provider: Literal["mock", "real"] = "mock"
+    matting_provider: Literal["mock", "real"] = "mock"
+    script_provider: Literal["mock", "real"] = "mock"
+    recognition_model: str = "qwen-vl-plus"
+    recognition_endpoint: str = "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
     dashscope_api_key: str = ""
     image_edit_model: str = "qwen-image-edit-plus"
     image_edit_endpoint: str = "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"

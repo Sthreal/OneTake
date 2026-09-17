@@ -32,7 +32,7 @@ class MattingProviderError(DomainError):
 
 def _adapter():
     settings = get_settings()
-    if settings.mock_providers:
+    if settings.mock_providers or settings.matting_provider == "mock":
         return MockMattingAdapter()
     return PhotoroomMattingAdapter(
         api_key=settings.photoroom_api_key,

@@ -57,7 +57,7 @@ class ScriptView:
 
 def _adapter():
     settings = get_settings()
-    if settings.mock_providers:
+    if settings.mock_providers or settings.script_provider == "mock":
         return MockScriptAdapter()
     return QwenVlScriptAdapter(
         api_key=settings.dashscope_api_key,

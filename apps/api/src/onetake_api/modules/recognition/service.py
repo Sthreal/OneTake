@@ -1,24 +1,39 @@
 from __future__ import annotations
 
 import hashlib
+import logging
+import time
 from dataclasses import replace
 
 from sqlalchemy.orm import Session
 
-from onetake_api.integrations.mock_recognition.adapter import MockRecognitionAdapter, MockRecognitionError
+from onetake_api.config import get_settings
+from onetake_api.integrations.mock_recognition.adapter import MockRecognitionAdapter
+from onetake_api.integrations.object_storage.dependencies import get_object_storage
+from onetake_api.integrations.object_storage.public import ObjectStoragePublicService
+from onetake_api.integrations.qwen_recognition.adapter import QwenRecognitionAdapter
 from onetake_api.modules.asset.public import AssetPublicService
 from onetake_api.modules.job.public import JobPublicService
 from onetake_api.modules.outbox.public import OutboxPublicService
 from onetake_api.modules.pipeline.public import PipelinePublicService
 from onetake_api.modules.project.public import ProjectPublicService
 from onetake_api.modules.recognition.domain import (
-    RUN_CONFIRMED, RUN_FAILED, RUN_QUEUED, RUN_READY, RUN_RUNNING, RecognitionCandidate, RecognitionRun,
+    RUN_CONFIRMED,
+    RUN_FAILED,
+    RUN_QUEUED,
+    RUN_READY,
+    RUN_RUNNING,
+    RecognitionCandidate,
+    RecognitionRun,
 )
+from onetake_api.modules.recognition.port import RecognitionImage
 from onetake_api.modules.recognition.repository import RecognitionRepository
 from onetake_api.platform.clock import SystemClock
 from onetake_api.platform.errors import DomainError
 from onetake_api.platform.ids import new_id
 from onetake_api.platform.queue import get_queue
+
+logger = logging.getLogger(__name__)
 
 
 class RecognitionNotFoundError(DomainError):
@@ -29,6 +44,7 @@ class RecognitionNotFoundError(DomainError):
 class RecognitionConflictError(DomainError):
     code = "RECOGNITION_CONFLICT"
     http_status = 409
+    retryable = True
 
 
 class RecognitionValidationError(DomainError):
@@ -36,8 +52,26 @@ class RecognitionValidationError(DomainError):
     http_status = 422
 
 
+class RecognitionProviderConfigurationError(DomainError):
+    code = "RECOGNITION_PROVIDER_NOT_CONFIGURED"
+    http_status = 422
+
+
+def _adapter():
+    settings = get_settings()
+    if settings.mock_providers or settings.recognition_provider == "mock":
+        return MockRecognitionAdapter()
+    if not settings.dashscope_api_key:
+        raise RecognitionProviderConfigurationError("真实识别缺少 DASHSCOPE_API_KEY")
+    return QwenRecognitionAdapter(
+        api_key=settings.dashscope_api_key,
+        endpoint=settings.recognition_endpoint,
+        model=settings.recognition_model,
+    )
+
+
 class RecognitionService:
-    def __init__(self) -> None:
+    def __init__(self, storage: ObjectStoragePublicService | None = None) -> None:
         self._repository = RecognitionRepository()
         self._projects = ProjectPublicService()
         self._assets = AssetPublicService()
@@ -45,9 +79,14 @@ class RecognitionService:
         self._pipeline = PipelinePublicService()
         self._outbox = OutboxPublicService()
         self._clock = SystemClock()
+        self._storage = storage
+
+    @property
+    def storage(self) -> ObjectStoragePublicService:
+        return self._storage or get_object_storage()
 
     def request(self, session: Session, project_id: str) -> RecognitionRun:
-        self._projects.get_project(session, project_id=project_id)
+        project = self._projects.get_project(session, project_id=project_id)
         assets = [asset for asset in self._assets.list_assets(session, project_id=project_id) if asset.status == "ready"]
         if not assets:
             raise RecognitionValidationError("至少需要一张已完成上传的素材")
@@ -56,15 +95,36 @@ class RecognitionService:
             run = self._repository.get_run(session, active.reference_id)
             if run:
                 return run
-        input_hash = hashlib.sha256("|".join(f"{asset.id}:{asset.sha256 or ''}" for asset in assets).encode()).hexdigest()
+
+        adapter = _adapter()
+        input_hash = hashlib.sha256(
+            "|".join(
+                [adapter.provider_name, project.product_name, project.product_note or ""]
+                + [f"{asset.id}:{asset.sha256 or ''}" for asset in assets]
+            ).encode()
+        ).hexdigest()
         now = self._clock.now()
         pipeline = self._pipeline.mark_recognizing(session, project_id)
         run = RecognitionRun(new_id("rec"), project_id, RUN_QUEUED, input_hash, None, None, None, now, now, None)
         self._repository.add_run(session, run)
-        job = self._jobs.create(session, project_id=project_id, pipeline_run_id=pipeline.id, reference_id=run.id, job_type="recognition", provider="mock", input_hash=input_hash, idempotency_key=f"recognition:{project_id}:{input_hash}")
+        job = self._jobs.create(
+            session,
+            project_id=project_id,
+            pipeline_run_id=pipeline.id,
+            reference_id=run.id,
+            job_type="recognition",
+            provider=adapter.provider_name,
+            input_hash=input_hash,
+            idempotency_key=f"recognition:{project_id}:{input_hash}",
+        )
         session.commit()
         try:
-            get_queue("recognition").enqueue("onetake_api.modules.recognition.worker_tasks.run_recognition_job", job.id, job_id=job.id, job_timeout=120)
+            get_queue("recognition").enqueue(
+                "onetake_api.modules.recognition.worker_tasks.run_recognition_job",
+                job.id,
+                job_id=job.id,
+                job_timeout=180,
+            )
         except Exception as exc:
             job = self._jobs.mark_failed(session, job, "QUEUE_UNAVAILABLE")
             run = replace(run, status=RUN_FAILED, error_code="QUEUE_UNAVAILABLE", updated_at=self._clock.now(), completed_at=self._clock.now())
@@ -99,8 +159,8 @@ class RecognitionService:
 
     def process_job(self, session: Session, job_id: str) -> RecognitionRun:
         job = self._jobs.get(session, job_id)
-        if not job or job.status not in {"queued", "running"}:
-            raise RecognitionNotFoundError("识别任务不存在")
+        if not job or job.job_type != "recognition" or job.status not in {"queued", "running"}:
+            raise RecognitionNotFoundError("识别任务不存在或不可执行")
         run = self._repository.get_run(session, job.reference_id)
         if not run:
             raise RecognitionNotFoundError("识别运行不存在")
@@ -108,9 +168,27 @@ class RecognitionService:
         run = replace(run, status=RUN_RUNNING, updated_at=self._clock.now())
         self._repository.update_run(session, run)
         session.commit()
+
+        project = self._projects.get_project(session, project_id=job.project_id)
         assets = [asset for asset in self._assets.list_assets(session, project_id=job.project_id) if asset.status == "ready"]
+        started_at = time.perf_counter()
         try:
-            drafts = MockRecognitionAdapter().recognize(assets)
+            adapter = _adapter()
+            images = [
+                RecognitionImage(
+                    asset_id=asset.id,
+                    original_filename=asset.original_filename,
+                    mime_type=asset.mime_type,
+                    sha256=asset.sha256,
+                    content=b"".join(self.storage.read_object(object_key=asset.object_key)) if adapter.requires_images else None,
+                )
+                for asset in assets
+            ]
+            drafts = adapter.recognize(
+                project_name=project.product_name,
+                product_note=project.product_note,
+                images=images,
+            )
             now = self._clock.now()
             candidates = [RecognitionCandidate(new_id("cand"), run.id, draft.asset_id, draft.label, draft.confidence, draft.reason, now) for draft in drafts]
             self._repository.add_candidates(session, candidates)
@@ -119,7 +197,15 @@ class RecognitionService:
             self._pipeline.mark_recognition_ready(session, job.project_id)
             self._outbox.enqueue(session, event_name="RecognitionCompleted", aggregate_type="recognition", aggregate_id=run.id, occurred_at=now, payload={"project_id": job.project_id, "run_id": run.id, "candidate_count": len(candidates)})
             job = self._jobs.mark_succeeded(session, job)
-        except MockRecognitionError as exc:
+            logger.info(
+                "recognition provider completed",
+                extra={"project_id": job.project_id, "provider": adapter.provider_name, "duration_ms": round((time.perf_counter() - started_at) * 1000)},
+            )
+        except DomainError as exc:
+            logger.warning(
+                "recognition provider failed",
+                extra={"project_id": job.project_id, "provider": job.provider, "error_code": exc.code, "duration_ms": round((time.perf_counter() - started_at) * 1000)},
+            )
             now = self._clock.now()
             run = replace(run, status=RUN_FAILED, error_code=exc.code, updated_at=now, completed_at=now)
             self._repository.update_run(session, run)

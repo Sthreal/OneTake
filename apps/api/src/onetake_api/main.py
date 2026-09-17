@@ -13,6 +13,8 @@ from onetake_api.modules.job.api import router as job_router
 from onetake_api.modules.main_image.api import router as main_image_router
 from onetake_api.modules.pipeline.api import router as pipeline_router
 from onetake_api.modules.project.api import router as project_router
+from onetake_api.modules.provider.api import router as provider_router
+from onetake_api.modules.provider.service import get_provider_statuses
 from onetake_api.modules.recognition.api import router as recognition_router
 from onetake_api.modules.script.api import router as script_router
 from onetake_api.platform.database import engine
@@ -23,7 +25,7 @@ configure_logging()
 settings = get_settings()
 app = FastAPI(
     title="One Take API",
-    version="0.5.0",
+    version="0.6.0",
     description="One Take 商品 AI 视频生成 MVP API",
 )
 
@@ -37,6 +39,7 @@ app.add_middleware(
 )
 register_error_handlers(app)
 app.include_router(project_router)
+app.include_router(provider_router)
 app.include_router(asset_router)
 app.include_router(pipeline_router)
 app.include_router(recognition_router)
@@ -94,7 +97,7 @@ def health() -> JSONResponse:
         status_code=200 if is_ready else 503,
         content={
             "status": "ok" if is_ready else "degraded",
-            "stage": "m1-script",
+            "stage": "m1-provider-recognition",
             "mock_providers": settings.mock_providers,
             "services": services,
         },
@@ -105,15 +108,12 @@ def health() -> JSONResponse:
 def info() -> dict[str, object]:
     return {
         "name": "One Take",
-        "version": "0.5.0",
-        "stage": "m1-script-baseline",
+        "version": "0.6.0",
+        "stage": "m1-provider-recognition",
         "architecture": "modular-monolith",
         "orchestration": "pipeline",
         "providers": {
-            "recognition": "mock",
-            "image_edit": "mock" if settings.mock_providers else settings.image_edit_model,
-            "matting": "mock" if settings.mock_providers else "photoroom",
-            "script": "mock" if settings.mock_providers else settings.script_model,
+            **{item.capability: item.effective_provider for item in get_provider_statuses()},
             "tts": "mock",
             "avatar_video": "mock",
             "product_video": "mock",

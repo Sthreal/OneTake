@@ -93,6 +93,12 @@ services:
       MINIO_SECURE: ${MINIO_SECURE:-false}
       MINIO_REGION: ${MINIO_REGION:-us-east-1}
       MOCK_PROVIDERS: ${MOCK_PROVIDERS:-true}
+      RECOGNITION_PROVIDER: ${RECOGNITION_PROVIDER:-mock}
+      IMAGE_EDIT_PROVIDER: ${IMAGE_EDIT_PROVIDER:-mock}
+      MATTING_PROVIDER: ${MATTING_PROVIDER:-mock}
+      SCRIPT_PROVIDER: ${SCRIPT_PROVIDER:-mock}
+      RECOGNITION_MODEL: ${RECOGNITION_MODEL:-qwen-vl-plus}
+      RECOGNITION_ENDPOINT: ${RECOGNITION_ENDPOINT:-https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation}
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
       IMAGE_EDIT_MODEL: ${IMAGE_EDIT_MODEL:-qwen-image-edit-plus}
       IMAGE_EDIT_ENDPOINT: ${IMAGE_EDIT_ENDPOINT:-https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation}
@@ -138,6 +144,12 @@ services:
       MINIO_SECURE: ${MINIO_SECURE:-false}
       MINIO_REGION: ${MINIO_REGION:-us-east-1}
       MOCK_PROVIDERS: ${MOCK_PROVIDERS:-true}
+      RECOGNITION_PROVIDER: ${RECOGNITION_PROVIDER:-mock}
+      IMAGE_EDIT_PROVIDER: ${IMAGE_EDIT_PROVIDER:-mock}
+      MATTING_PROVIDER: ${MATTING_PROVIDER:-mock}
+      SCRIPT_PROVIDER: ${SCRIPT_PROVIDER:-mock}
+      RECOGNITION_MODEL: ${RECOGNITION_MODEL:-qwen-vl-plus}
+      RECOGNITION_ENDPOINT: ${RECOGNITION_ENDPOINT:-https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation}
       MOCK_RECOGNITION_MODE: ${MOCK_RECOGNITION_MODE:-success}
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
       IMAGE_EDIT_MODEL: ${IMAGE_EDIT_MODEL:-qwen-image-edit-plus}

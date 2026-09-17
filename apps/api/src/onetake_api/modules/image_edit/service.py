@@ -38,7 +38,7 @@ class ImageEditProviderError(DomainError):
 
 def _adapter():
     settings = get_settings()
-    if settings.mock_providers:
+    if settings.mock_providers or settings.image_edit_provider == "mock":
         return MockImageEditAdapter()
     return QwenImageEditAdapter(
         api_key=settings.dashscope_api_key,
