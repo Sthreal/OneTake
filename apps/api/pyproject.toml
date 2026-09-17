@@ -16,6 +16,7 @@ dependencies = [
   "psycopg[binary]>=3.2,<4",
   "redis>=5.2,<6",
   "minio>=7.2,<8",
+  "Pillow>=11,<13",
   "httpx>=0.28,<1",
   "pytest>=8.3,<9",
 ]

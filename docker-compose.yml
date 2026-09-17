@@ -36,6 +36,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-onetake}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-onetake_dev_password}
+      MINIO_API_CORS_ALLOW_ORIGIN: http://localhost:5173
     ports:
       - "9000:9000"
       - "9001:9001"

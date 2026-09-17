@@ -8,6 +8,7 @@ from redis import Redis
 from sqlalchemy import text
 
 from onetake_api.config import get_settings
+from onetake_api.modules.asset.api import router as asset_router
 from onetake_api.modules.project.api import router as project_router
 from onetake_api.platform.database import engine
 from onetake_api.platform.errors import register_error_handlers
@@ -17,7 +18,7 @@ configure_logging()
 settings = get_settings()
 app = FastAPI(
     title="One Take API",
-    version="0.2.0",
+    version="0.3.0",
     description="One Take 商品 AI 视频生成 MVP API",
 )
 
@@ -31,6 +32,7 @@ app.add_middleware(
 )
 register_error_handlers(app)
 app.include_router(project_router)
+app.include_router(asset_router)
 
 
 def check_postgres() -> tuple[bool, str]:
@@ -93,8 +95,8 @@ def health() -> JSONResponse:
 def info() -> dict[str, object]:
     return {
         "name": "One Take",
-        "version": "0.2.0",
-        "stage": "m1-project-baseline",
+        "version": "0.3.0",
+        "stage": "m1-asset-baseline",
         "architecture": "modular-monolith",
         "orchestration": "pipeline",
         "providers": {

@@ -4,7 +4,7 @@ One Take 商品 AI 视频生成 MVP 的工程仓库。
 
 ## 当前阶段
 
-当前为 **M1-01：项目创建与 ProjectCreated 事件基线**。
+当前为 **M1-02：素材注册与 MinIO 直传基线**。
 
 已具备：
 
@@ -15,9 +15,9 @@ One Take 商品 AI 视频生成 MVP 的工程仓库。
 - Redis
 - MinIO
 - Alembic 数据库迁移
-- Project 模块
-- Outbox 模块
+- Project、Asset、Outbox 模块
 - 项目创建与查询 API
+- 图片预签名直传、完成复核与列表 API
 - 请求 ID 和基础日志
 
 默认启用 Mock Provider，不调用任何付费 AI 接口。
@@ -29,7 +29,7 @@ Copy-Item .env.example .env
 docker compose up -d --build
 ```
 
-首次启动时，`migrate` 服务会自动执行：
+`migrate` 服务会自动执行：
 
 ```text
 alembic upgrade head
@@ -46,16 +46,21 @@ alembic upgrade head
 ```text
 POST /api/v1/projects
 GET  /api/v1/projects/{project_id}
+
+POST /api/v1/projects/{project_id}/assets/presign
+POST /api/v1/projects/{project_id}/assets/{asset_id}/complete
+GET  /api/v1/projects/{project_id}/assets
 ```
 
-创建项目：
+## 图片上传流程
 
-```powershell
-Invoke-RestMethod `
-  -Uri http://localhost:8000/api/v1/projects `
-  -Method Post `
-  -ContentType application/json `
-  -Body '{"product_name":"便携式榨汁杯","product_note":"白色杯身"}'
+```text
+申请预签名 URL
+→ 浏览器 PUT 图片到 MinIO
+→ 调用 complete
+→ 服务端复核大小、SHA-256、格式和尺寸
+→ Asset 状态变为 ready
+→ 写入 AssetRegistered Outbox 事件
 ```
 
 ## 测试

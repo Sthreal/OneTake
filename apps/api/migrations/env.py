@@ -4,6 +4,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from onetake_api.config import get_settings
+from onetake_api.modules.asset.adapters.sqlalchemy_repository import AssetModel  # noqa: F401
 from onetake_api.modules.outbox.adapters.sqlalchemy_repository import OutboxEventModel  # noqa: F401
 from onetake_api.modules.project.adapters.sqlalchemy_repository import ProjectModel  # noqa: F401
 from onetake_api.platform.database import Base
