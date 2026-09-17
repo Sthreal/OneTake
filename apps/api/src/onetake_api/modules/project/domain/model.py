@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 
 from onetake_api.modules.project.domain.errors import ProjectValidationError
@@ -53,4 +53,29 @@ def create_project_entity(
         created_at=now,
         updated_at=now,
         expires_at=expires_at,
+    )
+
+def update_project_entity(
+    *,
+    project: Project,
+    product_name: str | None,
+    product_note: str | None,
+    update_product_note: bool,
+    now: datetime,
+) -> Project:
+    next_product_name = (
+        normalize_product_name(product_name)
+        if product_name is not None
+        else project.product_name
+    )
+    next_product_note = (
+        normalize_product_note(product_note)
+        if update_product_note
+        else project.product_note
+    )
+    return replace(
+        project,
+        product_name=next_product_name,
+        product_note=next_product_note,
+        updated_at=now,
     )

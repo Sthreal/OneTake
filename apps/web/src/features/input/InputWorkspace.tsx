@@ -25,6 +25,7 @@ export function InputWorkspace() {
     isCreating,
     error,
     createProject,
+    updateProject,
     selectProject,
     startNewProject,
   } = useProjectWorkspace();
@@ -33,13 +34,22 @@ export function InputWorkspace() {
   const [productNote, setProductNote] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [copiedProjectId, setCopiedProjectId] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftProductName, setDraftProductName] = useState("");
+  const [draftProductNote, setDraftProductNote] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     if (project) {
       setProductName(project.product_name);
       setProductNote(project.product_note ?? "");
+      setDraftProductName(project.product_name);
+      setDraftProductNote(project.product_note ?? "");
     }
     setCopiedProjectId(false);
+    setIsEditing(false);
+    setSaveError(null);
   }, [project]);
 
   async function copyProjectId() {
@@ -50,6 +60,40 @@ export function InputWorkspace() {
       window.setTimeout(() => setCopiedProjectId(false), 1500);
     } catch {
       setCopiedProjectId(false);
+    }
+  }
+
+  function startEditing() {
+    if (!project) return;
+    setDraftProductName(project.product_name);
+    setDraftProductNote(project.product_note ?? "");
+    setSaveError(null);
+    setIsEditing(true);
+  }
+
+  function cancelEditing() {
+    if (!project) return;
+    setDraftProductName(project.product_name);
+    setDraftProductNote(project.product_note ?? "");
+    setSaveError(null);
+    setIsEditing(false);
+  }
+
+  async function saveProjectInfo() {
+    if (!project) return;
+    if (!draftProductName.trim()) {
+      setSaveError("商品名称不能为空");
+      return;
+    }
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await updateProject(project.project_id, draftProductName, draftProductNote);
+      setIsEditing(false);
+    } catch (requestError) {
+      setSaveError(requestError instanceof Error ? requestError.message : "保存失败");
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -104,19 +148,6 @@ export function InputWorkspace() {
         />
 
         <main className="main-content">
-          <div className="page-heading">
-            <div>
-              <span className="eyebrow">INPUT WORKSPACE</span>
-              <h1>{project ? "准备商品素材" : "创建新的商品项目"}</h1>
-              <p>
-                {project
-                  ? "上传 1–5 张同一商品的清晰图片，系统会完成文件复核并保存到 MinIO。"
-                  : "填写商品名称并创建项目，之后可以随时从左侧项目列表切换回来。"}
-              </p>
-            </div>
-            <span className="phase-chip">第 1 步 / 共 4 步</span>
-          </div>
-
           {!project ? (
             <section className="surface-card project-card">
               <div className="section-heading">
@@ -162,27 +193,50 @@ export function InputWorkspace() {
                 <div className="section-heading">
                   <div>
                     <h2>商品信息</h2>
-                    <p>当前项目的商品名称、补充说明和项目标识。</p>
+                    <p>{isEditing ? "编辑后点击保存，项目列表会同步更新。" : "当前项目的商品名称、补充说明和项目标识。"}</p>
                   </div>
-                  <span className="saved-indicator">已保存</span>
+                  {isEditing ? (
+                    <span className="inline-actions compact-actions">
+                      <button className="button button-secondary" type="button" onClick={cancelEditing} disabled={isSaving}>取消</button>
+                      <button className="button button-primary" type="button" onClick={() => void saveProjectInfo()} disabled={isSaving}>
+                        {isSaving ? "保存中…" : "保存"}
+                      </button>
+                    </span>
+                  ) : (
+                    <button className="button button-secondary" type="button" onClick={startEditing}>编辑</button>
+                  )}
                 </div>
-                <div className="project-info-grid">
-                  <div className="project-info-item project-info-primary">
-                    <span>商品名称</span>
-                    <strong>{project.product_name}</strong>
+                {isEditing ? (
+                  <div className="project-edit-grid">
+                    <label className="field compact-field">
+                      <span>商品名称 <em>必填</em></span>
+                      <input value={draftProductName} onChange={(event) => setDraftProductName(event.target.value)} maxLength={80} />
+                    </label>
+                    <label className="field compact-field">
+                      <span>补充说明 <small>可选</small></span>
+                      <textarea value={draftProductNote} onChange={(event) => setDraftProductNote(event.target.value)} maxLength={240} rows={3} />
+                    </label>
+                    {saveError ? <div className="inline-error">{saveError}</div> : null}
                   </div>
-                  <div className="project-info-item">
-                    <span>补充说明</span>
-                    <p>{project.product_note || "暂无"}</p>
+                ) : (
+                  <div className="project-info-grid">
+                    <div className="project-info-item project-info-primary">
+                      <span>商品名称</span>
+                      <strong>{project.product_name}</strong>
+                    </div>
+                    <div className="project-info-item">
+                      <span>补充说明</span>
+                      <p>{project.product_note || "暂无"}</p>
+                    </div>
+                    <div className="project-id-row">
+                      <span>项目 ID</span>
+                      <code>{project.project_id}</code>
+                      <button className="copy-button" type="button" onClick={() => void copyProjectId()}>
+                        {copiedProjectId ? "已复制" : "复制"}
+                      </button>
+                    </div>
                   </div>
-                  <div className="project-id-row">
-                    <span>项目 ID</span>
-                    <code>{project.project_id}</code>
-                    <button className="copy-button" type="button" onClick={() => void copyProjectId()}>
-                      {copiedProjectId ? "已复制" : "复制"}
-                    </button>
-                  </div>
-                </div>
+                )}
               </section>
 
               <section className="surface-card upload-section">

@@ -26,3 +26,18 @@ def test_list_projects_returns_newest_first(db_session: Session) -> None:
 
     items = service.list_projects(db_session, limit=2)
     assert [item.id for item in items] == [second.id, first.id]
+
+
+def test_update_project_and_write_event(db_session: Session) -> None:
+    service = ProjectPublicService()
+    project = service.create_project(db_session, product_name="旧名称", product_note="旧说明")
+    updated = service.update_project(
+        db_session,
+        project_id=project.id,
+        product_name="新名称",
+        product_note="新说明",
+        update_product_note=True,
+    )
+    assert updated.product_name == "新名称"
+    assert updated.product_note == "新说明"
+    assert updated.updated_at >= project.updated_at

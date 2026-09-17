@@ -52,8 +52,16 @@ class SqlAlchemyProjectRepository:
         model = session.get(ProjectModel, project_id)
         return _to_domain(model) if model else None
 
+    def update(self, session: Session, project: Project) -> None:
+        model = session.get(ProjectModel, project.id)
+        if model is None:
+            return
+        model.product_name = project.product_name
+        model.product_note = project.product_note
+        model.updated_at = project.updated_at
+
     def list_projects(self, session: Session, limit: int) -> list[Project]:
         models = session.scalars(
-            select(ProjectModel).order_by(ProjectModel.created_at.desc()).limit(limit)
+            select(ProjectModel).order_by(ProjectModel.updated_at.desc()).limit(limit)
         ).all()
         return [_to_domain(model) for model in models]

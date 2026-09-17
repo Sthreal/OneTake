@@ -84,3 +84,42 @@ def test_list_projects_api(client) -> None:
 def test_project_list_limit_validation(client) -> None:
     assert client.get("/api/v1/projects?limit=0").status_code == 422
     assert client.get("/api/v1/projects?limit=51").status_code == 422
+
+
+def test_update_project_api(client) -> None:
+    created = client.post(
+        "/api/v1/projects",
+        json={"product_name": "旧名称", "product_note": "旧说明"},
+    ).json()["data"]
+
+    response = client.patch(
+        f"/api/v1/projects/{created['project_id']}",
+        json={"product_name": "新名称", "product_note": "新说明"},
+    )
+    assert response.status_code == 200
+    assert response.json()["data"]["product_name"] == "新名称"
+    assert response.json()["data"]["product_note"] == "新说明"
+
+
+def test_update_project_rejects_empty_name(client) -> None:
+    created = client.post("/api/v1/projects", json={"product_name": "项目"}).json()["data"]
+    response = client.patch(
+        f"/api/v1/projects/{created['project_id']}",
+        json={"product_name": "   "},
+    )
+    assert response.status_code == 422
+
+
+def test_update_project_writes_event(client, db_session: Session) -> None:
+    created = client.post("/api/v1/projects", json={"product_name": "事件更新项目"}).json()["data"]
+    client.patch(
+        f"/api/v1/projects/{created['project_id']}",
+        json={"product_note": "更新说明"},
+    )
+    event = db_session.scalar(
+        select(OutboxEventModel)
+        .where(OutboxEventModel.aggregate_id == created["project_id"])
+        .where(OutboxEventModel.event_name == "ProjectUpdated")
+    )
+    assert event is not None
+    assert event.status == "pending"

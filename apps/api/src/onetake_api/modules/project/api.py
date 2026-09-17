@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from typing_extensions import Annotated
 
 from onetake_api.config import get_settings
+from onetake_api.modules.project.domain.errors import ProjectValidationError
 from onetake_api.modules.project.domain.model import Project
 from onetake_api.modules.project.public import ProjectPublicService
 from onetake_api.platform.database import get_session
@@ -21,6 +22,11 @@ ProductNote = Annotated[str, StringConstraints(strip_whitespace=True, max_length
 
 class ProjectCreateRequest(BaseModel):
     product_name: ProductName
+    product_note: ProductNote | None = None
+
+
+class ProjectUpdateRequest(BaseModel):
+    product_name: ProductName | None = None
     product_note: ProductNote | None = None
 
 
@@ -64,6 +70,26 @@ def create_project(
         session,
         product_name=payload.product_name,
         product_note=payload.product_note,
+    )
+    return ProjectResponse(data=_project_data(project), request_id=get_request_id())
+
+
+@router.patch("/{project_id}", response_model=ProjectResponse)
+def update_project(
+    project_id: str,
+    payload: ProjectUpdateRequest,
+    session: Session = Depends(get_session),
+) -> ProjectResponse:
+    if not payload.model_fields_set:
+        raise ProjectValidationError("至少提供一个需要更新的字段")
+    if "product_name" in payload.model_fields_set and payload.product_name is None:
+        raise ProjectValidationError("商品名称不能为空")
+    project = ProjectPublicService().update_project(
+        session,
+        project_id=project_id,
+        product_name=payload.product_name,
+        product_note=payload.product_note,
+        update_product_note="product_note" in payload.model_fields_set,
     )
     return ProjectResponse(data=_project_data(project), request_id=get_request_id())
 

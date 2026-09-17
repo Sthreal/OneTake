@@ -6,10 +6,10 @@ from sqlalchemy.orm import Session
 
 from onetake_api.modules.outbox.public import OutboxPublicService
 from onetake_api.modules.project.adapters.sqlalchemy_repository import SqlAlchemyProjectRepository
-from onetake_api.modules.project.application.commands import CreateProjectCommand
+from onetake_api.modules.project.application.commands import CreateProjectCommand, UpdateProjectCommand
 from onetake_api.modules.project.application.queries import GetProjectQuery, ListProjectsQuery
 from onetake_api.modules.project.domain.errors import ProjectNotFoundError
-from onetake_api.modules.project.domain.model import Project, create_project_entity
+from onetake_api.modules.project.domain.model import Project, create_project_entity, update_project_entity
 from onetake_api.platform.clock import SystemClock
 from onetake_api.platform.ids import new_id
 
@@ -53,3 +53,32 @@ class ProjectApplicationService:
 
     def list_projects(self, session: Session, query: ListProjectsQuery) -> list[Project]:
         return self._repository.list_projects(session, query.limit)
+
+    def update_project(self, session: Session, command: UpdateProjectCommand) -> Project:
+        project = self._repository.get(session, command.project_id)
+        if project is None:
+            raise ProjectNotFoundError("项目不存在")
+        now = self._clock.now()
+        updated = update_project_entity(
+            project=project,
+            product_name=command.product_name,
+            product_note=command.product_note,
+            update_product_note=command.update_product_note,
+            now=now,
+        )
+        self._repository.update(session, updated)
+        OutboxPublicService().enqueue(
+            session,
+            event_name="ProjectUpdated",
+            aggregate_type="project",
+            aggregate_id=updated.id,
+            occurred_at=now,
+            payload={
+                "project_id": updated.id,
+                "product_name": updated.product_name,
+                "product_note": updated.product_note,
+                "updated_at": updated.updated_at.isoformat(),
+            },
+        )
+        session.flush()
+        return updated

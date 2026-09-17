@@ -4,6 +4,7 @@ import {
   createProject as createProjectRequest,
   getProject,
   listProjects,
+  updateProject as updateProjectRequest,
 } from "../../shared/api/projectApi";
 import type { Project } from "./types";
 
@@ -103,6 +104,30 @@ export function useProjectWorkspace() {
     }
   }, []);
 
+  const updateProject = useCallback(
+    async (projectId: string, productName: string, productNote: string) => {
+      setError(null);
+      try {
+        const updated = await updateProjectRequest(projectId, {
+          productName,
+          productNote: productNote.trim() || null,
+        });
+        setProject(updated);
+        setProjects((current) => [
+          updated,
+          ...current.filter((item) => item.project_id !== updated.project_id),
+        ]);
+        localStorage.setItem(PROJECT_STORAGE_KEY, updated.project_id);
+        return updated;
+      } catch (requestError) {
+        const message = requestError instanceof Error ? requestError.message : "更新项目失败";
+        setError(message);
+        throw requestError;
+      }
+    },
+    [],
+  );
+
   const startNewProject = useCallback(() => {
     localStorage.removeItem(PROJECT_STORAGE_KEY);
     setProject(null);
@@ -116,6 +141,7 @@ export function useProjectWorkspace() {
     isCreating,
     error,
     createProject,
+    updateProject,
     selectProject,
     startNewProject,
     refreshProjects,
