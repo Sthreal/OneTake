@@ -9,6 +9,7 @@ from sqlalchemy import text
 
 from onetake_api.config import get_settings
 from onetake_api.modules.asset.api import router as asset_router
+from onetake_api.modules.content_plan.api import router as content_plan_router
 from onetake_api.modules.audio_subtitle.api import router as audio_subtitle_router
 from onetake_api.modules.job.api import router as job_router
 from onetake_api.modules.main_image.api import router as main_image_router
@@ -46,6 +47,7 @@ register_error_handlers(app)
 app.include_router(project_router)
 app.include_router(provider_router)
 app.include_router(asset_router)
+app.include_router(content_plan_router)
 app.include_router(pipeline_router)
 app.include_router(recognition_router)
 app.include_router(main_image_router)

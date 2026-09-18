@@ -21,6 +21,10 @@ from onetake_api.modules.pipeline.domain import (
     STATUS_SCRIPT_READY,
     STATUS_VOICE_GENERATING,
     STATUS_AUDIO_SUBTITLE_CONFIRMED,
+    STATUS_CONTENT_PLAN_CONFIRMED,
+    STATUS_CONTENT_PLAN_READY,
+    STATUS_CONTENT_QA_FAILED,
+    STATUS_CONTENT_QA_PASSED,
     STATUS_COMPLETED,
     STATUS_RENDERING,
     STATUS_SUBTITLE_GENERATING,
@@ -158,3 +162,15 @@ class PipelinePublicService:
 
     def mark_video_failed(self, session: Session, project_id: str) -> PipelineRun:
         return self._transition(session, project_id, STATUS_FAILED, 4)
+
+    def mark_content_plan_ready(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_CONTENT_PLAN_READY, 4)
+
+    def mark_content_plan_confirmed(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_CONTENT_PLAN_CONFIRMED, 4)
+
+    def mark_content_qa_passed(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_CONTENT_QA_PASSED, 4)
+
+    def mark_content_qa_failed(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_CONTENT_QA_FAILED, 4)

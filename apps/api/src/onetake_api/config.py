@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     script_provider: Literal["mock", "real"] = "mock"
     voice_provider: Literal["mock", "real"] = "mock"
     composition_provider: Literal["mock", "shotstack"] = "mock"
+    creative_planner_provider: Literal["rules", "qwen"] = "rules"
     recognition_model: str = "qwen-vl-plus"
     recognition_endpoint: str = "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
     dashscope_api_key: str = ""
@@ -38,6 +39,8 @@ class Settings(BaseSettings):
     shotstack_api_base: str = "https://api.shotstack.io"
     shotstack_poll_interval_seconds: float = 2.0
     shotstack_poll_timeout_seconds: int = 600
+    creative_planner_model: str = "qwen-plus"
+    creative_planner_endpoint: str = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation"
     alibaba_cloud_access_key_id: str = ""
     alibaba_cloud_access_key_secret: str = ""
     alibaba_cloud_region_id: str = "cn-shanghai"

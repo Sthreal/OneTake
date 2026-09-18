@@ -110,6 +110,9 @@ services:
       VOICE_MODEL: ${VOICE_MODEL:-cosyvoice-v2}
       SCRIPT_ENDPOINT: ${SCRIPT_ENDPOINT:-https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation}
       COMPOSITION_PROVIDER: ${COMPOSITION_PROVIDER:-mock}
+      CREATIVE_PLANNER_PROVIDER: ${CREATIVE_PLANNER_PROVIDER:-rules}
+      CREATIVE_PLANNER_MODEL: ${CREATIVE_PLANNER_MODEL:-qwen-plus}
+      CREATIVE_PLANNER_ENDPOINT: ${CREATIVE_PLANNER_ENDPOINT:-https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation}
       SHOTSTACK_API_KEY: ${SHOTSTACK_API_KEY:-}
       SHOTSTACK_ENV: ${SHOTSTACK_ENV:-stage}
       SHOTSTACK_API_BASE: ${SHOTSTACK_API_BASE:-https://api.shotstack.io}
@@ -177,6 +180,9 @@ services:
       VOICE_MODEL: ${VOICE_MODEL:-cosyvoice-v2}
       SCRIPT_ENDPOINT: ${SCRIPT_ENDPOINT:-https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation}
       COMPOSITION_PROVIDER: ${COMPOSITION_PROVIDER:-mock}
+      CREATIVE_PLANNER_PROVIDER: ${CREATIVE_PLANNER_PROVIDER:-rules}
+      CREATIVE_PLANNER_MODEL: ${CREATIVE_PLANNER_MODEL:-qwen-plus}
+      CREATIVE_PLANNER_ENDPOINT: ${CREATIVE_PLANNER_ENDPOINT:-https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation}
       SHOTSTACK_API_KEY: ${SHOTSTACK_API_KEY:-}
       SHOTSTACK_ENV: ${SHOTSTACK_ENV:-stage}
       SHOTSTACK_API_BASE: ${SHOTSTACK_API_BASE:-https://api.shotstack.io}
