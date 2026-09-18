@@ -12,6 +12,9 @@ export type PipelineStatus =
   | "script_generating"
   | "script_ready"
   | "script_confirmed"
+  | "voice_queued"
+  | "voice_generating"
+  | "voice_ready"
   | "failed";
 
 export interface PipelineState {

@@ -526,3 +526,26 @@ button:disabled { cursor: not-allowed; }
 .script-meta { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
 .script-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 13px; }
 @media (max-width: 700px) { .script-facts-form, .script-edit-grid { grid-template-columns: 1fr; } .script-cta-field { grid-column: auto; } .script-form-actions { align-items: flex-start; flex-direction: column; } }
+
+
+.voice-status { padding: 6px 9px; border-radius: 9px; color: var(--soft); background: rgba(118,118,128,.09); font-size: 9px; font-weight: 750; white-space: nowrap; }
+.voice-status.is-ready { color: #16823b; background: rgba(52,199,89,.12); }
+.voice-status.is-failed { color: #b42318; background: rgba(255,59,48,.1); }
+.voice-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.voice-toggle { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid var(--line-soft); border-radius: 13px; background: rgba(255,255,255,.58); }
+.voice-toggle input { accent-color: var(--blue); }
+.voice-toggle strong, .voice-toggle small { display: block; }
+.voice-toggle strong { font-size: 12px; }
+.voice-toggle small { margin-top: 2px; color: var(--muted); font-size: 10px; }
+.voice-controls .field { margin: 0; }
+.voice-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
+.voice-working, .voice-result, .voice-skipped, .voice-error { display: flex; align-items: center; gap: 13px; padding: 14px; border: 1px solid var(--line-soft); border-radius: 13px; background: rgba(255,255,255,.58); }
+.voice-working .spinner { margin: 0; }
+.voice-working strong, .voice-result strong, .voice-skipped strong, .voice-error strong { display: block; font-size: 12px; }
+.voice-working p, .voice-skipped p, .voice-error p { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
+.voice-result { justify-content: space-between; }
+.voice-result > div span { display: block; margin-top: 3px; color: var(--soft); font-size: 10px; }
+.voice-result audio { width: min(100%, 420px); height: 36px; }
+.voice-skipped { display: block; }
+.voice-error { align-items: flex-start; flex-direction: column; background: rgba(255,59,48,.055); }
+@media (max-width: 760px) { .voice-controls { grid-template-columns: 1fr; } .voice-result { align-items: stretch; flex-direction: column; } }

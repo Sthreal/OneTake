@@ -30,6 +30,10 @@ vi.mock("../../shared/api/recognitionApi", () => ({
   requestRecognition: vi.fn().mockResolvedValue({ run: null, candidates: [] }),
   confirmRecognition: vi.fn().mockResolvedValue({ run: null, candidates: [] }),
 }));
+vi.mock("../../shared/api/voiceApi", () => ({
+  getVoice: vi.fn().mockResolvedValue({ run: null }),
+  requestVoice: vi.fn().mockResolvedValue({ run: null }),
+}));
 vi.mock("../../shared/api/scriptApi", () => ({
   getScript: vi.fn().mockResolvedValue({ version: null }),
   generateScript: vi.fn().mockResolvedValue({ version: null }),

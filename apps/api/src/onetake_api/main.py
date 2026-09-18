@@ -17,6 +17,7 @@ from onetake_api.modules.provider.api import router as provider_router
 from onetake_api.modules.provider.service import get_provider_statuses
 from onetake_api.modules.recognition.api import router as recognition_router
 from onetake_api.modules.script.api import router as script_router
+from onetake_api.modules.voice.api import router as voice_router
 from onetake_api.platform.database import engine
 from onetake_api.platform.errors import register_error_handlers
 from onetake_api.platform.logging import configure_logging, register_request_logging
@@ -25,7 +26,7 @@ configure_logging()
 settings = get_settings()
 app = FastAPI(
     title="One Take API",
-    version="0.6.0",
+    version="0.7.0",
     description="One Take 商品 AI 视频生成 MVP API",
 )
 
@@ -45,6 +46,7 @@ app.include_router(pipeline_router)
 app.include_router(recognition_router)
 app.include_router(main_image_router)
 app.include_router(script_router)
+app.include_router(voice_router)
 app.include_router(job_router)
 
 
@@ -97,7 +99,7 @@ def health() -> JSONResponse:
         status_code=200 if is_ready else 503,
         content={
             "status": "ok" if is_ready else "degraded",
-            "stage": "m1-provider-recognition",
+            "stage": "m1-voice",
             "mock_providers": settings.mock_providers,
             "services": services,
         },
@@ -108,8 +110,8 @@ def health() -> JSONResponse:
 def info() -> dict[str, object]:
     return {
         "name": "One Take",
-        "version": "0.6.0",
-        "stage": "m1-provider-recognition",
+        "version": "0.7.0",
+        "stage": "m1-voice",
         "architecture": "modular-monolith",
         "orchestration": "pipeline",
         "providers": {

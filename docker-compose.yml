@@ -100,12 +100,14 @@ services:
       IMAGE_EDIT_PROVIDER: ${IMAGE_EDIT_PROVIDER:-mock}
       MATTING_PROVIDER: ${MATTING_PROVIDER:-mock}
       SCRIPT_PROVIDER: ${SCRIPT_PROVIDER:-mock}
+      VOICE_PROVIDER: ${VOICE_PROVIDER:-mock}
       RECOGNITION_MODEL: ${RECOGNITION_MODEL:-qwen-vl-plus}
       RECOGNITION_ENDPOINT: ${RECOGNITION_ENDPOINT:-https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation}
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
       IMAGE_EDIT_MODEL: ${IMAGE_EDIT_MODEL:-qwen-image-edit-plus}
       IMAGE_EDIT_ENDPOINT: ${IMAGE_EDIT_ENDPOINT:-https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation}
       SCRIPT_MODEL: ${SCRIPT_MODEL:-qwen-vl-plus}
+      VOICE_MODEL: ${VOICE_MODEL:-cosyvoice-v2}
       SCRIPT_ENDPOINT: ${SCRIPT_ENDPOINT:-https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation}
       PHOTOROOM_API_KEY: ${PHOTOROOM_API_KEY:-}
       PHOTOROOM_ENDPOINT: ${PHOTOROOM_ENDPOINT:-https://sdk.photoroom.com/v1/segment}
@@ -158,6 +160,7 @@ services:
       IMAGE_EDIT_PROVIDER: ${IMAGE_EDIT_PROVIDER:-mock}
       MATTING_PROVIDER: ${MATTING_PROVIDER:-mock}
       SCRIPT_PROVIDER: ${SCRIPT_PROVIDER:-mock}
+      VOICE_PROVIDER: ${VOICE_PROVIDER:-mock}
       RECOGNITION_MODEL: ${RECOGNITION_MODEL:-qwen-vl-plus}
       RECOGNITION_ENDPOINT: ${RECOGNITION_ENDPOINT:-https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation}
       MOCK_RECOGNITION_MODE: ${MOCK_RECOGNITION_MODE:-success}
@@ -165,6 +168,7 @@ services:
       IMAGE_EDIT_MODEL: ${IMAGE_EDIT_MODEL:-qwen-image-edit-plus}
       IMAGE_EDIT_ENDPOINT: ${IMAGE_EDIT_ENDPOINT:-https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation}
       SCRIPT_MODEL: ${SCRIPT_MODEL:-qwen-vl-plus}
+      VOICE_MODEL: ${VOICE_MODEL:-cosyvoice-v2}
       SCRIPT_ENDPOINT: ${SCRIPT_ENDPOINT:-https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation}
       PHOTOROOM_API_KEY: ${PHOTOROOM_API_KEY:-}
       PHOTOROOM_ENDPOINT: ${PHOTOROOM_ENDPOINT:-https://sdk.photoroom.com/v1/segment}
@@ -179,7 +183,7 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    command: rq worker script image_edit matting main_image recognition --url redis://redis:6379/0
+    command: rq worker voice script image_edit matting main_image recognition --url redis://redis:6379/0
     volumes:
       - ./apps/api/src:/app/src
 

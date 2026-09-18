@@ -14,6 +14,9 @@ STATUS_SCRIPT_QUEUED = "script_queued"
 STATUS_SCRIPT_GENERATING = "script_generating"
 STATUS_SCRIPT_READY = "script_ready"
 STATUS_SCRIPT_CONFIRMED = "script_confirmed"
+STATUS_VOICE_QUEUED = "voice_queued"
+STATUS_VOICE_GENERATING = "voice_generating"
+STATUS_VOICE_READY = "voice_ready"
 STATUS_FAILED = "failed"
 
 

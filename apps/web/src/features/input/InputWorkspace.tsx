@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 
 import { FlowProgress } from "./FlowProgress";
 import { ProjectRail } from "./ProjectRail";
+import { VoicePanel } from "../audio-subtitle/VoicePanel";
+import { useVoice } from "../audio-subtitle/useVoice";
 import { MainImagePanel } from "../main-image/MainImagePanel";
 import { ScriptPanel } from "../script/ScriptPanel";
 import { useMainImage } from "../main-image/useMainImage";
@@ -39,6 +41,7 @@ export function InputWorkspace() {
   const recognition = useRecognition(project?.project_id ?? null);
   const mainImage = useMainImage(project?.project_id ?? null);
   const script = useScript(project?.project_id ?? null);
+  const voice = useVoice(project?.project_id ?? null);
   const [productName, setProductName] = useState("");
   const [productNote, setProductNote] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
@@ -145,7 +148,7 @@ export function InputWorkspace() {
         </div>
       </header>
 
-      <FlowProgress currentStep={script.pipeline?.current_step ?? mainImage.pipeline?.current_step ?? recognition.pipeline?.current_step ?? 1} />
+      <FlowProgress currentStep={voice.pipeline?.current_step ?? script.pipeline?.current_step ?? mainImage.pipeline?.current_step ?? recognition.pipeline?.current_step ?? 1} />
 
       <div className="workspace">
         <ProjectRail
@@ -307,6 +310,16 @@ export function InputWorkspace() {
                   onStart={(input) => void script.start(input)}
                   onSave={(input) => void script.save(input)}
                   onConfirm={() => void script.confirm()}
+                />
+              ) : null}
+
+              {script.state.version?.status === "confirmed" || voice.state.run ? (
+                <VoicePanel
+                  state={voice.state}
+                  canStart={script.state.version?.status === "confirmed"}
+                  isStarting={voice.isStarting}
+                  error={voice.error}
+                  onStart={(input) => void voice.start(input)}
                 />
               ) : null}
 

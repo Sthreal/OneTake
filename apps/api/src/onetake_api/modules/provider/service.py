@@ -22,6 +22,7 @@ _MOCK_NAMES = {
     "image_edit": "mock-qwen-image-edit-plus",
     "matting": "mock-photoroom",
     "script": "mock-qwen-vl-plus",
+    "voice": "mock-cosyvoice-v2",
 }
 _REAL_NAMES = {
     "recognition": "qwen-vl-plus",
@@ -29,6 +30,7 @@ _REAL_NAMES = {
     "matting": "photoroom",
     "matting_aliyun": "aliyun-imageseg-segmentcommodity",
     "script": "qwen-vl-plus",
+    "voice": "cosyvoice-v2",
 }
 
 
@@ -39,7 +41,7 @@ def _provider_name(settings: Settings, capability: str, mode: str) -> str:
 
 
 def _real_configured(settings: Settings, capability: str) -> bool:
-    if capability in {"recognition", "image_edit", "script"}:
+    if capability in {"recognition", "image_edit", "script", "voice"}:
         return bool(settings.dashscope_api_key)
     if capability == "matting":
         if settings.matting_provider == "aliyun":
@@ -51,7 +53,7 @@ def _real_configured(settings: Settings, capability: str) -> bool:
 def get_provider_statuses(settings: Settings | None = None) -> list[ProviderStatus]:
     settings = settings or get_settings()
     statuses: list[ProviderStatus] = []
-    for capability in ("recognition", "image_edit", "matting", "script"):
+    for capability in ("recognition", "image_edit", "matting", "script", "voice"):
         configured_mode = getattr(settings, f"{capability}_provider")
         configured = configured_mode == "mock" or _real_configured(settings, capability)
         if settings.mock_providers:

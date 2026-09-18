@@ -19,6 +19,9 @@ from onetake_api.modules.pipeline.domain import (
     STATUS_SCRIPT_GENERATING,
     STATUS_SCRIPT_QUEUED,
     STATUS_SCRIPT_READY,
+    STATUS_VOICE_GENERATING,
+    STATUS_VOICE_QUEUED,
+    STATUS_VOICE_READY,
     PipelineRun,
 )
 from onetake_api.modules.pipeline.repository import PipelineRepository
@@ -101,3 +104,15 @@ class PipelinePublicService:
 
     def mark_script_failed(self, session: Session, project_id: str) -> PipelineRun:
         return self._transition(session, project_id, STATUS_FAILED, 3)
+
+    def mark_voice_queued(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_VOICE_QUEUED, 4)
+
+    def mark_voice_generating(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_VOICE_GENERATING, 4)
+
+    def mark_voice_ready(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_VOICE_READY, 4)
+
+    def mark_voice_failed(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_FAILED, 4)
