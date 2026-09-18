@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 
 import { FlowProgress } from "./FlowProgress";
 import { ProjectRail } from "./ProjectRail";
+import { ContentPlanPanel } from "../content-plan/ContentPlanPanel";
+import { useContentPlan } from "../content-plan/useContentPlan";
 import { SubtitlePanel } from "../audio-subtitle/SubtitlePanel";
 import { useSubtitle } from "../audio-subtitle/useSubtitle";
 import { VoicePanel } from "../audio-subtitle/VoicePanel";
@@ -47,6 +49,7 @@ export function InputWorkspace() {
   const script = useScript(project?.project_id ?? null);
   const voice = useVoice(project?.project_id ?? null);
   const subtitle = useSubtitle(project?.project_id ?? null);
+  const contentPlan = useContentPlan(project?.project_id ?? null);
   const video = useVideo(project?.project_id ?? null);
   const [productName, setProductName] = useState("");
   const [productNote, setProductNote] = useState("");
@@ -154,7 +157,7 @@ export function InputWorkspace() {
         </div>
       </header>
 
-      <FlowProgress currentStep={video.pipeline?.current_step ?? subtitle.pipeline?.current_step ?? voice.pipeline?.current_step ?? script.pipeline?.current_step ?? mainImage.pipeline?.current_step ?? recognition.pipeline?.current_step ?? 1} />
+      <FlowProgress currentStep={contentPlan.plan?.status === "confirmed" || video.pipeline?.current_step ? (contentPlan.plan?.status === "confirmed" ? 4 : video.pipeline?.current_step ?? 4) : subtitle.pipeline?.current_step ?? voice.pipeline?.current_step ?? script.pipeline?.current_step ?? mainImage.pipeline?.current_step ?? recognition.pipeline?.current_step ?? 1} />
 
       <div className="workspace">
         <ProjectRail
@@ -338,6 +341,20 @@ export function InputWorkspace() {
                   error={subtitle.error}
                   onSave={(segments) => void subtitle.save(segments)}
                   onConfirm={() => void subtitle.confirm()}
+                />
+              ) : null}
+
+              {subtitle.state.version?.status === "confirmed" || contentPlan.plan ? (
+                <ContentPlanPanel
+                  plan={contentPlan.plan}
+                  canStart={subtitle.pipeline?.status === "audio_subtitle_confirmed" || subtitle.state.version?.status === "confirmed"}
+                  isGenerating={contentPlan.isGenerating}
+                  isSaving={contentPlan.isSaving}
+                  isConfirming={contentPlan.isConfirming}
+                  error={contentPlan.error}
+                  onGenerate={() => void contentPlan.generate()}
+                  onSave={(index, scenes) => void contentPlan.save(index, scenes)}
+                  onConfirm={() => void contentPlan.confirm()}
                 />
               ) : null}
 
