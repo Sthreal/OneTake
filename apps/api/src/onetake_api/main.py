@@ -12,6 +12,7 @@ from onetake_api.modules.asset.api import router as asset_router
 from onetake_api.modules.audio_subtitle.api import router as audio_subtitle_router
 from onetake_api.modules.job.api import router as job_router
 from onetake_api.modules.main_image.api import router as main_image_router
+from onetake_api.modules.output.api import router as output_router
 from onetake_api.modules.pipeline.api import router as pipeline_router
 from onetake_api.modules.project.api import router as project_router
 from onetake_api.modules.provider.api import router as provider_router
@@ -19,6 +20,7 @@ from onetake_api.modules.provider.service import get_provider_statuses
 from onetake_api.modules.recognition.api import router as recognition_router
 from onetake_api.modules.script.api import router as script_router
 from onetake_api.modules.subtitle.api import router as subtitle_router
+from onetake_api.modules.video_plan.api import router as video_router
 from onetake_api.modules.voice.api import router as voice_router
 from onetake_api.platform.database import engine
 from onetake_api.platform.errors import register_error_handlers
@@ -28,7 +30,7 @@ configure_logging()
 settings = get_settings()
 app = FastAPI(
     title="One Take API",
-    version="0.7.0",
+    version="0.8.0",
     description="One Take 商品 AI 视频生成 MVP API",
 )
 
@@ -51,6 +53,8 @@ app.include_router(script_router)
 app.include_router(voice_router)
 app.include_router(subtitle_router)
 app.include_router(audio_subtitle_router)
+app.include_router(video_router)
+app.include_router(output_router)
 app.include_router(job_router)
 
 
@@ -103,7 +107,7 @@ def health() -> JSONResponse:
         status_code=200 if is_ready else 503,
         content={
             "status": "ok" if is_ready else "degraded",
-            "stage": "m1-voice",
+            "stage": "m1-video-mock",
             "mock_providers": settings.mock_providers,
             "services": services,
         },
@@ -115,7 +119,7 @@ def info() -> dict[str, object]:
     return {
         "name": "One Take",
         "version": "0.7.0",
-        "stage": "m1-voice",
+        "stage": "m1-video-mock",
         "architecture": "modular-monolith",
         "orchestration": "pipeline",
         "providers": {

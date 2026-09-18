@@ -5,6 +5,7 @@ from sqlalchemy import engine_from_config, pool
 
 from onetake_api.config import get_settings
 from onetake_api.modules.asset.adapters.sqlalchemy_repository import AssetModel  # noqa: F401
+from onetake_api.modules.output.repository import OutputArtifactModel  # noqa: F401
 from onetake_api.modules.outbox.adapters.sqlalchemy_repository import OutboxEventModel  # noqa: F401
 from onetake_api.modules.image_edit.repository import ImageEditRunModel  # noqa: F401
 from onetake_api.modules.job.repository import JobModel  # noqa: F401
@@ -15,6 +16,7 @@ from onetake_api.modules.project.adapters.sqlalchemy_repository import ProjectMo
 from onetake_api.modules.recognition.repository import CandidateModel, RecognitionRunModel  # noqa: F401
 from onetake_api.modules.script.repository import ScriptVersionModel  # noqa: F401
 from onetake_api.modules.subtitle.repository import SubtitleVersionModel  # noqa: F401
+from onetake_api.modules.video_plan.repository import VideoPlanModel  # noqa: F401
 from onetake_api.modules.voice.repository import VoiceRunModel  # noqa: F401
 from onetake_api.platform.database import Base
 

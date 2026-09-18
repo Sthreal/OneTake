@@ -21,6 +21,11 @@ STATUS_SUBTITLE_QUEUED = "subtitle_queued"
 STATUS_SUBTITLE_GENERATING = "subtitle_generating"
 STATUS_SUBTITLE_READY = "subtitle_ready"
 STATUS_AUDIO_SUBTITLE_CONFIRMED = "audio_subtitle_confirmed"
+STATUS_VIDEO_PLAN_READY = "video_plan_ready"
+STATUS_VIDEO_GENERATING = "video_generating"
+STATUS_VIDEO_READY = "video_ready"
+STATUS_RENDERING = "rendering"
+STATUS_COMPLETED = "completed"
 STATUS_FAILED = "failed"
 
 

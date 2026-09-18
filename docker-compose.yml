@@ -183,7 +183,7 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    command: rq worker voice subtitle script image_edit matting main_image recognition --url redis://redis:6379/0
+    command: rq worker video voice subtitle script image_edit matting main_image recognition --url redis://redis:6379/0
     volumes:
       - ./apps/api/src:/app/src
 

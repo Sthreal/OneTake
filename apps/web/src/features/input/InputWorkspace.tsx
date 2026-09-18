@@ -12,6 +12,8 @@ import { useMainImage } from "../main-image/useMainImage";
 import { useScript } from "../script/useScript";
 import { RecognitionPanel } from "../recognition/RecognitionPanel";
 import { useRecognition } from "../recognition/useRecognition";
+import { VideoPanel } from "../video/VideoPanel";
+import { useVideo } from "../video/useVideo";
 import { MAX_ASSETS_PER_PROJECT } from "./validation";
 import { UploadAssetCard } from "./UploadAssetCard";
 import { UploadDropzone } from "./UploadDropzone";
@@ -45,6 +47,7 @@ export function InputWorkspace() {
   const script = useScript(project?.project_id ?? null);
   const voice = useVoice(project?.project_id ?? null);
   const subtitle = useSubtitle(project?.project_id ?? null);
+  const video = useVideo(project?.project_id ?? null);
   const [productName, setProductName] = useState("");
   const [productNote, setProductNote] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
@@ -151,7 +154,7 @@ export function InputWorkspace() {
         </div>
       </header>
 
-      <FlowProgress currentStep={subtitle.pipeline?.current_step ?? voice.pipeline?.current_step ?? script.pipeline?.current_step ?? mainImage.pipeline?.current_step ?? recognition.pipeline?.current_step ?? 1} />
+      <FlowProgress currentStep={video.pipeline?.current_step ?? subtitle.pipeline?.current_step ?? voice.pipeline?.current_step ?? script.pipeline?.current_step ?? mainImage.pipeline?.current_step ?? recognition.pipeline?.current_step ?? 1} />
 
       <div className="workspace">
         <ProjectRail
@@ -338,6 +341,19 @@ export function InputWorkspace() {
                 />
               ) : null}
 
+              {subtitle.pipeline?.status === "audio_subtitle_confirmed" || subtitle.state.version?.status === "confirmed" || video.state.plan ? (
+                <VideoPanel
+                  state={video.state}
+                  output={video.output}
+                  canStart={subtitle.pipeline?.status === "audio_subtitle_confirmed" || subtitle.state.version?.status === "confirmed"}
+                  voiceEnabled={voice.state.run?.enabled ?? true}
+                  subtitleEnabled={subtitle.state.version?.enabled ?? true}
+                  isStarting={video.isStarting}
+                  error={video.error}
+                  onGenerate={(mode, templateId) => void video.generate(mode, templateId)}
+                />
+              ) : null}
+
               <section className="surface-card asset-section">
                 <div className="section-heading">
                   <div>
@@ -393,7 +409,7 @@ export function InputWorkspace() {
 
           <section className="inspector-card soft-card">
             <strong>当前边界</strong>
-            <p>当前已完成素材输入、商品识别、主图和文案；语音与视频生成将在后续切片接入。</p>
+            <p>当前已贯通素材、主图、文案、配音、字幕和 Mock 成片。Wan 与 Shotstack 将在下一阶段接入。</p>
           </section>
         </aside>
       </div>

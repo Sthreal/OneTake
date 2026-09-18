@@ -21,9 +21,14 @@ from onetake_api.modules.pipeline.domain import (
     STATUS_SCRIPT_READY,
     STATUS_VOICE_GENERATING,
     STATUS_AUDIO_SUBTITLE_CONFIRMED,
+    STATUS_COMPLETED,
+    STATUS_RENDERING,
     STATUS_SUBTITLE_GENERATING,
     STATUS_SUBTITLE_QUEUED,
     STATUS_SUBTITLE_READY,
+    STATUS_VIDEO_GENERATING,
+    STATUS_VIDEO_PLAN_READY,
+    STATUS_VIDEO_READY,
     STATUS_VOICE_QUEUED,
     STATUS_VOICE_READY,
     PipelineRun,
@@ -135,3 +140,21 @@ class PipelinePublicService:
 
     def mark_audio_subtitle_confirmed(self, session: Session, project_id: str) -> PipelineRun:
         return self._transition(session, project_id, STATUS_AUDIO_SUBTITLE_CONFIRMED, 4)
+
+    def mark_video_plan_ready(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_VIDEO_PLAN_READY, 4)
+
+    def mark_video_generating(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_VIDEO_GENERATING, 4)
+
+    def mark_video_ready(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_VIDEO_READY, 4)
+
+    def mark_rendering(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_RENDERING, 4)
+
+    def mark_completed(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_COMPLETED, 4)
+
+    def mark_video_failed(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_FAILED, 4)

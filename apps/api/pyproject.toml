@@ -22,6 +22,7 @@ dependencies = [
   "pytest>=8.3,<9",
   "alibabacloud_imageseg20191230>=4.0.1,<5",
   "dashscope>=1.27,<2",
+  "imageio-ffmpeg>=0.5,<1",
 ]
 
 [tool.setuptools.packages.find]

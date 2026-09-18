@@ -19,6 +19,11 @@ export type PipelineStatus =
   | "subtitle_generating"
   | "subtitle_ready"
   | "audio_subtitle_confirmed"
+  | "video_plan_ready"
+  | "video_generating"
+  | "video_ready"
+  | "rendering"
+  | "completed"
   | "failed";
 
 export interface PipelineState {
