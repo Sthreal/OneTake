@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from onetake_api.modules.script.domain import ScriptDraft, ScriptInput
 from onetake_api.platform.errors import DomainError
 
-MIN_CHARACTERS = 85
+MIN_CHARACTERS = 65
 MAX_CHARACTERS = 120
 MAX_SELLING_POINTS = 5
 _NUMBER_RE = re.compile(r"\d+(?:\.\d+)?%?")
@@ -133,7 +133,7 @@ def normalize_generated(
         cta=cta,
         full_text=full_text,
         character_count=character_count,
-        estimated_duration_seconds=round(character_count / 5, 1),
+        estimated_duration_seconds=round(character_count / 3.5, 1),
     )
 
 

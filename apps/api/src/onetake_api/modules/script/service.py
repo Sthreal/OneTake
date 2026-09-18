@@ -50,6 +50,11 @@ class ScriptConflictError(DomainError):
     retryable = True
 
 
+class ScriptProviderConfigurationError(DomainError):
+    code = "SCRIPT_PROVIDER_NOT_CONFIGURED"
+    http_status = 422
+
+
 @dataclass(frozen=True)
 class ScriptView:
     version: ScriptVersion | None
@@ -59,6 +64,8 @@ def _adapter():
     settings = get_settings()
     if settings.mock_providers or settings.script_provider == "mock":
         return MockScriptAdapter()
+    if not settings.dashscope_api_key:
+        raise ScriptProviderConfigurationError("真实文案缺少 DASHSCOPE_API_KEY")
     return QwenVlScriptAdapter(
         api_key=settings.dashscope_api_key,
         endpoint=settings.script_endpoint,
