@@ -15,6 +15,10 @@ export type PipelineStatus =
   | "voice_queued"
   | "voice_generating"
   | "voice_ready"
+  | "subtitle_queued"
+  | "subtitle_generating"
+  | "subtitle_ready"
+  | "audio_subtitle_confirmed"
   | "failed";
 
 export interface PipelineState {

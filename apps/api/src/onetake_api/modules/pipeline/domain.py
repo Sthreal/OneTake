@@ -17,6 +17,10 @@ STATUS_SCRIPT_CONFIRMED = "script_confirmed"
 STATUS_VOICE_QUEUED = "voice_queued"
 STATUS_VOICE_GENERATING = "voice_generating"
 STATUS_VOICE_READY = "voice_ready"
+STATUS_SUBTITLE_QUEUED = "subtitle_queued"
+STATUS_SUBTITLE_GENERATING = "subtitle_generating"
+STATUS_SUBTITLE_READY = "subtitle_ready"
+STATUS_AUDIO_SUBTITLE_CONFIRMED = "audio_subtitle_confirmed"
 STATUS_FAILED = "failed"
 
 

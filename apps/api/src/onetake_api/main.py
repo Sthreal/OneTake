@@ -9,6 +9,7 @@ from sqlalchemy import text
 
 from onetake_api.config import get_settings
 from onetake_api.modules.asset.api import router as asset_router
+from onetake_api.modules.audio_subtitle.api import router as audio_subtitle_router
 from onetake_api.modules.job.api import router as job_router
 from onetake_api.modules.main_image.api import router as main_image_router
 from onetake_api.modules.pipeline.api import router as pipeline_router
@@ -17,6 +18,7 @@ from onetake_api.modules.provider.api import router as provider_router
 from onetake_api.modules.provider.service import get_provider_statuses
 from onetake_api.modules.recognition.api import router as recognition_router
 from onetake_api.modules.script.api import router as script_router
+from onetake_api.modules.subtitle.api import router as subtitle_router
 from onetake_api.modules.voice.api import router as voice_router
 from onetake_api.platform.database import engine
 from onetake_api.platform.errors import register_error_handlers
@@ -47,6 +49,8 @@ app.include_router(recognition_router)
 app.include_router(main_image_router)
 app.include_router(script_router)
 app.include_router(voice_router)
+app.include_router(subtitle_router)
+app.include_router(audio_subtitle_router)
 app.include_router(job_router)
 
 

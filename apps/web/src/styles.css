@@ -549,3 +549,22 @@ button:disabled { cursor: not-allowed; }
 .voice-skipped { display: block; }
 .voice-error { align-items: flex-start; flex-direction: column; background: rgba(255,59,48,.055); }
 @media (max-width: 760px) { .voice-controls { grid-template-columns: 1fr; } .voice-result { align-items: stretch; flex-direction: column; } }
+
+
+.subtitle-status { padding: 6px 9px; border-radius: 9px; color: var(--soft); background: rgba(118,118,128,.09); font-size: 9px; font-weight: 750; white-space: nowrap; }
+.subtitle-status.is-ready { color: #16823b; background: rgba(52,199,89,.12); }
+.subtitle-status.is-failed { color: #b42318; background: rgba(255,59,48,.1); }
+.subtitle-working { display: flex; align-items: center; gap: 12px; padding: 14px; border: 1px solid var(--line-soft); border-radius: 13px; background: rgba(255,255,255,.58); }
+.subtitle-working .spinner { margin: 0; }
+.subtitle-working strong, .subtitle-error strong, .subtitle-skipped strong { display: block; font-size: 12px; }
+.subtitle-working p, .subtitle-error p, .subtitle-skipped p { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
+.subtitle-list { display: grid; gap: 8px; }
+.subtitle-row { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 10px; align-items: start; padding: 10px; border: 1px solid var(--line-soft); border-radius: 12px; background: rgba(255,255,255,.55); }
+.subtitle-row > span { display: flex; flex-direction: column; gap: 3px; color: var(--blue); font-size: 11px; font-weight: 750; }
+.subtitle-row small { color: var(--soft); font-size: 9px; font-weight: 500; }
+.subtitle-row textarea { margin: 0; resize: vertical; }
+.subtitle-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 9px; margin-top: 13px; }
+.subtitle-actions a { margin-right: auto; color: var(--blue); font-size: 11px; font-weight: 650; text-decoration: none; }
+.subtitle-skipped, .subtitle-error { padding: 14px; border: 1px solid var(--line-soft); border-radius: 13px; background: rgba(255,255,255,.58); }
+.subtitle-error { background: rgba(255,59,48,.055); }
+@media (max-width: 640px) { .subtitle-row { grid-template-columns: 1fr; } }

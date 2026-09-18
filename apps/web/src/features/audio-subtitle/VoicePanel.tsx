@@ -7,13 +7,14 @@ interface VoicePanelProps {
   canStart: boolean;
   isStarting: boolean;
   error: string | null;
-  onStart: (input: { enabled: boolean; voiceId: string; language: "zh" | "en"; speed: number }) => void;
+  onStart: (input: { enabled: boolean; subtitleEnabled: boolean; voiceId: string; language: "zh" | "en"; speed: number }) => void;
 }
 
 const STATUS_TEXT: Record<VoiceStatus, string> = {
   queued: "配音任务排队中",
   generating: "正在生成配音",
   ready: "配音已生成",
+  confirmed: "配音已确认",
   failed: "配音生成失败",
 };
 
@@ -26,6 +27,7 @@ const VOICES = [
 export function VoicePanel({ state, canStart, isStarting, error, onStart }: VoicePanelProps) {
   const run = state.run;
   const [enabled, setEnabled] = useState(true);
+  const [subtitleEnabled, setSubtitleEnabled] = useState(true);
   const [voiceId, setVoiceId] = useState("longxiaochun_v2");
   const [language, setLanguage] = useState<"zh" | "en">("zh");
   const [speed, setSpeed] = useState(1.0);
@@ -33,6 +35,7 @@ export function VoicePanel({ state, canStart, isStarting, error, onStart }: Voic
   useEffect(() => {
     if (!run) return;
     setEnabled(run.enabled);
+    setSubtitleEnabled(run.subtitle_enabled);
     setVoiceId(run.voice_id);
     setLanguage(run.language);
     setSpeed(run.speed);
@@ -59,6 +62,10 @@ export function VoicePanel({ state, canStart, isStarting, error, onStart }: Voic
             <input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />
             <span><strong>输出语音</strong><small>关闭后不生成用户可播放音频</small></span>
           </label>
+          <label className="voice-toggle">
+            <input type="checkbox" checked={subtitleEnabled} onChange={(event) => setSubtitleEnabled(event.target.checked)} />
+            <span><strong>输出字幕</strong><small>关闭后不生成正式 SRT</small></span>
+          </label>
           <label className="field compact-field">
             <span>音色</span>
             <select value={voiceId} onChange={(event) => setVoiceId(event.target.value)} disabled={!enabled}>
@@ -77,7 +84,7 @@ export function VoicePanel({ state, canStart, isStarting, error, onStart }: Voic
             <input type="range" min="0.5" max="2" step="0.1" value={speed} onChange={(event) => setSpeed(Number(event.target.value))} disabled={!enabled} />
           </label>
           <div className="voice-actions">
-            <button className="button button-primary" type="button" disabled={!canStart || isStarting} onClick={() => onStart({ enabled, voiceId, language, speed })}>
+            <button className="button button-primary" type="button" disabled={!canStart || isStarting} onClick={() => onStart({ enabled, subtitleEnabled, voiceId, language, speed })}>
               {isStarting ? "正在创建任务…" : status === "ready" ? "重新生成配音" : "生成配音"}
             </button>
           </div>

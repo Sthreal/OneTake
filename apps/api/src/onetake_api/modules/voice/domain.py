@@ -4,6 +4,7 @@ from datetime import datetime
 VOICE_QUEUED = "queued"
 VOICE_GENERATING = "generating"
 VOICE_READY = "ready"
+VOICE_CONFIRMED = "confirmed"
 VOICE_FAILED = "failed"
 
 
@@ -14,6 +15,7 @@ class VoiceRun:
     script_version_id: str
     status: str
     enabled: bool
+    subtitle_enabled: bool
     provider: str
     model: str
     voice_id: str
@@ -28,3 +30,4 @@ class VoiceRun:
     created_at: datetime
     updated_at: datetime
     completed_at: datetime | None
+    confirmed_at: datetime | None

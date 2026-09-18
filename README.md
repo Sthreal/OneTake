@@ -4,7 +4,7 @@ One Take 商品 AI 视频生成 MVP 的工程仓库。
 
 ## 当前阶段
 
-当前为 **M1-11A：CosyVoice V2 配音**。
+当前为 **M1-11：CosyVoice V2 配音与字幕**。
 
 已具备：
 
@@ -17,6 +17,8 @@ One Take 商品 AI 视频生成 MVP 的工程仓库。
 - Qwen Image Edit、Photoroom 和阿里云 SegmentCommodity 去背 Adapter
 - Qwen-VL-Plus 文案视觉输入、严格 JSON 解析和事实数字校验
 - CosyVoice V2 配音、音色/语速/语言设置和音频试听
+- 字幕时间轴、SRT 生成、字幕编辑和编辑后重新配音
+- 输出语音、输出字幕两个独立开关
 - Provider 配置预检、图片响应校验、透明 PNG 校验和失败隔离
 - 主图处理 Pipeline：图像编辑 → 智能去背 → Pillow 标准化 → 人工确认
 - 文案处理 Pipeline：事实校验 → Qwen-VL-Plus Port → 结构化文案 → 编辑确认

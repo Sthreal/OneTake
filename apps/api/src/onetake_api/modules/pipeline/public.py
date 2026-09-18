@@ -20,6 +20,10 @@ from onetake_api.modules.pipeline.domain import (
     STATUS_SCRIPT_QUEUED,
     STATUS_SCRIPT_READY,
     STATUS_VOICE_GENERATING,
+    STATUS_AUDIO_SUBTITLE_CONFIRMED,
+    STATUS_SUBTITLE_GENERATING,
+    STATUS_SUBTITLE_QUEUED,
+    STATUS_SUBTITLE_READY,
     STATUS_VOICE_QUEUED,
     STATUS_VOICE_READY,
     PipelineRun,
@@ -116,3 +120,18 @@ class PipelinePublicService:
 
     def mark_voice_failed(self, session: Session, project_id: str) -> PipelineRun:
         return self._transition(session, project_id, STATUS_FAILED, 4)
+
+    def mark_subtitle_queued(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_SUBTITLE_QUEUED, 4)
+
+    def mark_subtitle_generating(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_SUBTITLE_GENERATING, 4)
+
+    def mark_subtitle_ready(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_SUBTITLE_READY, 4)
+
+    def mark_subtitle_failed(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_FAILED, 4)
+
+    def mark_audio_subtitle_confirmed(self, session: Session, project_id: str) -> PipelineRun:
+        return self._transition(session, project_id, STATUS_AUDIO_SUBTITLE_CONFIRMED, 4)

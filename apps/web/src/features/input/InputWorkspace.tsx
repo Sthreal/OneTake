@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 
 import { FlowProgress } from "./FlowProgress";
 import { ProjectRail } from "./ProjectRail";
+import { SubtitlePanel } from "../audio-subtitle/SubtitlePanel";
+import { useSubtitle } from "../audio-subtitle/useSubtitle";
 import { VoicePanel } from "../audio-subtitle/VoicePanel";
 import { useVoice } from "../audio-subtitle/useVoice";
 import { MainImagePanel } from "../main-image/MainImagePanel";
@@ -42,6 +44,7 @@ export function InputWorkspace() {
   const mainImage = useMainImage(project?.project_id ?? null);
   const script = useScript(project?.project_id ?? null);
   const voice = useVoice(project?.project_id ?? null);
+  const subtitle = useSubtitle(project?.project_id ?? null);
   const [productName, setProductName] = useState("");
   const [productNote, setProductNote] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
@@ -148,7 +151,7 @@ export function InputWorkspace() {
         </div>
       </header>
 
-      <FlowProgress currentStep={voice.pipeline?.current_step ?? script.pipeline?.current_step ?? mainImage.pipeline?.current_step ?? recognition.pipeline?.current_step ?? 1} />
+      <FlowProgress currentStep={subtitle.pipeline?.current_step ?? voice.pipeline?.current_step ?? script.pipeline?.current_step ?? mainImage.pipeline?.current_step ?? recognition.pipeline?.current_step ?? 1} />
 
       <div className="workspace">
         <ProjectRail
@@ -320,6 +323,18 @@ export function InputWorkspace() {
                   isStarting={voice.isStarting}
                   error={voice.error}
                   onStart={(input) => void voice.start(input)}
+                />
+              ) : null}
+
+              {voice.state.run?.status === "ready" || voice.state.run?.status === "confirmed" || subtitle.state.version ? (
+                <SubtitlePanel
+                  state={subtitle.state}
+                  canStart={voice.state.run?.status === "ready" || voice.state.run?.status === "confirmed"}
+                  isSaving={subtitle.isSaving}
+                  isConfirming={subtitle.isConfirming}
+                  error={subtitle.error}
+                  onSave={(segments) => void subtitle.save(segments)}
+                  onConfirm={() => void subtitle.confirm()}
                 />
               ) : null}
 

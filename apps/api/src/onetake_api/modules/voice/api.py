@@ -17,6 +17,7 @@ router = APIRouter(prefix="/api/v1/projects/{project_id}/voice", tags=["voice"])
 
 class VoiceRequest(BaseModel):
     enabled: bool = True
+    subtitle_enabled: bool = True
     voice_id: str = Field(min_length=1, max_length=80)
     language: str = Field(default="zh", pattern=r"^(zh|en)$")
     speed: float = Field(default=1.0, ge=0.5, le=2.0)
@@ -28,6 +29,7 @@ class VoiceRunData(BaseModel):
     script_version_id: str
     status: str
     enabled: bool
+    subtitle_enabled: bool
     provider: str
     model: str
     voice_id: str
@@ -39,6 +41,7 @@ class VoiceRunData(BaseModel):
     created_at: datetime
     updated_at: datetime
     completed_at: datetime | None
+    confirmed_at: datetime | None
 
 
 class VoiceData(BaseModel):
@@ -57,6 +60,7 @@ def _run_data(run: VoiceRun, audio_url: str | None) -> VoiceRunData:
         script_version_id=run.script_version_id,
         status=run.status,
         enabled=run.enabled,
+        subtitle_enabled=run.subtitle_enabled,
         provider=run.provider,
         model=run.model,
         voice_id=run.voice_id,
@@ -68,6 +72,7 @@ def _run_data(run: VoiceRun, audio_url: str | None) -> VoiceRunData:
         created_at=run.created_at,
         updated_at=run.updated_at,
         completed_at=run.completed_at,
+        confirmed_at=run.confirmed_at,
     )
 
 
@@ -89,6 +94,7 @@ def request_voice(project_id: str, payload: VoiceRequest, session: Session = Dep
         session,
         project_id=project_id,
         enabled=payload.enabled,
+        subtitle_enabled=payload.subtitle_enabled,
         voice_id=payload.voice_id,
         language=payload.language,
         speed=payload.speed,

@@ -18,6 +18,7 @@ class VoiceRunModel(Base):
     script_version_id: Mapped[str] = mapped_column(String(40), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    subtitle_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False)
     provider: Mapped[str] = mapped_column(String(60), nullable=False)
     model: Mapped[str] = mapped_column(String(80), nullable=False)
     voice_id: Mapped[str] = mapped_column(String(80), nullable=False)
@@ -32,6 +33,7 @@ class VoiceRunModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 def _to_domain(model: VoiceRunModel) -> VoiceRun:
@@ -41,6 +43,7 @@ def _to_domain(model: VoiceRunModel) -> VoiceRun:
         script_version_id=model.script_version_id,
         status=model.status,
         enabled=model.enabled,
+        subtitle_enabled=model.subtitle_enabled,
         provider=model.provider,
         model=model.model,
         voice_id=model.voice_id,
@@ -55,6 +58,7 @@ def _to_domain(model: VoiceRunModel) -> VoiceRun:
         created_at=model.created_at,
         updated_at=model.updated_at,
         completed_at=model.completed_at,
+        confirmed_at=model.confirmed_at,
     )
 
 
@@ -86,3 +90,4 @@ class VoiceRepository:
         model.error_code = run.error_code
         model.updated_at = run.updated_at
         model.completed_at = run.completed_at
+        model.confirmed_at = run.confirmed_at

@@ -16,7 +16,7 @@ from onetake_api.modules.pipeline.public import PipelinePublicService
 from onetake_api.modules.project.public import ProjectPublicService
 from onetake_api.modules.script.domain import STATUS_CONFIRMED as SCRIPT_CONFIRMED
 from onetake_api.modules.script.public import ScriptPublicService
-from onetake_api.modules.voice.domain import VOICE_FAILED, VOICE_GENERATING, VOICE_QUEUED, VOICE_READY, VoiceRun
+from onetake_api.modules.voice.domain import VOICE_CONFIRMED, VOICE_FAILED, VOICE_GENERATING, VOICE_QUEUED, VOICE_READY, VoiceRun
 from onetake_api.modules.voice.repository import VoiceRepository
 from onetake_api.platform.clock import SystemClock
 from onetake_api.platform.errors import DomainError
@@ -87,15 +87,20 @@ class VoiceApplicationService:
         self._projects.get_project(session, project_id=project_id)
         return self._view(self._repository.latest(session, project_id))
 
+    def get_run(self, session: Session, run_id: str) -> VoiceRun | None:
+        return self._repository.get(session, run_id)
+
     def request(
         self,
         session: Session,
         *,
         project_id: str,
         enabled: bool,
+        subtitle_enabled: bool,
         voice_id: str,
         language: str,
         speed: float,
+        text_override: str | None = None,
     ) -> VoiceView:
         self._projects.get_project(session, project_id=project_id)
         script_view = self._scripts.latest(session, project_id)
@@ -122,14 +127,15 @@ class VoiceApplicationService:
             id=new_id("voi"),
             project_id=project_id,
             script_version_id=script_version.id,
-            status=VOICE_QUEUED if enabled else VOICE_READY,
+            status=VOICE_QUEUED if (enabled or subtitle_enabled) else VOICE_READY,
             enabled=enabled,
+            subtitle_enabled=subtitle_enabled,
             provider=adapter.provider_name,
             model=adapter.model,
             voice_id=normalized_voice,
             language=language,
             speed=speed,
-            text=script_version.full_text,
+            text=text_override.strip() if text_override and text_override.strip() else script_version.full_text,
             audio_object_key=None,
             audio_mime_type=None,
             duration_seconds=None,
@@ -137,18 +143,21 @@ class VoiceApplicationService:
             error_code=None,
             created_at=now,
             updated_at=now,
-            completed_at=None if enabled else now,
+            completed_at=None if (enabled or subtitle_enabled) else now,
+            confirmed_at=None,
         )
         self._repository.add(session, run)
         session.flush()
-        if not enabled:
+        if not enabled and not subtitle_enabled:
             self._pipeline.mark_voice_ready(session, project_id)
             self._outbox.enqueue(session, event_name="VoiceSkipped", aggregate_type="voice", aggregate_id=run.id, occurred_at=now, payload={"project_id": project_id, "run_id": run.id})
+            from onetake_api.modules.subtitle.public import SubtitlePublicService
+            SubtitlePublicService().start(session, project_id=project_id, script_version_id=script_version.id, voice_run_id=run.id, enabled=False, pipeline_run_id=self._pipeline.get_or_create(session, project_id).id)
             session.commit()
             return self._view(run)
 
         pipeline = self._pipeline.mark_voice_queued(session, project_id)
-        input_hash = hashlib.sha256(f"{script_version.id}:{normalized_voice}:{language}:{speed}".encode()).hexdigest()
+        input_hash = hashlib.sha256(f"{script_version.id}:{run.text}:{normalized_voice}:{language}:{speed}".encode()).hexdigest()
         job = self._jobs.create(
             session,
             project_id=project_id,
@@ -168,6 +177,18 @@ class VoiceApplicationService:
             self._mark_failed(session, run, "QUEUE_UNAVAILABLE")
             raise VoiceConflictError("配音任务提交失败") from exc
         return self._view(run)
+
+    def confirm(self, session: Session, project_id: str) -> VoiceRun:
+        run = self._repository.latest(session, project_id)
+        if run is None:
+            raise VoiceNotFoundError("配音版本不存在")
+        if run.status not in {VOICE_READY, VOICE_CONFIRMED}:
+            raise VoiceConflictError("配音尚未准备确认")
+        now = self._clock.now()
+        confirmed = replace(run, status=VOICE_CONFIRMED, updated_at=now, confirmed_at=now)
+        self._repository.update(session, confirmed)
+        session.flush()
+        return confirmed
 
     def process_job(self, session: Session, job_id: str) -> VoiceRun:
         job = self._jobs.get(session, job_id)
@@ -201,7 +222,23 @@ class VoiceApplicationService:
             self._jobs.mark_succeeded(session, job)
             self._pipeline.mark_voice_ready(session, run.project_id)
             self._outbox.enqueue(session, event_name="VoiceCompleted", aggregate_type="voice", aggregate_id=run.id, occurred_at=now, payload={"project_id": run.project_id, "run_id": run.id, "duration_seconds": run.duration_seconds})
+            from onetake_api.modules.subtitle.public import SubtitlePublicService
+            subtitle_result = SubtitlePublicService().start(
+                session,
+                project_id=run.project_id,
+                script_version_id=run.script_version_id,
+                voice_run_id=run.id,
+                enabled=run.subtitle_enabled,
+                pipeline_run_id=job.pipeline_run_id,
+            )
             session.commit()
+            if subtitle_result.job is not None:
+                get_queue("subtitle").enqueue(
+                    "onetake_api.modules.subtitle.worker_tasks.run_subtitle_job",
+                    subtitle_result.job.id,
+                    job_id=subtitle_result.job.id,
+                    job_timeout=120,
+                )
             return run
         except DomainError as exc:
             self._jobs.mark_failed(session, job, exc.code)

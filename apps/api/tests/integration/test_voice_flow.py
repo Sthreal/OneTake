@@ -54,7 +54,7 @@ def test_voice_flow_success(db_session: Session, object_storage: ObjectStoragePu
     monkeypatch.setattr("onetake_api.modules.voice.service.get_queue", lambda _name: FakeQueue())
     project_id = _seed_confirmed_script(db_session)
     service = VoiceApplicationService(storage=object_storage)
-    view = service.request(db_session, project_id=project_id, enabled=True, voice_id="female", language="zh", speed=1.0)
+    view = service.request(db_session, project_id=project_id, enabled=True, subtitle_enabled=False, voice_id="female", language="zh", speed=1.0)
     assert view.run is not None and view.run.status == "queued"
     job = JobPublicService().find_active(db_session, project_id, "voice")
     assert job is not None
@@ -62,13 +62,13 @@ def test_voice_flow_success(db_session: Session, object_storage: ObjectStoragePu
     assert ready.status == "ready"
     assert ready.audio_object_key is not None
     assert ready.duration_seconds is not None
-    assert PipelinePublicService().get_or_create(db_session, project_id).status == "voice_ready"
+    assert PipelinePublicService().get_or_create(db_session, project_id).status == "subtitle_ready"
 
 
 def test_voice_can_be_disabled(db_session: Session, object_storage: ObjectStoragePublicService) -> None:
     project_id = _seed_confirmed_script(db_session)
     service = VoiceApplicationService(storage=object_storage)
-    view = service.request(db_session, project_id=project_id, enabled=False, voice_id="female", language="zh", speed=1.0)
+    view = service.request(db_session, project_id=project_id, enabled=False, subtitle_enabled=False, voice_id="female", language="zh", speed=1.0)
     assert view.run is not None
     assert view.run.status == "ready"
     assert view.run.audio_object_key is None

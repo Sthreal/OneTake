@@ -13,8 +13,14 @@ class VoicePublicService:
     def latest(self, session: Session, project_id: str) -> VoiceView:
         return self._service.latest(session, project_id)
 
+    def get_run(self, session: Session, run_id: str):
+        return self._service.get_run(session, run_id)
+
     def request(self, session: Session, **kwargs) -> VoiceView:
         return self._service.request(session, **kwargs)
+
+    def confirm(self, session: Session, project_id: str) -> VoiceRun:
+        return self._service.confirm(session, project_id)
 
     def process_job(self, session: Session, job_id: str) -> VoiceRun:
         return self._service.process_job(session, job_id)
