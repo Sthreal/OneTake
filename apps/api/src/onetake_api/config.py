@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     mock_recognition_mode: str = "success"
     recognition_provider: Literal["mock", "real"] = "mock"
     image_edit_provider: Literal["mock", "real"] = "mock"
-    matting_provider: Literal["mock", "real"] = "mock"
+    matting_provider: Literal["mock", "real", "aliyun"] = "mock"
     script_provider: Literal["mock", "real"] = "mock"
     recognition_model: str = "qwen-vl-plus"
     recognition_endpoint: str = "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     script_endpoint: str = "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
     photoroom_api_key: str = ""
     photoroom_endpoint: str = "https://sdk.photoroom.com/v1/segment"
+    alibaba_cloud_access_key_id: str = ""
+    alibaba_cloud_access_key_secret: str = ""
+    alibaba_cloud_region_id: str = "cn-shanghai"
+    aliyun_imageseg_endpoint: str = "imageseg.cn-shanghai.aliyuncs.com"
     project_ttl_hours: int = 24
 
     model_config = SettingsConfigDict(

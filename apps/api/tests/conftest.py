@@ -16,6 +16,14 @@ from onetake_api.main import app
 from onetake_api.platform.database import get_session
 
 
+@pytest.fixture(autouse=True)
+def force_mock_providers(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("MOCK_PROVIDERS", "true")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
+
 @pytest.fixture
 def db_session() -> Generator[Session, None, None]:
     engine = create_engine(get_settings().database_url, pool_pre_ping=True)

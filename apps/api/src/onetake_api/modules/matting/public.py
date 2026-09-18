@@ -14,6 +14,9 @@ class MattingPublicService:
     def start(self, session: Session, **kwargs) -> MattingStartResult:
         return self._service.start(session, **kwargs)
 
+    def ensure_ready(self) -> str:
+        return self._service.ensure_ready()
+
     def get(self, session: Session, run_id: str) -> MattingRun | None:
         return self._service.get(session, run_id)
 

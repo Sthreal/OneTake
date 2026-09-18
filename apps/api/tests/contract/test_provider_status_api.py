@@ -43,3 +43,20 @@ def test_provider_switches_are_independent() -> None:
     assert statuses["matting"].effective_mode == "mock"
     assert statuses["script"].effective_mode == "mock"
 
+
+def test_aliyun_matting_requires_access_key() -> None:
+    settings = Settings(
+        mock_providers=False,
+        recognition_provider="mock",
+        image_edit_provider="mock",
+        matting_provider="aliyun",
+        script_provider="mock",
+        alibaba_cloud_access_key_id="",
+        alibaba_cloud_access_key_secret="",
+    )
+    matting = next(item for item in get_provider_statuses(settings) if item.capability == "matting")
+    assert matting.configured is False
+    assert matting.configured_provider == "aliyun-imageseg-segmentcommodity"
+    assert matting.effective_mode == "mock"
+    assert matting.ready is False
+

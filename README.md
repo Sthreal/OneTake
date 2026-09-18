@@ -4,7 +4,7 @@ One Take 商品 AI 视频生成 MVP 的工程仓库。
 
 ## 当前阶段
 
-当前为 **M1-08：Provider 运行模式与 Qwen-VL-Plus 商品识别**。
+当前为 **M1-09：Qwen Image Edit 与可切换去背 Provider**。
 
 已具备：
 
@@ -14,6 +14,8 @@ One Take 商品 AI 视频生成 MVP 的工程仓库。
 - 项目创建、素材预签名、复核、列表和项目切换
 - Mock 商品识别与人工确认
 - Qwen-VL-Plus 商品识别 Adapter、严格候选 ID 校验和多图预处理
+- Qwen Image Edit、Photoroom 和阿里云 SegmentCommodity 去背 Adapter
+- Provider 配置预检、图片响应校验、透明 PNG 校验和失败隔离
 - 主图处理 Pipeline：图像编辑 → 智能去背 → Pillow 标准化 → 人工确认
 - 文案处理 Pipeline：事实校验 → Qwen-VL-Plus Port → 结构化文案 → 编辑确认
 - 按能力独立配置 Provider 模式
@@ -21,7 +23,7 @@ One Take 商品 AI 视频生成 MVP 的工程仓库。
 - `GET /api/v1/providers/status` 查看配置状态，不返回密钥
 - 苹果风三栏工作台、四段流程进度和最近项目恢复
 
-默认启用 Mock Provider，不调用任何付费 AI 接口。真实 Qwen Recognition、Qwen Image Edit、Photoroom 和 Qwen-VL-Plus Script Adapter 已接入代码，但必须显式关闭 Mock 安全锁、指定对应能力为 `real` 并配置 API Key 后才会启用。
+默认启用 Mock Provider，不调用任何付费 AI 接口。真实 Qwen Recognition、Qwen Image Edit、Photoroom、阿里云 SegmentCommodity 和 Qwen-VL-Plus Script Adapter 已接入代码，但必须显式关闭 Mock 安全锁、指定对应能力并配置凭据后才会启用；真实自动测试不会产生 API 费用。
 
 ## Provider 配置
 
@@ -33,12 +35,19 @@ MATTING_PROVIDER=mock
 SCRIPT_PROVIDER=mock
 ```
 
-启用真实识别示例：
+启用真实图像链路示例：
 
 ```env
 MOCK_PROVIDERS=false
 RECOGNITION_PROVIDER=real
+IMAGE_EDIT_PROVIDER=real
+MATTING_PROVIDER=aliyun
+SCRIPT_PROVIDER=mock
 DASHSCOPE_API_KEY=your_key
+ALIBABA_CLOUD_ACCESS_KEY_ID=your_access_key_id
+ALIBABA_CLOUD_ACCESS_KEY_SECRET=your_access_key_secret
+ALIBABA_CLOUD_REGION_ID=cn-shanghai
+ALIYUN_IMAGESEG_ENDPOINT=imageseg.cn-shanghai.aliyuncs.com
 ```
 
 真实 Provider 失败不会自动回退 Mock，避免将 Mock 结果误认为真实结果。

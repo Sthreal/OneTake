@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import time
 from dataclasses import dataclass, replace
 
 from sqlalchemy.orm import Session
@@ -23,6 +25,8 @@ from onetake_api.platform.clock import SystemClock
 from onetake_api.platform.errors import DomainError
 from onetake_api.platform.ids import new_id
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass(frozen=True)
 class ImageEditStartResult:
@@ -36,10 +40,17 @@ class ImageEditProviderError(DomainError):
     retryable = True
 
 
+class ImageEditProviderConfigurationError(DomainError):
+    code = "IMAGE_EDIT_PROVIDER_NOT_CONFIGURED"
+    http_status = 422
+
+
 def _adapter():
     settings = get_settings()
     if settings.mock_providers or settings.image_edit_provider == "mock":
         return MockImageEditAdapter()
+    if not settings.dashscope_api_key:
+        raise ImageEditProviderConfigurationError("真实图像编辑缺少 DASHSCOPE_API_KEY")
     return QwenImageEditAdapter(
         api_key=settings.dashscope_api_key,
         endpoint=settings.image_edit_endpoint,
@@ -66,7 +77,8 @@ class ImageEditApplicationService:
         pipeline_run_id: str,
         input_hash: str,
     ) -> ImageEditStartResult:
-        provider = _adapter().provider_name
+        adapter = _adapter()
+        provider = adapter.provider_name
         now = self._clock.now()
         run_id = new_id("edt")
         output_object_key = f"projects/{project_id}/main-image/{main_image_version_id}/edited.png"
@@ -100,6 +112,9 @@ class ImageEditApplicationService:
         )
         return ImageEditStartResult(run=run, job=job)
 
+    def ensure_ready(self) -> str:
+        return _adapter().provider_name
+
     def get(self, session: Session, run_id: str) -> ImageEditRun | None:
         return self._repository.get(session, run_id)
 
@@ -126,9 +141,11 @@ class ImageEditApplicationService:
         self._repository.update(session, run)
         session.flush()
 
+        started_at = time.perf_counter()
+        adapter = _adapter()
         try:
             source = b"".join(storage.read_object(object_key=run.source_object_key))
-            edited = _adapter().edit(image_bytes=source, mime_type=run.source_mime_type)
+            edited = adapter.edit(image_bytes=source, mime_type=run.source_mime_type)
             storage.put_bytes(object_key=run.output_object_key, content=edited, mime_type="image/png")
             now = self._clock.now()
             run = replace(run, status=RUN_SUCCEEDED, size_bytes=len(edited), updated_at=now, completed_at=now, error_code=None)
@@ -143,6 +160,10 @@ class ImageEditApplicationService:
                 payload={"project_id": run.project_id, "version_id": run.main_image_version_id, "run_id": run.id, "size_bytes": len(edited)},
             )
         except DomainError as exc:
+            logger.warning(
+                "image edit provider failed",
+                extra={"project_id": run.project_id, "provider": adapter.provider_name, "error_code": exc.code, "duration_ms": round((time.perf_counter() - started_at) * 1000)},
+            )
             now = self._clock.now()
             run = replace(run, status=RUN_FAILED, error_code=exc.code, updated_at=now, completed_at=now)
             self._repository.update(session, run)

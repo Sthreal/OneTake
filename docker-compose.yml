@@ -92,6 +92,9 @@ services:
       MINIO_BUCKET: ${MINIO_BUCKET:-onetake-media}
       MINIO_SECURE: ${MINIO_SECURE:-false}
       MINIO_REGION: ${MINIO_REGION:-us-east-1}
+      HTTP_PROXY: ${DOCKER_HTTP_PROXY:-}
+      HTTPS_PROXY: ${DOCKER_HTTPS_PROXY:-}
+      NO_PROXY: ${DOCKER_NO_PROXY:-localhost,127.0.0.1,postgres,redis,minio,api,web,dashscope.aliyuncs.com,imageseg.cn-shanghai.aliyuncs.com,aliyuncs.com}
       MOCK_PROVIDERS: ${MOCK_PROVIDERS:-true}
       RECOGNITION_PROVIDER: ${RECOGNITION_PROVIDER:-mock}
       IMAGE_EDIT_PROVIDER: ${IMAGE_EDIT_PROVIDER:-mock}
@@ -106,6 +109,10 @@ services:
       SCRIPT_ENDPOINT: ${SCRIPT_ENDPOINT:-https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation}
       PHOTOROOM_API_KEY: ${PHOTOROOM_API_KEY:-}
       PHOTOROOM_ENDPOINT: ${PHOTOROOM_ENDPOINT:-https://sdk.photoroom.com/v1/segment}
+      ALIBABA_CLOUD_ACCESS_KEY_ID: ${ALIBABA_CLOUD_ACCESS_KEY_ID:-}
+      ALIBABA_CLOUD_ACCESS_KEY_SECRET: ${ALIBABA_CLOUD_ACCESS_KEY_SECRET:-}
+      ALIBABA_CLOUD_REGION_ID: ${ALIBABA_CLOUD_REGION_ID:-cn-shanghai}
+      ALIYUN_IMAGESEG_ENDPOINT: ${ALIYUN_IMAGESEG_ENDPOINT:-imageseg.cn-shanghai.aliyuncs.com}
       PROJECT_TTL_HOURS: ${PROJECT_TTL_HOURS:-24}
     ports:
       - "8000:8000"
@@ -143,6 +150,9 @@ services:
       MINIO_BUCKET: ${MINIO_BUCKET:-onetake-media}
       MINIO_SECURE: ${MINIO_SECURE:-false}
       MINIO_REGION: ${MINIO_REGION:-us-east-1}
+      HTTP_PROXY: ${DOCKER_HTTP_PROXY:-}
+      HTTPS_PROXY: ${DOCKER_HTTPS_PROXY:-}
+      NO_PROXY: ${DOCKER_NO_PROXY:-localhost,127.0.0.1,postgres,redis,minio,api,web,dashscope.aliyuncs.com,imageseg.cn-shanghai.aliyuncs.com,aliyuncs.com}
       MOCK_PROVIDERS: ${MOCK_PROVIDERS:-true}
       RECOGNITION_PROVIDER: ${RECOGNITION_PROVIDER:-mock}
       IMAGE_EDIT_PROVIDER: ${IMAGE_EDIT_PROVIDER:-mock}
@@ -158,6 +168,10 @@ services:
       SCRIPT_ENDPOINT: ${SCRIPT_ENDPOINT:-https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation}
       PHOTOROOM_API_KEY: ${PHOTOROOM_API_KEY:-}
       PHOTOROOM_ENDPOINT: ${PHOTOROOM_ENDPOINT:-https://sdk.photoroom.com/v1/segment}
+      ALIBABA_CLOUD_ACCESS_KEY_ID: ${ALIBABA_CLOUD_ACCESS_KEY_ID:-}
+      ALIBABA_CLOUD_ACCESS_KEY_SECRET: ${ALIBABA_CLOUD_ACCESS_KEY_SECRET:-}
+      ALIBABA_CLOUD_REGION_ID: ${ALIBABA_CLOUD_REGION_ID:-cn-shanghai}
+      ALIYUN_IMAGESEG_ENDPOINT: ${ALIYUN_IMAGESEG_ENDPOINT:-imageseg.cn-shanghai.aliyuncs.com}
     depends_on:
       postgres:
         condition: service_healthy

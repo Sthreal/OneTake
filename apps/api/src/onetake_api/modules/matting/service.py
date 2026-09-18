@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
+import time
 from dataclasses import dataclass, replace
 
 from sqlalchemy.orm import Session
 
 from onetake_api.config import get_settings
+from onetake_api.integrations.aliyun_imageseg.adapter import AliyunCommodityMattingAdapter
 from onetake_api.integrations.mock_matting.adapter import MockMattingAdapter
 from onetake_api.integrations.object_storage.public import ObjectStoragePublicService
 from onetake_api.integrations.photoroom_matting.adapter import PhotoroomMattingAdapter
@@ -16,6 +19,8 @@ from onetake_api.modules.outbox.public import OutboxPublicService
 from onetake_api.platform.clock import SystemClock
 from onetake_api.platform.errors import DomainError
 from onetake_api.platform.ids import new_id
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -30,10 +35,26 @@ class MattingProviderError(DomainError):
     retryable = True
 
 
+class MattingProviderConfigurationError(DomainError):
+    code = "MATTING_PROVIDER_NOT_CONFIGURED"
+    http_status = 422
+
+
 def _adapter():
     settings = get_settings()
     if settings.mock_providers or settings.matting_provider == "mock":
         return MockMattingAdapter()
+    if settings.matting_provider == "aliyun":
+        if not settings.alibaba_cloud_access_key_id or not settings.alibaba_cloud_access_key_secret:
+            raise MattingProviderConfigurationError("阿里云去背缺少 AccessKey")
+        return AliyunCommodityMattingAdapter(
+            access_key_id=settings.alibaba_cloud_access_key_id,
+            access_key_secret=settings.alibaba_cloud_access_key_secret,
+            region_id=settings.alibaba_cloud_region_id,
+            endpoint=settings.aliyun_imageseg_endpoint,
+        )
+    if not settings.photoroom_api_key:
+        raise MattingProviderConfigurationError("真实去背缺少 PHOTOROOM_API_KEY")
     return PhotoroomMattingAdapter(
         api_key=settings.photoroom_api_key,
         endpoint=settings.photoroom_endpoint,
@@ -58,7 +79,8 @@ class MattingApplicationService:
         pipeline_run_id: str,
         input_hash: str,
     ) -> MattingStartResult:
-        provider = _adapter().provider_name
+        adapter = _adapter()
+        provider = adapter.provider_name
         now = self._clock.now()
         run_id = new_id("mat")
         output_object_key = f"projects/{project_id}/main-image/{main_image_version_id}/matted.png"
@@ -91,6 +113,9 @@ class MattingApplicationService:
         )
         return MattingStartResult(run=run, job=job)
 
+    def ensure_ready(self) -> str:
+        return _adapter().provider_name
+
     def get(self, session: Session, run_id: str) -> MattingRun | None:
         return self._repository.get(session, run_id)
 
@@ -117,9 +142,11 @@ class MattingApplicationService:
         self._repository.update(session, run)
         session.flush()
 
+        started_at = time.perf_counter()
+        adapter = _adapter()
         try:
             source = b"".join(storage.read_object(object_key=run.source_object_key))
-            matted = _adapter().remove_background(image_bytes=source)
+            matted = adapter.remove_background(image_bytes=source)
             storage.put_bytes(object_key=run.output_object_key, content=matted, mime_type="image/png")
             now = self._clock.now()
             run = replace(run, status=RUN_SUCCEEDED, size_bytes=len(matted), updated_at=now, completed_at=now, error_code=None)
@@ -134,6 +161,10 @@ class MattingApplicationService:
                 payload={"project_id": run.project_id, "version_id": run.main_image_version_id, "run_id": run.id, "size_bytes": len(matted)},
             )
         except DomainError as exc:
+            logger.warning(
+                "matting provider failed",
+                extra={"project_id": run.project_id, "provider": adapter.provider_name, "error_code": exc.code, "duration_ms": round((time.perf_counter() - started_at) * 1000)},
+            )
             now = self._clock.now()
             run = replace(run, status=RUN_FAILED, error_code=exc.code, updated_at=now, completed_at=now)
             self._repository.update(session, run)

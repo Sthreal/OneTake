@@ -27,14 +27,23 @@ _REAL_NAMES = {
     "recognition": "qwen-vl-plus",
     "image_edit": "qwen-image-edit-plus",
     "matting": "photoroom",
+    "matting_aliyun": "aliyun-imageseg-segmentcommodity",
     "script": "qwen-vl-plus",
 }
+
+
+def _provider_name(settings: Settings, capability: str, mode: str) -> str:
+    if capability == "matting" and mode == "aliyun":
+        return _REAL_NAMES["matting_aliyun"]
+    return _REAL_NAMES[capability] if mode in {"real", "aliyun"} else _MOCK_NAMES[capability]
 
 
 def _real_configured(settings: Settings, capability: str) -> bool:
     if capability in {"recognition", "image_edit", "script"}:
         return bool(settings.dashscope_api_key)
     if capability == "matting":
+        if settings.matting_provider == "aliyun":
+            return bool(settings.alibaba_cloud_access_key_id and settings.alibaba_cloud_access_key_secret)
         return bool(settings.photoroom_api_key)
     return False
 
@@ -52,7 +61,7 @@ def get_provider_statuses(settings: Settings | None = None) -> list[ProviderStat
             effective_mode = "mock"
             reason = None
         elif configured:
-            effective_mode = "real"
+            effective_mode = configured_mode
             reason = None
         else:
             effective_mode = "mock"
@@ -62,10 +71,10 @@ def get_provider_statuses(settings: Settings | None = None) -> list[ProviderStat
                 capability=capability,
                 configured_mode=configured_mode,
                 effective_mode=effective_mode,
-                configured_provider=_REAL_NAMES[capability] if configured_mode == "real" else _MOCK_NAMES[capability],
-                effective_provider=_REAL_NAMES[capability] if effective_mode == "real" else _MOCK_NAMES[capability],
+                configured_provider=_provider_name(settings, capability, configured_mode),
+                effective_provider=_provider_name(settings, capability, effective_mode),
                 configured=configured,
-                ready=configured and (effective_mode == "real" or configured_mode == "mock"),
+                ready=configured and (effective_mode != "mock" or configured_mode == "mock"),
                 reason=reason,
             )
         )
