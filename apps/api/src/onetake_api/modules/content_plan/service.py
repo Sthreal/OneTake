@@ -5,6 +5,7 @@ from dataclasses import replace
 from sqlalchemy.orm import Session
 
 from onetake_api.config import get_settings
+from onetake_api.integrations.qwen_creative.adapter import QwenCreativePlanner
 from onetake_api.modules.content_plan.domain import STATUS_CONFIRMED, STATUS_READY, ContentPlan, ContentScene, ContentVariant
 from onetake_api.modules.content_plan.generator import generate_rule_variants
 from onetake_api.modules.content_plan.repository import ContentPlanRepository
@@ -70,7 +71,12 @@ class ContentPlanApplicationService:
         provider = "rules"
         model = "rules-v1"
         if settings.creative_planner_provider == "qwen":
-            raise ContentPlanValidationError("Qwen 创意层尚未接入真实调用")
+            if not settings.dashscope_api_key:
+                raise ContentPlanValidationError("Qwen-Plus 创意缺少 DASHSCOPE_API_KEY")
+            planner = QwenCreativePlanner(api_key=settings.dashscope_api_key, endpoint=settings.creative_planner_endpoint, model=settings.creative_planner_model)
+            variants = planner.enhance(variants=variants, facts={**script.facts, "hook": script.hook, "pain_point": script.pain_point, "selling_points": script.selling_points, "usage_scenario": script.usage_scenario, "offer": script.offer, "cta": script.cta})
+            provider = "qwen-plus"
+            model = settings.creative_planner_model
         total_duration = max(18.0, max(float(scene.end_seconds) for variant in variants for scene in variant.scenes))
         now = self._clock.now()
         plan = ContentPlan(
