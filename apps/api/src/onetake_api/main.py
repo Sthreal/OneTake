@@ -127,6 +127,5 @@ def info() -> dict[str, object]:
             "tts": "mock",
             "avatar_video": "mock",
             "product_video": "mock",
-            "composition": "mock",
         },
     }

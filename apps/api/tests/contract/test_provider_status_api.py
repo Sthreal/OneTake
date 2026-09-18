@@ -6,7 +6,7 @@ def test_provider_status_api_defaults_to_mock(client) -> None:
     response = client.get("/api/v1/providers/status")
     assert response.status_code == 200
     data = response.json()["data"]
-    assert [item["capability"] for item in data] == ["recognition", "image_edit", "matting", "script", "voice"]
+    assert [item["capability"] for item in data] == ["recognition", "image_edit", "matting", "script", "voice", "composition"]
     assert all(item["effective_mode"] == "mock" for item in data)
     assert "api_key" not in response.text.lower()
 
@@ -60,3 +60,17 @@ def test_aliyun_matting_requires_access_key() -> None:
     assert matting.effective_mode == "mock"
     assert matting.ready is False
 
+
+
+def test_shotstack_composition_requires_key() -> None:
+    settings = Settings(
+        mock_providers=False,
+        composition_provider="shotstack",
+        shotstack_api_key="",
+    )
+    composition = next(item for item in get_provider_statuses(settings) if item.capability == "composition")
+    assert composition.configured is False
+    assert composition.configured_provider == "shotstack-stage"
+    assert composition.effective_mode == "mock"
+    assert composition.ready is False
+    assert composition.reason is not None

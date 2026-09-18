@@ -6,9 +6,11 @@ from datetime import timedelta
 
 from sqlalchemy.orm import Session
 
-from onetake_api.integrations.mock_video.renderer import compose_final_video, render_base_video, validate_final_video
+from onetake_api.integrations.mock_video.renderer import render_base_video, validate_final_video
 from onetake_api.integrations.object_storage.dependencies import get_object_storage
 from onetake_api.integrations.object_storage.public import ObjectStoragePublicService
+from onetake_api.modules.composition.port import CompositionPort, CompositionRequest
+from onetake_api.modules.composition.service import get_composition_provider
 from onetake_api.modules.job.public import JobPublicService
 from onetake_api.modules.main_image.public import MainImagePublicService
 from onetake_api.modules.output.domain import OutputArtifact
@@ -56,7 +58,11 @@ class VideoView:
 
 
 class VideoPlanApplicationService:
-    def __init__(self, storage: ObjectStoragePublicService | None = None) -> None:
+    def __init__(
+        self,
+        storage: ObjectStoragePublicService | None = None,
+        composition: CompositionPort | None = None,
+    ) -> None:
         self._repository = VideoPlanRepository()
         self._outputs = OutputRepository()
         self._projects = ProjectPublicService()
@@ -68,6 +74,7 @@ class VideoPlanApplicationService:
         self._outbox = OutboxPublicService()
         self._clock = SystemClock()
         self._storage = storage
+        self._composition = composition or get_composition_provider()
 
     @property
     def storage(self) -> ObjectStoragePublicService:
@@ -118,7 +125,7 @@ class VideoPlanApplicationService:
             subtitle_object_key=subtitle.srt_object_key if subtitle.enabled else None,
             base_video_object_key=None,
             final_object_key=None,
-            provider="mock-video",
+            provider=self._composition.provider_name,
             error_code=None,
             created_at=now,
             updated_at=now,
@@ -196,7 +203,17 @@ class VideoPlanApplicationService:
             self._pipeline.mark_rendering(session, plan.project_id)
             session.commit()
 
-            final_video = compose_final_video(base_video_bytes=base_video, audio_bytes=audio_bytes, srt_bytes=srt_bytes, duration_seconds=plan.duration_seconds, fps=plan.fps)
+            final_video = self._composition.compose(CompositionRequest(
+                base_video_bytes=base_video,
+                audio_bytes=audio_bytes,
+                srt_bytes=srt_bytes,
+                product_image_bytes=main_image,
+                overlay_product=plan.mode == "avatar",
+                duration_seconds=plan.duration_seconds,
+                width=plan.width,
+                height=plan.height,
+                fps=plan.fps,
+            ))
             metadata = validate_final_video(
                 final_video,
                 expected_width=plan.width,

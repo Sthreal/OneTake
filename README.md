@@ -4,7 +4,7 @@ One Take 商品 AI 视频生成 MVP 的工程仓库。
 
 ## 当前阶段
 
-当前为 **M1-12A：Mock 商品视频与成片预览**。
+当前为 **M1-12B1：Shotstack Stage 合成适配器**。
 
 已具备：
 
@@ -22,6 +22,9 @@ One Take 商品 AI 视频生成 MVP 的工程仓库。
 - 视频方案、生成进度、成片预览与 MP4 下载
 - 1080×1920、18–25 秒、30 fps、H.264/AAC 和 30 MB 成片卡口
 - 内置 ffmpeg Mock 成片，不依赖系统 apt 或字体包
+- Composition Port 隔离本地 Mock 与 Shotstack Stage
+- Shotstack Ingest 直传素材、Render 异步轮询和成片回存 MinIO
+- Noto Sans SC 本地烧录中文字幕，避免云端字体缺失或不一致
 - 输出语音、输出字幕两个独立开关
 - Provider 配置预检、图片响应校验、透明 PNG 校验和失败隔离
 - 主图处理 Pipeline：图像编辑 → 智能去背 → Pillow 标准化 → 人工确认
@@ -60,6 +63,7 @@ ALIYUN_IMAGESEG_ENDPOINT=imageseg.cn-shanghai.aliyuncs.com
 ```
 
 真实 Provider 失败不会自动回退 Mock，避免将 Mock 结果误认为真实结果。
+Shotstack 使用 Stage 时成片带水印，仅用于开发和联调；Production 阶段再切换 `SHOTSTACK_ENV=v1`。
 
 ## 启动
 

@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     matting_provider: Literal["mock", "real", "aliyun"] = "mock"
     script_provider: Literal["mock", "real"] = "mock"
     voice_provider: Literal["mock", "real"] = "mock"
+    composition_provider: Literal["mock", "shotstack"] = "mock"
     recognition_model: str = "qwen-vl-plus"
     recognition_endpoint: str = "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
     dashscope_api_key: str = ""
@@ -32,6 +33,11 @@ class Settings(BaseSettings):
     voice_model: str = "cosyvoice-v2"
     photoroom_api_key: str = ""
     photoroom_endpoint: str = "https://sdk.photoroom.com/v1/segment"
+    shotstack_api_key: str = ""
+    shotstack_env: Literal["stage", "v1"] = "stage"
+    shotstack_api_base: str = "https://api.shotstack.io"
+    shotstack_poll_interval_seconds: float = 2.0
+    shotstack_poll_timeout_seconds: int = 600
     alibaba_cloud_access_key_id: str = ""
     alibaba_cloud_access_key_secret: str = ""
     alibaba_cloud_region_id: str = "cn-shanghai"

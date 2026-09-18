@@ -23,6 +23,7 @@ _MOCK_NAMES = {
     "matting": "mock-photoroom",
     "script": "mock-qwen-vl-plus",
     "voice": "mock-cosyvoice-v2",
+    "composition": "mock-ffmpeg",
 }
 _REAL_NAMES = {
     "recognition": "qwen-vl-plus",
@@ -31,18 +32,23 @@ _REAL_NAMES = {
     "matting_aliyun": "aliyun-imageseg-segmentcommodity",
     "script": "qwen-vl-plus",
     "voice": "cosyvoice-v2",
+    "composition": "shotstack-stage",
 }
 
 
 def _provider_name(settings: Settings, capability: str, mode: str) -> str:
     if capability == "matting" and mode == "aliyun":
         return _REAL_NAMES["matting_aliyun"]
+    if capability == "composition" and mode == "shotstack":
+        return f"shotstack-{settings.shotstack_env}"
     return _REAL_NAMES[capability] if mode in {"real", "aliyun"} else _MOCK_NAMES[capability]
 
 
 def _real_configured(settings: Settings, capability: str) -> bool:
     if capability in {"recognition", "image_edit", "script", "voice"}:
         return bool(settings.dashscope_api_key)
+    if capability == "composition":
+        return bool(settings.shotstack_api_key)
     if capability == "matting":
         if settings.matting_provider == "aliyun":
             return bool(settings.alibaba_cloud_access_key_id and settings.alibaba_cloud_access_key_secret)
@@ -53,7 +59,7 @@ def _real_configured(settings: Settings, capability: str) -> bool:
 def get_provider_statuses(settings: Settings | None = None) -> list[ProviderStatus]:
     settings = settings or get_settings()
     statuses: list[ProviderStatus] = []
-    for capability in ("recognition", "image_edit", "matting", "script", "voice"):
+    for capability in ("recognition", "image_edit", "matting", "script", "voice", "composition"):
         configured_mode = getattr(settings, f"{capability}_provider")
         configured = configured_mode == "mock" or _real_configured(settings, capability)
         if settings.mock_providers:

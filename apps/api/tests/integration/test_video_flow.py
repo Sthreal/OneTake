@@ -23,6 +23,13 @@ class FakeQueue:
         return None
 
 
+class FakeComposition:
+    provider_name = "mock-video"
+
+    def compose(self, _request):
+        return b"final-mp4-video"
+
+
 def _seed_video_inputs(session: Session, storage: ObjectStoragePublicService) -> str:
     project = ProjectPublicService().create_project(session, product_name="视频项目", product_note=None)
     now = datetime.now(UTC)
@@ -43,13 +50,12 @@ def _seed_video_inputs(session: Session, storage: ObjectStoragePublicService) ->
 def test_video_flow_completes_with_mock_renderer(db_session: Session, object_storage: ObjectStoragePublicService, monkeypatch) -> None:
     monkeypatch.setattr("onetake_api.modules.video_plan.service.get_queue", lambda _name: FakeQueue())
     monkeypatch.setattr("onetake_api.modules.video_plan.service.render_base_video", lambda **_kwargs: b"base-video")
-    monkeypatch.setattr("onetake_api.modules.video_plan.service.compose_final_video", lambda **_kwargs: b"final-mp4-video")
     monkeypatch.setattr(
         "onetake_api.modules.video_plan.service.validate_final_video",
         lambda *_args, **_kwargs: type("Metadata", (), {"width": 1080, "height": 1920, "fps": 30.0, "video_codec": "h264", "audio_codec": "aac"})(),
     )
     project_id = _seed_video_inputs(db_session, object_storage)
-    service = VideoPlanApplicationService(storage=object_storage)
+    service = VideoPlanApplicationService(storage=object_storage, composition=FakeComposition())
     plan = service.create_plan(db_session, project_id=project_id, mode="product", template_id="clean").plan
     assert plan is not None and plan.status == "plan_ready"
     service.request_video(db_session, project_id)
