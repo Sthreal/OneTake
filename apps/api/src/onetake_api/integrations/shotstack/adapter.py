@@ -28,6 +28,8 @@ class ShotstackCompositionAdapter:
         api_base: str,
         poll_interval_seconds: float = 2.0,
         poll_timeout_seconds: int = 600,
+        max_retries: int = 3,
+        retry_backoff_seconds: float = 2.0,
         client: httpx.Client | None = None,
         sleep: Callable[[float], None] = time.sleep,
         monotonic: Callable[[], float] = time.monotonic,
@@ -37,6 +39,8 @@ class ShotstackCompositionAdapter:
         self._api_base = api_base.rstrip("/")
         self._poll_interval_seconds = poll_interval_seconds
         self._poll_timeout_seconds = poll_timeout_seconds
+        self._max_retries = max(0, max_retries)
+        self._retry_backoff_seconds = max(0.0, retry_backoff_seconds)
         self._client = client or httpx.Client(timeout=REQUEST_TIMEOUT_SECONDS)
         self._sleep = sleep
         self._monotonic = monotonic
@@ -86,8 +90,18 @@ class ShotstackCompositionAdapter:
             )
         return final_video
 
+    def _request(self, method: str, url: str, **kwargs) -> httpx.Response:
+        for attempt in range(self._max_retries + 1):
+            try:
+                return self._client.request(method, url, **kwargs)
+            except httpx.TransportError as exc:
+                if attempt >= self._max_retries:
+                    raise ShotstackError("Shotstack 网络请求失败") from exc
+                self._sleep(self._retry_backoff_seconds * (2 ** attempt))
+        raise ShotstackError("Shotstack 网络请求失败")
+
     def _upload(self, content: bytes, filename: str, mime_type: str) -> str:
-        response = self._client.post(
+        response = self._request("POST",
             f"{self._api_base}/ingest/{self._environment}/upload",
             headers=self._headers(),
             json={"filename": filename},
@@ -100,7 +114,7 @@ class ShotstackCompositionAdapter:
         except (KeyError, TypeError, ValueError) as exc:
             raise ShotstackError("Shotstack 上传响应结构无效") from exc
 
-        upload_response = self._client.put(
+        upload_response = self._request("PUT",
             signed_url,
             content=content,
             headers={"Content-Type": mime_type},
@@ -116,7 +130,7 @@ class ShotstackCompositionAdapter:
     def _wait_for_source(self, source_id: str) -> str:
         deadline = self._monotonic() + self._poll_timeout_seconds
         while True:
-            response = self._client.get(
+            response = self._request("GET",
                 f"{self._api_base}/ingest/{self._environment}/sources/{source_id}",
                 headers=self._headers(),
             )
@@ -136,7 +150,7 @@ class ShotstackCompositionAdapter:
             self._sleep(self._poll_interval_seconds)
 
     def _submit_render(self, payload: dict[str, Any]) -> str:
-        response = self._client.post(
+        response = self._request("POST",
             f"{self._api_base}/edit/{self._environment}/render",
             headers={**self._headers(), "Content-Type": "application/json"},
             json=payload,
@@ -150,7 +164,7 @@ class ShotstackCompositionAdapter:
     def _wait_for_render(self, render_id: str) -> str:
         deadline = self._monotonic() + self._poll_timeout_seconds
         while True:
-            response = self._client.get(
+            response = self._request("GET",
                 f"{self._api_base}/edit/{self._environment}/render/{render_id}",
                 headers=self._headers(),
             )
@@ -174,7 +188,7 @@ class ShotstackCompositionAdapter:
     def _download(self, url: str) -> bytes:
         content = b""
         last_error: httpx.HTTPError | None = None
-        for _attempt in range(5):
+        for attempt in range(self._max_retries + 1):
             headers = {"Range": f"bytes={len(content)}-"} if content else {}
             try:
                 with self._client.stream("GET", url, headers=headers, timeout=REQUEST_TIMEOUT_SECONDS) as response:
@@ -187,7 +201,9 @@ class ShotstackCompositionAdapter:
                     return content
             except httpx.HTTPError as exc:
                 last_error = exc
-                self._sleep(2)
+                if attempt >= self._max_retries:
+                    break
+                self._sleep(self._retry_backoff_seconds * (2 ** attempt))
         raise ShotstackError("Shotstack 成片下载失败") from last_error
 
     def _json(self, response: httpx.Response, message: str) -> dict[str, Any]:

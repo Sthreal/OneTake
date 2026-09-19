@@ -22,4 +22,6 @@ def get_composition_provider() -> CompositionPort:
         api_base=settings.shotstack_api_base,
         poll_interval_seconds=settings.shotstack_poll_interval_seconds,
         poll_timeout_seconds=settings.shotstack_poll_timeout_seconds,
+        max_retries=settings.shotstack_max_retries,
+        retry_backoff_seconds=settings.shotstack_retry_backoff_seconds,
     )

@@ -15,5 +15,5 @@ def test_rule_generator_builds_three_variants_and_keeps_timeline() -> None:
         assert variant.scenes[0].purpose == "hook"
         assert variant.scenes[-1].purpose == "cta"
         assert variant.scenes[0].start_seconds == 0.0
-        assert variant.scenes[-1].end_seconds == 10.0
+        assert variant.scenes[-1].end_seconds == 18.0
         assert all(scene.overlay_product for scene in variant.scenes)

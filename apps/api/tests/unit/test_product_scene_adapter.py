@@ -69,10 +69,19 @@ def test_product_scene_generates_background_then_animates_background_only() -> N
 
 
 def test_product_scene_is_enabled_only_for_dynamic_real_providers(monkeypatch) -> None:
-    monkeypatch.setattr(
-        "onetake_api.modules.video_plan.service.get_settings",
-        lambda: SimpleNamespace(wan_i2v_provider="real", image_edit_provider="real"),
+    settings = SimpleNamespace(
+        product_scene_enabled=True,
+        wan_i2v_provider="real",
+        image_edit_provider="real",
+        composition_provider="shotstack",
+        dashscope_api_key="key",
+        wan_i2v_model="wan2.6-i2v-flash",
+        shotstack_api_key="key",
     )
+    monkeypatch.setattr("onetake_api.modules.video_plan.service.get_settings", lambda: settings)
     assert VideoPlanApplicationService._uses_product_scene(SimpleNamespace(mode="product", template_id="dynamic")) is True
     assert VideoPlanApplicationService._uses_product_scene(SimpleNamespace(mode="product", template_id="clean")) is False
     assert VideoPlanApplicationService._uses_product_scene(SimpleNamespace(mode="avatar", template_id=None)) is False
+
+    settings.product_scene_enabled = False
+    assert VideoPlanApplicationService._uses_product_scene(SimpleNamespace(mode="product", template_id="dynamic")) is False

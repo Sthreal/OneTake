@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from onetake_api.modules.content_plan.domain import ContentScene, ContentVariant
 
 PURPOSES = ["hook", "pain_point", "selling_point", "usage_scenario", "cta"]
@@ -51,5 +52,7 @@ def generate_rule_variants(*, segments: list[dict]) -> list[ContentVariant]:
                 subtitle_segment_ids=[int(segment.get("index", index + 1))],
                 qa_rules=["product_visible", "script_fidelity", "subtitle_alignment", "no_extra_text"],
             ))
+        if scenes and scenes[-1].end_seconds < 18.0:
+            scenes[-1] = replace(scenes[-1], end_seconds=18.0)
         variants.append(ContentVariant(f"var_{style}", name, style, scenes))
     return variants

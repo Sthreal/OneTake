@@ -73,3 +73,35 @@ def test_shotstack_adapter_uploads_assets_and_returns_rendered_video(monkeypatch
     assert burned[0]["base_video_bytes"] == b"shotstack-final"
     assert burned[0]["preserve_audio"] is True
     assert burned[0]["srt_bytes"] == "1\n00:00:00,000 --> 00:00:02,000\n字幕\n".encode("utf-8")
+
+
+def test_shotstack_adapter_retries_transient_transport_errors() -> None:
+    attempts = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        path = request.url.path
+        if request.method == "POST" and path == "/ingest/stage/upload":
+            attempts += 1
+            if attempts == 1:
+                raise httpx.RemoteProtocolError("connection lost")
+            return httpx.Response(200, json={"data": {"id": "upload_retry", "attributes": {"url": "https://upload.example/retry"}}})
+        if request.method == "PUT" and request.url.host == "upload.example":
+            return httpx.Response(200)
+        if request.method == "GET" and path == "/ingest/stage/sources/upload_retry":
+            return httpx.Response(200, json={"data": {"id": "upload_retry", "attributes": {"status": "ready", "source": "https://source.example/retry.bin"}}})
+        return httpx.Response(404, json={"error": "not found"})
+
+    adapter = ShotstackCompositionAdapter(
+        api_key="stage-key",
+        environment="stage",
+        api_base="https://api.shotstack.io",
+        max_retries=2,
+        retry_backoff_seconds=0,
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        sleep=lambda _seconds: None,
+    )
+
+    source = adapter.upload_asset(content=b"base-video", filename="base.mp4", mime_type="video/mp4")
+    assert source == "https://source.example/retry.bin"
+    assert attempts == 2

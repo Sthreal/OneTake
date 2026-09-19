@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     composition_provider: Literal["mock", "shotstack"] = "mock"
     creative_planner_provider: Literal["rules", "qwen"] = "rules"
     wan_i2v_provider: Literal["mock", "real"] = "mock"
+    product_scene_enabled: bool = False
     content_qa_provider: Literal["rules", "qwen"] = "rules"
     recognition_model: str = "qwen-vl-plus"
     recognition_endpoint: str = "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
@@ -41,6 +42,8 @@ class Settings(BaseSettings):
     shotstack_api_base: str = "https://api.shotstack.io"
     shotstack_poll_interval_seconds: float = 2.0
     shotstack_poll_timeout_seconds: int = 600
+    shotstack_max_retries: int = 3
+    shotstack_retry_backoff_seconds: float = 2.0
     creative_planner_model: str = "qwen-plus"
     creative_planner_endpoint: str = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation"
     content_qa_model: str = "qwen-vl-plus"

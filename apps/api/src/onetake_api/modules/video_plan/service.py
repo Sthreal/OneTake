@@ -7,7 +7,7 @@ from datetime import timedelta
 
 from sqlalchemy.orm import Session
 
-from onetake_api.config import get_settings
+from onetake_api.config import Settings, get_settings
 
 from onetake_api.integrations.dashscope_uploader.adapter import DashScopeTemporaryUploader
 from onetake_api.integrations.media.video_utils import concatenate_videos
@@ -272,7 +272,10 @@ class VideoPlanApplicationService:
 
     def _create_base_video(self, session: Session, plan: VideoPlan, main_image: bytes) -> bytes:
         settings = get_settings()
-        if self._uses_product_scene(plan):
+        if plan.mode == "product" and plan.template_id == "dynamic" and settings.product_scene_enabled:
+            errors = self._product_scene_config_errors(settings)
+            if errors:
+                raise VideoPlanConflictError("商品场景真实链路配置不完整：" + "；".join(errors))
             return self._create_product_scene_video(session, plan, main_image)
         if plan.mode == "product" or settings.wan_i2v_provider != "real":
             return render_base_video(
@@ -307,13 +310,30 @@ class VideoPlanApplicationService:
         return concatenate_videos(clips=clips, duration_seconds=plan.duration_seconds, fps=plan.fps)
 
     @staticmethod
+    def _product_scene_config_errors(settings: Settings) -> list[str]:
+        errors: list[str] = []
+        if settings.image_edit_provider != "real":
+            errors.append("IMAGE_EDIT_PROVIDER 必须为 real")
+        if settings.wan_i2v_provider != "real":
+            errors.append("WAN_I2V_PROVIDER 必须为 real")
+        if settings.composition_provider != "shotstack":
+            errors.append("COMPOSITION_PROVIDER 必须为 shotstack")
+        if not settings.dashscope_api_key:
+            errors.append("缺少 DASHSCOPE_API_KEY")
+        if not settings.wan_i2v_model:
+            errors.append("缺少 WAN_I2V_MODEL")
+        if not settings.shotstack_api_key:
+            errors.append("缺少 SHOTSTACK_API_KEY")
+        return errors
+
+    @staticmethod
     def _uses_product_scene(plan: VideoPlan) -> bool:
         settings = get_settings()
         return (
-            plan.mode == "product"
+            settings.product_scene_enabled
+            and plan.mode == "product"
             and plan.template_id == "dynamic"
-            and settings.wan_i2v_provider == "real"
-            and settings.image_edit_provider == "real"
+            and not VideoPlanApplicationService._product_scene_config_errors(settings)
         )
 
     def _create_product_scene_video(self, session: Session, plan: VideoPlan, main_image: bytes) -> bytes:
