@@ -53,3 +53,51 @@ def test_burn_subtitles_renders_chinese_pixels() -> None:
         image = Image.open(frame).convert("RGB")
         white_pixels = sum(1 for red, green, blue in image.getdata() if red > 180 and green > 180 and blue > 180)
         assert white_pixels > 100
+
+
+def test_burn_subtitles_uses_smaller_lower_style(monkeypatch) -> None:
+    captured: list[list[str]] = []
+
+    def fake_run(command: list[str], **_kwargs):
+        captured.append(command)
+        Path(command[-1]).write_bytes(b"captioned")
+        return type("Completed", (), {"returncode": 0})()
+
+    monkeypatch.setattr("onetake_api.integrations.media.subtitle_burner.subprocess.run", fake_run)
+    result = burn_subtitles(
+        base_video_bytes=b"base",
+        srt_bytes="1\n00:00:00,000 --> 00:00:01,500\n测试字幕\n".encode("utf-8"),
+        duration_seconds=2,
+        fps=25,
+    )
+
+    assert result == b"captioned"
+    filter_graph = captured[0][captured[0].index("-vf") + 1]
+    assert "FontSize=16" in filter_graph
+    assert "MarginL=80" in filter_graph
+    assert "MarginR=80" in filter_graph
+    assert "MarginV=60" in filter_graph
+
+
+def test_burn_subtitles_can_preserve_audio(monkeypatch) -> None:
+    captured: list[list[str]] = []
+
+    def fake_run(command: list[str], **_kwargs):
+        captured.append(command)
+        Path(command[-1]).write_bytes(b"captioned")
+        return type("Completed", (), {"returncode": 0})()
+
+    monkeypatch.setattr("onetake_api.integrations.media.subtitle_burner.subprocess.run", fake_run)
+    result = burn_subtitles(
+        base_video_bytes=b"base",
+        srt_bytes="1\n00:00:00,000 --> 00:00:01,500\n测试字幕\n".encode("utf-8"),
+        duration_seconds=2,
+        fps=25,
+        preserve_audio=True,
+    )
+
+    assert result == b"captioned"
+    command = captured[0]
+    assert "-an" not in command
+    assert "0:a:0?" in command
+    assert "copy" in command

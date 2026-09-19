@@ -11,7 +11,7 @@ def test_shotstack_adapter_uploads_assets_and_returns_rendered_video(monkeypatch
 
     def fake_burn(**kwargs):
         burned.append(kwargs)
-        return b"captioned-base"
+        return b"captioned-final"
 
     monkeypatch.setattr("onetake_api.integrations.shotstack.adapter.burn_subtitles", fake_burn)
     uploads: list[dict[str, object]] = []
@@ -58,10 +58,10 @@ def test_shotstack_adapter_uploads_assets_and_returns_rendered_video(monkeypatch
         motion_effect="zoomIn",
     ))
 
-    assert result == b"shotstack-final"
+    assert result == b"captioned-final"
     assert adapter.provider_name == "shotstack-stage"
     assert len(uploads) == 3
-    assert [upload["body"] for upload in uploads] == [b"captioned-base", b"voice-audio", b"product-image"]
+    assert [upload["body"] for upload in uploads] == [b"base-video", b"voice-audio", b"product-image"]
     payload = render_payloads[0]
     assert payload["output"] == {"format": "mp4", "fps": 30, "size": {"width": 1080, "height": 1920}}
     track_types = [track["clips"][0]["asset"]["type"] for track in payload["timeline"]["tracks"]]
@@ -69,5 +69,7 @@ def test_shotstack_adapter_uploads_assets_and_returns_rendered_video(monkeypatch
     assert payload["timeline"]["tracks"][1]["clips"][0]["fit"] == "contain"
     assert payload["timeline"]["tracks"][0]["clips"][0]["effect"] == "zoomIn"
     assert payload["timeline"]["tracks"][1]["clips"][0]["effect"] == "zoomIn"
-    assert burned[0]["base_video_bytes"] == b"base-video"
+    assert len(burned) == 1
+    assert burned[0]["base_video_bytes"] == b"shotstack-final"
+    assert burned[0]["preserve_audio"] is True
     assert burned[0]["srt_bytes"] == "1\n00:00:00,000 --> 00:00:02,000\n字幕\n".encode("utf-8")

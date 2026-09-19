@@ -51,8 +51,9 @@ class ShotstackCompositionAdapter:
         if not request.base_video_bytes:
             raise ShotstackError("Shotstack 基础视频为空")
 
+        defer_subtitles = bool(request.srt_bytes and request.motion_effect)
         base_video = request.base_video_bytes
-        if request.srt_bytes:
+        if request.srt_bytes and not defer_subtitles:
             base_video = burn_subtitles(
                 base_video_bytes=base_video,
                 srt_bytes=request.srt_bytes,
@@ -74,7 +75,16 @@ class ShotstackCompositionAdapter:
         )
         render_id = self._submit_render(payload)
         output_url = self._wait_for_render(render_id)
-        return self._download(output_url)
+        final_video = self._download(output_url)
+        if defer_subtitles:
+            final_video = burn_subtitles(
+                base_video_bytes=final_video,
+                srt_bytes=request.srt_bytes,
+                duration_seconds=request.duration_seconds,
+                fps=request.fps,
+                preserve_audio=True,
+            )
+        return final_video
 
     def _upload(self, content: bytes, filename: str, mime_type: str) -> str:
         response = self._client.post(
