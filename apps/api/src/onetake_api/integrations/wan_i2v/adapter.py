@@ -4,6 +4,8 @@ from collections.abc import Callable
 
 import httpx
 
+from onetake_api.integrations.media.image_utils import pad_image_to_9_16
+from onetake_api.integrations.media.video_utils import inspect_video_dimensions
 from onetake_api.platform.errors import DomainError
 
 
@@ -25,6 +27,8 @@ class WanI2VAdapter:
         max_seconds: int,
         upload_image: Callable[[bytes], str],
         video_synthesis=None,
+        prepare_image: Callable[[bytes], bytes] = pad_image_to_9_16,
+        inspect_dimensions: Callable[[bytes], tuple[int, int]] = inspect_video_dimensions,
         client: httpx.Client | None = None,
     ) -> None:
         self._api_key = api_key
@@ -32,6 +36,8 @@ class WanI2VAdapter:
         self.resolution = resolution
         self._max_seconds = max(1, min(max_seconds, 30))
         self._upload_image = upload_image
+        self._prepare_image = prepare_image
+        self._inspect_dimensions = inspect_dimensions
         self._client = client or httpx.Client(timeout=120)
         if video_synthesis is None:
             from dashscope import VideoSynthesis
@@ -45,7 +51,11 @@ class WanI2VAdapter:
             raise WanI2VError("WAN_I2V_MODEL 未配置")
         if not image_bytes:
             raise WanI2VError("WAN_I2V 输入图片为空")
-        image_url = self._upload_image(image_bytes)
+        try:
+            prepared_image = self._prepare_image(image_bytes)
+        except Exception as exc:
+            raise WanI2VError("WAN_I2V 输入图比例处理失败") from exc
+        image_url = self._upload_image(prepared_image)
         duration = min(self._max_seconds, max(1, int(round(duration_seconds))))
         try:
             response = self._video_synthesis.async_call(
@@ -54,7 +64,6 @@ class WanI2VAdapter:
                 img_url=image_url,
                 prompt=prompt,
                 resolution=self.resolution,
-                ratio="9:16",
                 duration=duration,
                 prompt_extend=False,
                 watermark=False,
@@ -83,4 +92,8 @@ class WanI2VAdapter:
             raise WanI2VError("WAN_I2V 成片下载失败") from exc
         if not download.content:
             raise WanI2VError("WAN_I2V 返回空视频")
+        width, height = self._inspect_dimensions(download.content)
+        ratio_error = abs(width / height - 9 / 16) if height else 1
+        if ratio_error > 0.02:
+            raise WanI2VError(f"WAN_I2V 输出比例错误：{width}x{height}")
         return download.content, task_id

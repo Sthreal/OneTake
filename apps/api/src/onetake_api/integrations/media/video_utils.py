@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -38,3 +39,25 @@ def concatenate_videos(*, clips: list[bytes], duration_seconds: float, fps: int)
         except (subprocess.CalledProcessError, OSError) as exc:
             raise VideoProcessingError("视频片段拼接失败") from exc
         return output.read_bytes()
+
+
+def inspect_video_dimensions(video_bytes: bytes) -> tuple[int, int]:
+    if not video_bytes:
+        raise VideoProcessingError("视频为空")
+    with tempfile.TemporaryDirectory() as temp_dir:
+        input_path = Path(temp_dir) / "video.mp4"
+        input_path.write_bytes(video_bytes)
+        try:
+            completed = subprocess.run(
+                [get_ffmpeg_exe(), "-hide_banner", "-i", str(input_path), "-f", "null", "-"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except (subprocess.CalledProcessError, OSError) as exc:
+            raise VideoProcessingError("视频元数据读取失败") from exc
+        video_line = next((line for line in completed.stderr.splitlines() if " Video: " in line), None)
+        size_match = re.search(r"(\d{2,5})x(\d{2,5})", video_line or "")
+        if size_match is None:
+            raise VideoProcessingError("视频分辨率缺失")
+        return int(size_match.group(1)), int(size_match.group(2))
