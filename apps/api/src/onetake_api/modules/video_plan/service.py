@@ -12,6 +12,8 @@ from onetake_api.config import get_settings
 from onetake_api.integrations.dashscope_uploader.adapter import DashScopeTemporaryUploader
 from onetake_api.integrations.media.video_utils import concatenate_videos
 from onetake_api.integrations.mock_video.renderer import render_base_video, validate_final_video
+from onetake_api.integrations.product_scene.adapter import ProductSceneAdapter
+from onetake_api.integrations.qwen_image_edit.adapter import QwenImageEditAdapter
 from onetake_api.integrations.wan_i2v.adapter import WanI2VAdapter
 from onetake_api.integrations.object_storage.dependencies import get_object_storage
 from onetake_api.integrations.object_storage.public import ObjectStoragePublicService
@@ -206,16 +208,18 @@ class VideoPlanApplicationService:
             self._pipeline.mark_rendering(session, plan.project_id)
             session.commit()
 
+            uses_product_scene = self._uses_product_scene(plan)
             final_video = self._composition.compose(CompositionRequest(
                 base_video_bytes=base_video,
                 audio_bytes=audio_bytes,
                 srt_bytes=srt_bytes,
                 product_image_bytes=main_image,
-                overlay_product=plan.mode == "avatar",
+                overlay_product=plan.mode == "avatar" or uses_product_scene,
                 duration_seconds=plan.duration_seconds,
                 width=plan.width,
                 height=plan.height,
                 fps=plan.fps,
+                motion_effect="zoomIn" if uses_product_scene else None,
             ))
             metadata = validate_final_video(
                 final_video,
@@ -268,6 +272,8 @@ class VideoPlanApplicationService:
 
     def _create_base_video(self, session: Session, plan: VideoPlan, main_image: bytes) -> bytes:
         settings = get_settings()
+        if self._uses_product_scene(plan):
+            return self._create_product_scene_video(session, plan, main_image)
         if plan.mode == "product" or settings.wan_i2v_provider != "real":
             return render_base_video(
                 image_bytes=main_image,
@@ -297,6 +303,57 @@ class VideoPlanApplicationService:
             scene = variant.scenes[min(index, len(variant.scenes) - 1)]
             prompt = "保持商品外观、颜色、包装文字和结构完全不变，只生成自然镜头、背景、光线和轻微运动。" + scene.prompt
             video_bytes, _task_id = adapter.generate(image_bytes=main_image, prompt=prompt, duration_seconds=clip_seconds)
+            clips.append(video_bytes)
+        return concatenate_videos(clips=clips, duration_seconds=plan.duration_seconds, fps=plan.fps)
+
+    @staticmethod
+    def _uses_product_scene(plan: VideoPlan) -> bool:
+        settings = get_settings()
+        return (
+            plan.mode == "product"
+            and plan.template_id == "dynamic"
+            and settings.wan_i2v_provider == "real"
+            and settings.image_edit_provider == "real"
+        )
+
+    def _create_product_scene_video(self, session: Session, plan: VideoPlan, main_image: bytes) -> bytes:
+        if self._composition.provider_name == "mock-video":
+            raise VideoPlanConflictError("商品场景视频需要 Shotstack 合成")
+        content_plan = ContentPlanPublicService().latest(session, plan.project_id)
+        if content_plan is None or content_plan.status != CONTENT_PLAN_CONFIRMED:
+            raise VideoPlanConflictError("请先确认视频分镜")
+        settings = get_settings()
+        image_edit = QwenImageEditAdapter(
+            api_key=settings.dashscope_api_key,
+            endpoint=settings.image_edit_endpoint,
+            model=settings.image_edit_model,
+        )
+        uploader = DashScopeTemporaryUploader(api_key=settings.dashscope_api_key, model=settings.wan_i2v_model)
+        background_video = WanI2VAdapter(
+            api_key=settings.dashscope_api_key,
+            model=settings.wan_i2v_model,
+            resolution=settings.wan_i2v_resolution,
+            max_seconds=settings.wan_i2v_max_seconds,
+            upload_image=lambda content: uploader.upload_image(content, "wan-background.png"),
+        )
+        product_scene = ProductSceneAdapter(image_edit=image_edit, background_video=background_video)
+        variant = content_plan.variants[content_plan.selected_variant_index]
+        background_image = product_scene.generate_background_image(
+            main_image,
+            scene_style=variant.scenes[0].background_style,
+        )
+        background_key = f"projects/{plan.project_id}/video/{plan.id}/background.png"
+        self.storage.put_bytes(object_key=background_key, content=background_image, mime_type="image/png")
+        clip_seconds = settings.wan_i2v_max_seconds
+        clip_count = max(1, math.ceil(plan.duration_seconds / clip_seconds))
+        clips = []
+        for index in range(clip_count):
+            scene = variant.scenes[min(index, len(variant.scenes) - 1)]
+            video_bytes, _task_id = product_scene.animate_background(
+                background_image=background_image,
+                prompt=f"场景风格：{scene.background_style}。",
+                duration_seconds=clip_seconds,
+            )
             clips.append(video_bytes)
         return concatenate_videos(clips=clips, duration_seconds=plan.duration_seconds, fps=plan.fps)
 

@@ -10,6 +10,11 @@ from onetake_api.platform.errors import DomainError
 
 REQUEST_TIMEOUT_SECONDS = 120
 MAX_RESULT_BYTES = 20 * 1024 * 1024
+DEFAULT_EDIT_PROMPT = (
+    "清理商品图片中的杂乱背景、外部文字、促销元素和无关物体，"
+    "只保留完整商品主体；保持商品外观、包装文字、颜色和细节不变。"
+)
+DEFAULT_NEGATIVE_PROMPT = "水印, 促销文字, 标签卡, 多余物体, 商品变形, 改变颜色"
 
 
 class QwenImageEditError(DomainError):
@@ -26,7 +31,14 @@ class QwenImageEditAdapter:
         self._endpoint = endpoint
         self._model = model
 
-    def edit(self, *, image_bytes: bytes, mime_type: str) -> bytes:
+    def edit(
+        self,
+        *,
+        image_bytes: bytes,
+        mime_type: str,
+        prompt: str | None = None,
+        negative_prompt: str | None = None,
+    ) -> bytes:
         if not self._api_key:
             raise QwenImageEditError("DASHSCOPE_API_KEY 未配置")
         if not image_bytes:
@@ -40,18 +52,13 @@ class QwenImageEditAdapter:
                         "role": "user",
                         "content": [
                             {"image": data_url},
-                            {
-                                "text": (
-                                    "清理商品图片中的杂乱背景、外部文字、促销元素和无关物体，"
-                                    "只保留完整商品主体；保持商品外观、包装文字、颜色和细节不变。"
-                                )
-                            },
+                            {"text": prompt or DEFAULT_EDIT_PROMPT},
                         ],
                     }
                 ]
             },
             "parameters": {
-                "negative_prompt": "水印, 促销文字, 标签卡, 多余物体, 商品变形, 改变颜色",
+                "negative_prompt": negative_prompt or DEFAULT_NEGATIVE_PROMPT,
                 "watermark": False,
             },
         }

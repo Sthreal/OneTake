@@ -40,6 +40,31 @@ def test_qwen_image_edit_downloads_and_normalizes_png(monkeypatch) -> None:
         assert image.mode == "RGB"
 
 
+def test_qwen_image_edit_accepts_custom_prompt(monkeypatch) -> None:
+    payloads: list[dict] = []
+
+    def fake_post(*args, **kwargs):
+        payloads.append(kwargs["json"])
+        return FakeResponse(body={"output": {"choices": [{"message": {"content": [{"image": "https://example.test/background"}]}}]}})
+
+    monkeypatch.setattr("onetake_api.integrations.qwen_image_edit.adapter.httpx.post", fake_post)
+    monkeypatch.setattr(
+        "onetake_api.integrations.qwen_image_edit.adapter.httpx.get",
+        lambda *args, **kwargs: FakeResponse(content=_png()),
+    )
+    adapter = QwenImageEditAdapter(api_key="test-key", endpoint="https://example.test/edit", model="qwen-image-edit-plus")
+    adapter.edit(
+        image_bytes=_png(),
+        mime_type="image/png",
+        prompt="移除商品并生成空背景",
+        negative_prompt="商品, 文字, Logo",
+    )
+
+    content = payloads[0]["input"]["messages"][0]["content"]
+    assert content[1]["text"] == "移除商品并生成空背景"
+    assert payloads[0]["parameters"]["negative_prompt"] == "商品, 文字, Logo"
+
+
 def test_qwen_image_edit_rejects_non_image_result(monkeypatch) -> None:
     monkeypatch.setattr(
         "onetake_api.integrations.qwen_image_edit.adapter.httpx.post",

@@ -207,24 +207,26 @@ class ShotstackCompositionAdapter:
     ) -> dict[str, Any]:
         tracks: list[dict[str, Any]] = []
         if product_image_url:
-            tracks.append({
-                "clips": [{
-                    "asset": {"type": "image", "src": product_image_url},
-                    "start": 0,
-                    "length": request.duration_seconds,
-                    "fit": "contain",
-                    "position": "center",
-                }],
-            })
-        tracks.append({
-            "clips": [{
-                "asset": {"type": "video", "src": base_video_url},
+            product_clip = {
+                "asset": {"type": "image", "src": product_image_url},
                 "start": 0,
                 "length": request.duration_seconds,
-                "fit": "contain" if request.overlay_product else "cover",
+                "fit": "contain",
                 "position": "center",
-            }],
-        })
+            }
+            if request.motion_effect:
+                product_clip["effect"] = request.motion_effect
+            tracks.append({"clips": [product_clip]})
+        video_clip = {
+            "asset": {"type": "video", "src": base_video_url},
+            "start": 0,
+            "length": request.duration_seconds,
+            "fit": "contain" if request.overlay_product else "cover",
+            "position": "center",
+        }
+        if request.motion_effect:
+            video_clip["effect"] = request.motion_effect
+        tracks.append({"clips": [video_clip]})
         if audio_url:
             tracks.append({
                 "clips": [{

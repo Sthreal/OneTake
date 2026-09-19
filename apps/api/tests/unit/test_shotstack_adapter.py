@@ -55,6 +55,7 @@ def test_shotstack_adapter_uploads_assets_and_returns_rendered_video(monkeypatch
         width=1080,
         height=1920,
         fps=30,
+        motion_effect="zoomIn",
     ))
 
     assert result == b"shotstack-final"
@@ -66,5 +67,7 @@ def test_shotstack_adapter_uploads_assets_and_returns_rendered_video(monkeypatch
     track_types = [track["clips"][0]["asset"]["type"] for track in payload["timeline"]["tracks"]]
     assert track_types == ["image", "video", "audio"]
     assert payload["timeline"]["tracks"][1]["clips"][0]["fit"] == "contain"
+    assert payload["timeline"]["tracks"][0]["clips"][0]["effect"] == "zoomIn"
+    assert payload["timeline"]["tracks"][1]["clips"][0]["effect"] == "zoomIn"
     assert burned[0]["base_video_bytes"] == b"base-video"
     assert burned[0]["srt_bytes"] == "1\n00:00:00,000 --> 00:00:02,000\n字幕\n".encode("utf-8")

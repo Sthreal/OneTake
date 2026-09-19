@@ -13,6 +13,7 @@ class CompositionRequest:
     width: int
     height: int
     fps: int
+    motion_effect: str | None = None
 
 
 class CompositionPort(Protocol):
