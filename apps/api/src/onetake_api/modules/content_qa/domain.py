@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Protocol
 
@@ -35,6 +35,15 @@ class QaRequest:
     subtitle_embedded: bool
     product_layered: bool
     video_bytes: bytes
+    product_image_bytes: bytes | None = None
+
+
+@dataclass(frozen=True)
+class SemanticQaResult:
+    passed: bool
+    score: int
+    checks: list[QaCheck]
+    issues: list[str]
 
 
 @dataclass(frozen=True)
@@ -51,6 +60,10 @@ class ContentQaReport:
     provider: str
     model: str
     created_at: datetime
+    rule_score: int | None = None
+    semantic_score: int | None = None
+    semantic_checks: list[QaCheck] = field(default_factory=list)
+    semantic_issues: list[str] = field(default_factory=list)
 
 
 class ContentQaPort(Protocol):

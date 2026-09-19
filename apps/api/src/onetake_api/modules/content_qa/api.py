@@ -35,6 +35,10 @@ class QaReportData(BaseModel):
     provider: str
     model: str
     created_at: datetime
+    rule_score: int | None
+    semantic_score: int | None
+    semantic_checks: list[QaCheckData]
+    semantic_issues: list[str]
 
 
 class QaResponse(BaseModel):
@@ -43,7 +47,7 @@ class QaResponse(BaseModel):
 
 
 def _response(report) -> QaResponse:
-    data = None if report is None else QaReportData(report_id=report.id, project_id=report.project_id, plan_id=report.plan_id, video_plan_id=report.video_plan_id, status=report.status, score=report.score, passed=report.passed, checks=[QaCheckData(**item.__dict__) for item in report.checks], critical_failures=report.critical_failures, provider=report.provider, model=report.model, created_at=report.created_at)
+    data = None if report is None else QaReportData(report_id=report.id, project_id=report.project_id, plan_id=report.plan_id, video_plan_id=report.video_plan_id, status=report.status, score=report.score, passed=report.passed, checks=[QaCheckData(**item.__dict__) for item in report.checks], critical_failures=report.critical_failures, provider=report.provider, model=report.model, created_at=report.created_at, rule_score=report.rule_score, semantic_score=report.semantic_score, semantic_checks=[QaCheckData(**item.__dict__) for item in report.semantic_checks], semantic_issues=report.semantic_issues)
     return QaResponse(data=data, request_id=get_request_id())
 
 

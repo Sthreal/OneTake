@@ -233,6 +233,7 @@ class VideoPlanApplicationService:
                 expected_audio=audio_bytes is not None,
                 subtitle_embedded=srt_bytes is not None,
                 product_layered=True,
+                product_image_bytes=main_image,
             )
             if not qa_report.passed:
                 candidate_key = f"projects/{plan.project_id}/quality/{plan.id}/candidate.mp4"
