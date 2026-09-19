@@ -30,6 +30,11 @@ class FakeComposition:
         return b"final-mp4-video"
 
 
+class FakeContentQa:
+    def evaluate_candidate(self, *_args, **_kwargs):
+        return type("Report", (), {"passed": True, "score": 100})()
+
+
 def _seed_video_inputs(session: Session, storage: ObjectStoragePublicService) -> str:
     project = ProjectPublicService().create_project(session, product_name="视频项目", product_note=None)
     now = datetime.now(UTC)
@@ -55,7 +60,7 @@ def test_video_flow_completes_with_mock_renderer(db_session: Session, object_sto
         lambda *_args, **_kwargs: type("Metadata", (), {"width": 1080, "height": 1920, "fps": 30.0, "video_codec": "h264", "audio_codec": "aac"})(),
     )
     project_id = _seed_video_inputs(db_session, object_storage)
-    service = VideoPlanApplicationService(storage=object_storage, composition=FakeComposition())
+    service = VideoPlanApplicationService(storage=object_storage, composition=FakeComposition(), content_qa=FakeContentQa())
     plan = service.create_plan(db_session, project_id=project_id, mode="product", template_id="clean").plan
     assert plan is not None and plan.status == "plan_ready"
     service.request_video(db_session, project_id)

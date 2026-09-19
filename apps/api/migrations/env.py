@@ -6,6 +6,7 @@ from sqlalchemy import engine_from_config, pool
 from onetake_api.config import get_settings
 from onetake_api.modules.asset.adapters.sqlalchemy_repository import AssetModel  # noqa: F401
 from onetake_api.modules.content_plan.repository import ContentPlanModel  # noqa: F401
+from onetake_api.modules.content_qa.repository import ContentQaReportModel  # noqa: F401
 from onetake_api.modules.output.repository import OutputArtifactModel  # noqa: F401
 from onetake_api.modules.outbox.adapters.sqlalchemy_repository import OutboxEventModel  # noqa: F401
 from onetake_api.modules.image_edit.repository import ImageEditRunModel  # noqa: F401

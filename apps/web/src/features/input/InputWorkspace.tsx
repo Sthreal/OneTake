@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { FlowProgress } from "./FlowProgress";
 import { ProjectRail } from "./ProjectRail";
 import { ContentPlanPanel } from "../content-plan/ContentPlanPanel";
+import { ContentQualityPanel } from "../content-quality/ContentQualityPanel";
+import { useContentQuality } from "../content-quality/useContentQuality";
 import { useContentPlan } from "../content-plan/useContentPlan";
 import { SubtitlePanel } from "../audio-subtitle/SubtitlePanel";
 import { useSubtitle } from "../audio-subtitle/useSubtitle";
@@ -50,6 +52,7 @@ export function InputWorkspace() {
   const voice = useVoice(project?.project_id ?? null);
   const subtitle = useSubtitle(project?.project_id ?? null);
   const contentPlan = useContentPlan(project?.project_id ?? null);
+  const contentQuality = useContentQuality(project?.project_id ?? null);
   const video = useVideo(project?.project_id ?? null);
   const [productName, setProductName] = useState("");
   const [productNote, setProductNote] = useState("");
@@ -370,6 +373,8 @@ export function InputWorkspace() {
                   onGenerate={(mode, templateId) => void video.generate(mode, templateId)}
                 />
               ) : null}
+
+              <ContentQualityPanel report={contentQuality.report} isLoading={contentQuality.isLoading} error={contentQuality.error} />
 
               <section className="surface-card asset-section">
                 <div className="section-heading">

@@ -11,6 +11,7 @@ from onetake_api.integrations.object_storage.dependencies import get_object_stor
 from onetake_api.integrations.object_storage.public import ObjectStoragePublicService
 from onetake_api.modules.composition.port import CompositionPort, CompositionRequest
 from onetake_api.modules.composition.service import get_composition_provider
+from onetake_api.modules.content_qa.public import ContentQaPublicService
 from onetake_api.modules.job.public import JobPublicService
 from onetake_api.modules.main_image.public import MainImagePublicService
 from onetake_api.modules.output.domain import OutputArtifact
@@ -62,6 +63,7 @@ class VideoPlanApplicationService:
         self,
         storage: ObjectStoragePublicService | None = None,
         composition: CompositionPort | None = None,
+        content_qa: object | None = None,
     ) -> None:
         self._repository = VideoPlanRepository()
         self._outputs = OutputRepository()
@@ -75,6 +77,7 @@ class VideoPlanApplicationService:
         self._clock = SystemClock()
         self._storage = storage
         self._composition = composition or get_composition_provider()
+        self._content_qa = content_qa or ContentQaPublicService()
 
     @property
     def storage(self) -> ObjectStoragePublicService:
@@ -221,6 +224,25 @@ class VideoPlanApplicationService:
                 expected_fps=plan.fps,
                 expected_audio=audio_bytes is not None,
             )
+            qa_report = self._content_qa.evaluate_candidate(
+                session,
+                project_id=plan.project_id,
+                video_plan_id=plan.id,
+                video_bytes=final_video,
+                metadata=metadata,
+                expected_audio=audio_bytes is not None,
+                subtitle_embedded=srt_bytes is not None,
+                product_layered=True,
+            )
+            if not qa_report.passed:
+                candidate_key = f"projects/{plan.project_id}/quality/{plan.id}/candidate.mp4"
+                self.storage.put_bytes(object_key=candidate_key, content=final_video, mime_type="video/mp4")
+                self._jobs.mark_failed(session, job, "CONTENT_QA_FAILED")
+                failed = replace(plan, status=FAILED, error_code="CONTENT_QA_FAILED", updated_at=self._clock.now(), completed_at=self._clock.now())
+                self._repository.update(session, failed)
+                session.commit()
+                return failed
+
             final_key = f"projects/{plan.project_id}/output/{plan.id}/final.mp4"
             self.storage.put_bytes(object_key=final_key, content=final_video, mime_type="video/mp4")
             now = self._clock.now()
