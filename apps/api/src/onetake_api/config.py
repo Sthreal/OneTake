@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     voice_provider: Literal["mock", "real"] = "mock"
     composition_provider: Literal["mock", "shotstack"] = "mock"
     creative_planner_provider: Literal["rules", "qwen"] = "rules"
+    wan_i2v_provider: Literal["mock", "real"] = "mock"
     content_qa_provider: Literal["rules", "qwen"] = "rules"
     recognition_model: str = "qwen-vl-plus"
     recognition_endpoint: str = "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
@@ -45,6 +46,10 @@ class Settings(BaseSettings):
     content_qa_model: str = "qwen-vl-plus"
     content_qa_endpoint: str = "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
     content_qa_frame_count: int = 5
+    wan_i2v_model: str = ""
+    wan_i2v_resolution: Literal["720P", "1080P"] = "720P"
+    wan_i2v_with_audio: bool = False
+    wan_i2v_max_seconds: int = 5
     alibaba_cloud_access_key_id: str = ""
     alibaba_cloud_access_key_secret: str = ""
     alibaba_cloud_region_id: str = "cn-shanghai"

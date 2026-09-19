@@ -42,6 +42,9 @@ class ShotstackCompositionAdapter:
         self._monotonic = monotonic
         self.provider_name = f"shotstack-{environment}"
 
+    def upload_asset(self, *, content: bytes, filename: str, mime_type: str) -> str:
+        return self._upload(content, filename, mime_type)
+
     def compose(self, request: CompositionRequest) -> bytes:
         if not self._api_key:
             raise ShotstackError("Shotstack API Key 未配置")
@@ -218,7 +221,7 @@ class ShotstackCompositionAdapter:
                 "asset": {"type": "video", "src": base_video_url},
                 "start": 0,
                 "length": request.duration_seconds,
-                "fit": "cover",
+                "fit": "contain" if request.overlay_product else "cover",
                 "position": "center",
             }],
         })

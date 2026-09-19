@@ -1,16 +1,24 @@
 from __future__ import annotations
 
 import hashlib
+import math
 from dataclasses import dataclass, replace
 from datetime import timedelta
 
 from sqlalchemy.orm import Session
 
+from onetake_api.config import get_settings
+
+from onetake_api.integrations.dashscope_uploader.adapter import DashScopeTemporaryUploader
+from onetake_api.integrations.media.video_utils import concatenate_videos
 from onetake_api.integrations.mock_video.renderer import render_base_video, validate_final_video
+from onetake_api.integrations.wan_i2v.adapter import WanI2VAdapter
 from onetake_api.integrations.object_storage.dependencies import get_object_storage
 from onetake_api.integrations.object_storage.public import ObjectStoragePublicService
 from onetake_api.modules.composition.port import CompositionPort, CompositionRequest
 from onetake_api.modules.composition.service import get_composition_provider
+from onetake_api.modules.content_plan.domain import STATUS_CONFIRMED as CONTENT_PLAN_CONFIRMED
+from onetake_api.modules.content_plan.public import ContentPlanPublicService
 from onetake_api.modules.content_qa.public import ContentQaPublicService
 from onetake_api.modules.job.public import JobPublicService
 from onetake_api.modules.main_image.public import MainImagePublicService
@@ -183,15 +191,7 @@ class VideoPlanApplicationService:
         session.commit()
         try:
             main_image = b"".join(self.storage.read_object(object_key=plan.main_image_object_key))
-            base_video = render_base_video(
-                image_bytes=main_image,
-                mode=plan.mode,
-                template_id=plan.template_id,
-                duration_seconds=plan.duration_seconds,
-                width=plan.width,
-                height=plan.height,
-                fps=plan.fps,
-            )
+            base_video = self._create_base_video(session, plan, main_image)
             base_key = f"projects/{plan.project_id}/video/{plan.id}/base.mp4"
             self.storage.put_bytes(object_key=base_key, content=base_video, mime_type="video/mp4")
             plan = replace(plan, status=VIDEO_READY, base_video_object_key=base_key, updated_at=self._clock.now())
@@ -265,6 +265,40 @@ class VideoPlanApplicationService:
         except Exception:
             self._jobs.mark_failed(session, job, "VIDEO_PROVIDER_ERROR")
             return self._mark_failed(session, plan, "VIDEO_PROVIDER_ERROR")
+
+    def _create_base_video(self, session: Session, plan: VideoPlan, main_image: bytes) -> bytes:
+        settings = get_settings()
+        if plan.mode == "product" or settings.wan_i2v_provider != "real":
+            return render_base_video(
+                image_bytes=main_image,
+                mode=plan.mode,
+                template_id=plan.template_id,
+                duration_seconds=plan.duration_seconds,
+                width=plan.width,
+                height=plan.height,
+                fps=plan.fps,
+            )
+        content_plan = ContentPlanPublicService().latest(session, plan.project_id)
+        if content_plan is None or content_plan.status != CONTENT_PLAN_CONFIRMED:
+            raise VideoPlanConflictError("请先确认视频分镜")
+        uploader = DashScopeTemporaryUploader(api_key=settings.dashscope_api_key, model=settings.wan_i2v_model)
+        adapter = WanI2VAdapter(
+            api_key=settings.dashscope_api_key,
+            model=settings.wan_i2v_model,
+            resolution=settings.wan_i2v_resolution,
+            max_seconds=settings.wan_i2v_max_seconds,
+            upload_image=lambda content: uploader.upload_image(content, "wan-input.png"),
+        )
+        variant = content_plan.variants[content_plan.selected_variant_index]
+        clip_seconds = settings.wan_i2v_max_seconds
+        clip_count = max(1, math.ceil(plan.duration_seconds / clip_seconds))
+        clips = []
+        for index in range(clip_count):
+            scene = variant.scenes[min(index, len(variant.scenes) - 1)]
+            prompt = "保持商品外观、颜色、包装文字和结构完全不变，只生成自然镜头、背景、光线和轻微运动。" + scene.prompt
+            video_bytes, _task_id = adapter.generate(image_bytes=main_image, prompt=prompt, duration_seconds=clip_seconds)
+            clips.append(video_bytes)
+        return concatenate_videos(clips=clips, duration_seconds=plan.duration_seconds, fps=plan.fps)
 
     def _view(self, plan: VideoPlan | None) -> VideoView:
         if plan is None or not plan.final_object_key:

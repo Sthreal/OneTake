@@ -11,6 +11,9 @@ from imageio_ffmpeg import get_ffmpeg_exe
 from onetake_api.platform.errors import DomainError
 
 MAX_OUTPUT_BYTES = 30 * 1024 * 1024
+ZOOM_MAX_SCALE = 1.05
+ZOOM_SCALE_RANGE = ZOOM_MAX_SCALE - 1
+ZOOM_SUPERSAMPLE = 2
 
 
 class MockVideoError(DomainError):
@@ -65,7 +68,19 @@ def render_base_video(
             "format=yuv420p"
         )
         if mode == "product" and template_id == "dynamic":
-            layout_filter += f",fade=t=in:st=0:d=1,fade=t=out:st={max(0.0, duration_seconds - 1):.3f}:d=1"
+            motion_width = width * ZOOM_SUPERSAMPLE
+            motion_height = height * ZOOM_SUPERSAMPLE
+            total_frames = max(1.0, duration_seconds * fps)
+            zoom_step = ZOOM_SCALE_RANGE / total_frames
+            layout_filter = (
+                f"scale={motion_width}:{motion_height}:force_original_aspect_ratio=decrease,"
+                f"pad={motion_width}:{motion_height}:(ow-iw)/2:(oh-ih)/2:color=white,"
+                "format=yuv420p,"
+                f"zoompan=z='min(1+{zoom_step:.8f}*on,{ZOOM_MAX_SCALE})':"
+                f"d=1:s={motion_width}x{motion_height}:fps={fps},"
+                f"scale={width}:{height}:flags=lanczos,"
+                f"fade=t=in:st=0:d=1,fade=t=out:st={max(0.0, duration_seconds - 1):.3f}:d=1"
+            )
         command = [
             "-y", "-loop", "1", "-i", str(image_path),
             "-vf", layout_filter, "-t", f"{duration_seconds:.3f}", "-r", str(fps),

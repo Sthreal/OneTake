@@ -6,7 +6,7 @@ def test_provider_status_api_defaults_to_mock(client) -> None:
     response = client.get("/api/v1/providers/status")
     assert response.status_code == 200
     data = response.json()["data"]
-    assert [item["capability"] for item in data] == ["recognition", "image_edit", "matting", "script", "voice", "composition"]
+    assert [item["capability"] for item in data] == ["recognition", "image_edit", "matting", "script", "voice", "composition", "product_video"]
     assert all(item["effective_mode"] == "mock" for item in data)
     assert "api_key" not in response.text.lower()
 
