@@ -370,7 +370,10 @@ export function InputWorkspace() {
                   subtitleEnabled={subtitle.state.version?.enabled ?? true}
                   isStarting={video.isStarting}
                   error={video.error}
+                  estimate={video.estimate}
                   onGenerate={(mode, templateId) => void video.generate(mode, templateId)}
+                  onConfirmEstimate={() => void video.confirmGenerate()}
+                  onCancelEstimate={video.cancelGenerate}
                 />
               ) : null}
 

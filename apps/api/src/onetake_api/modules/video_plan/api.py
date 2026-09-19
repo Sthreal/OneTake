@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import asdict
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, status
@@ -7,6 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from onetake_api.modules.video_plan.domain import VideoPlan
+from onetake_api.modules.video_plan.estimate import VideoGenerationEstimate
 from onetake_api.modules.video_plan.public import VideoPlanPublicService
 from onetake_api.modules.video_plan.service import VideoView
 from onetake_api.platform.database import get_session
@@ -49,6 +51,32 @@ class VideoResponse(BaseModel):
     request_id: str
 
 
+class VideoEstimateData(BaseModel):
+    plan_id: str
+    mode: str
+    template_id: str | None
+    duration_seconds: float
+    is_paid: bool
+    wan_clip_count: int
+    wan_generated_seconds: int
+    qwen_image_edit_calls: int
+    shotstack_renders: int
+    estimated_wan_cost: float
+    estimated_known_cost: float
+    estimated_cost_max: float | None
+    currency: str
+    estimated_minutes: float
+    confirmation_threshold: float
+    requires_confirmation: bool
+    missing_price_config: list[str]
+    price_notes: list[str]
+
+
+class VideoEstimateResponse(BaseModel):
+    data: VideoEstimateData
+    request_id: str
+
+
 def _data(plan: VideoPlan | None, video_url: str | None) -> VideoData:
     return VideoData(plan=VideoPlanData(
         plan_id=plan.id, project_id=plan.project_id, mode=plan.mode, template_id=plan.template_id,
@@ -61,6 +89,12 @@ def _data(plan: VideoPlan | None, video_url: str | None) -> VideoData:
 
 def _response(view: VideoView) -> VideoResponse:
     return VideoResponse(data=_data(view.plan, view.video_url), request_id=get_request_id())
+
+
+@router.get("/video-plan/{plan_id}/estimate", response_model=VideoEstimateResponse)
+def estimate_video(project_id: str, plan_id: str, session: Session = Depends(get_session)) -> VideoEstimateResponse:
+    estimate: VideoGenerationEstimate = VideoPlanPublicService().estimate(session, project_id=project_id, plan_id=plan_id)
+    return VideoEstimateResponse(data=VideoEstimateData(**asdict(estimate)), request_id=get_request_id())
 
 
 @router.post("/video-plan", response_model=VideoResponse, status_code=status.HTTP_201_CREATED)

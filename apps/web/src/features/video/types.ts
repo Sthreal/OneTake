@@ -40,3 +40,24 @@ export interface OutputArtifact {
   video_codec: string | null;
   audio_codec: string | null;
 }
+
+export interface VideoEstimate {
+  plan_id: string;
+  mode: VideoMode;
+  template_id: ProductTemplateId | null;
+  duration_seconds: number;
+  is_paid: boolean;
+  wan_clip_count: number;
+  wan_generated_seconds: number;
+  qwen_image_edit_calls: number;
+  shotstack_renders: number;
+  estimated_wan_cost: number;
+  estimated_known_cost: number;
+  estimated_cost_max: number | null;
+  currency: string;
+  estimated_minutes: number;
+  confirmation_threshold: number;
+  requires_confirmation: boolean;
+  missing_price_config: string[];
+  price_notes: string[];
+}

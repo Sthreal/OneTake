@@ -4,6 +4,7 @@ import type {
   OutputArtifact,
   ProductTemplateId,
   VideoMode,
+  VideoEstimate,
   VideoPlanStatus,
   VideoState,
 } from "./types";
@@ -16,7 +17,10 @@ interface VideoPanelProps {
   subtitleEnabled: boolean;
   isStarting: boolean;
   error: string | null;
+  estimate: VideoEstimate | null;
   onGenerate: (mode: VideoMode, templateId: ProductTemplateId | null) => void;
+  onConfirmEstimate: () => void;
+  onCancelEstimate: () => void;
 }
 
 const STATUS_TEXT: Record<VideoPlanStatus, string> = {
@@ -57,7 +61,10 @@ export function VideoPanel({
   subtitleEnabled,
   isStarting,
   error,
+  estimate,
   onGenerate,
+  onConfirmEstimate,
+  onCancelEstimate,
 }: VideoPanelProps) {
   const plan = state.plan;
   const [mode, setMode] = useState<VideoMode>("product");
@@ -179,6 +186,31 @@ export function VideoPanel({
         </div>
       ) : null}
 
+      {estimate ? (
+        <div className="video-estimate">
+          <div className="video-estimate-heading">
+            <strong>确认真实生成</strong>
+            <span>提交后会产生供应商费用</span>
+          </div>
+          <div className="video-estimate-grid">
+            <span>Wan：{estimate.wan_clip_count} 段 / {estimate.wan_generated_seconds} 秒</span>
+            <span>Wan 费用：¥{estimate.estimated_wan_cost.toFixed(2)}</span>
+            <span>Qwen 图像编辑：{estimate.qwen_image_edit_calls} 次</span>
+            <span>Shotstack：{estimate.shotstack_renders} 次渲染</span>
+            <span>预计耗时：约 {estimate.estimated_minutes.toFixed(1)} 分钟</span>
+            <span>已知费用合计：¥{estimate.estimated_known_cost.toFixed(2)}</span>
+          </div>
+          {estimate.missing_price_config.length ? (
+            <p className="video-estimate-note">待核算：{estimate.missing_price_config.join("、")}</p>
+          ) : null}
+          {estimate.price_notes.length ? <p className="video-estimate-note">{estimate.price_notes.join("；")}</p> : null}
+          <div className="video-estimate-actions">
+            <button className="button button-secondary" type="button" onClick={onCancelEstimate}>取消</button>
+            <button className="button button-primary" type="button" disabled={isStarting} onClick={onConfirmEstimate}>确认生成</button>
+          </div>
+        </div>
+      ) : null}
+
       {status === "failed" || error ? (
         <div className="video-error"><strong>{status === "failed" ? "视频生成失败" : "暂时不能生成视频"}</strong><p>{error ?? plan?.error_code ?? "请重试生成"}</p></div>
       ) : null}
@@ -188,7 +220,7 @@ export function VideoPanel({
         <button
           className="button button-primary"
           type="button"
-          disabled={!canStart || isBusy || isStarting}
+          disabled={!canStart || isBusy || isStarting || Boolean(estimate)}
           onClick={() => onGenerate(mode, mode === "product" ? templateId : null)}
         >
           {isStarting ? "正在提交…" : isCompleted ? "重新生成" : status === "failed" ? "重试生成" : "生成商品视频"}

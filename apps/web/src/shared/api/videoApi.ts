@@ -1,4 +1,4 @@
-import type { OutputArtifact, ProductTemplateId, VideoMode, VideoState } from "../../features/video/types";
+import type { OutputArtifact, ProductTemplateId, VideoEstimate, VideoMode, VideoState } from "../../features/video/types";
 import { apiRequest } from "./client";
 
 export function getVideo(projectId: string): Promise<VideoState> {
@@ -14,6 +14,10 @@ export function createVideoPlan(
     method: "POST",
     body: JSON.stringify({ mode, template_id: templateId }),
   });
+}
+
+export function getVideoEstimate(projectId: string, planId: string): Promise<VideoEstimate> {
+  return apiRequest<VideoEstimate>(`/api/v1/projects/${projectId}/video-plan/${planId}/estimate`);
 }
 
 export function requestVideo(projectId: string): Promise<VideoState> {

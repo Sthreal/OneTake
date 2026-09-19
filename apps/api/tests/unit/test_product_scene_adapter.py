@@ -70,6 +70,7 @@ def test_product_scene_generates_background_then_animates_background_only() -> N
 
 def test_product_scene_is_enabled_only_for_dynamic_real_providers(monkeypatch) -> None:
     settings = SimpleNamespace(
+        mock_providers=False,
         product_scene_enabled=True,
         wan_i2v_provider="real",
         image_edit_provider="real",

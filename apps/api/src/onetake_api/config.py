@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     mock_recognition_mode: str = "success"
     recognition_provider: Literal["mock", "real"] = "mock"
     image_edit_provider: Literal["mock", "real"] = "mock"
+    qwen_image_edit_price_per_call: float | str | None = None
     matting_provider: Literal["mock", "real", "aliyun"] = "mock"
     script_provider: Literal["mock", "real"] = "mock"
     voice_provider: Literal["mock", "real"] = "mock"
@@ -44,6 +45,10 @@ class Settings(BaseSettings):
     shotstack_poll_timeout_seconds: int = 600
     shotstack_max_retries: int = 3
     shotstack_retry_backoff_seconds: float = 2.0
+    shotstack_render_price: float | str | None = None
+    video_estimate_confirmation_threshold: float = 5.0
+    video_estimate_minutes_per_clip: float = 1.0
+    video_estimate_overhead_minutes: float = 0.5
     creative_planner_model: str = "qwen-plus"
     creative_planner_endpoint: str = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation"
     content_qa_model: str = "qwen-vl-plus"
@@ -53,6 +58,7 @@ class Settings(BaseSettings):
     wan_i2v_resolution: Literal["720P", "1080P"] = "720P"
     wan_i2v_with_audio: bool = False
     wan_i2v_max_seconds: int = 5
+    wan_i2v_price_per_second: float = 0.15
     alibaba_cloud_access_key_id: str = ""
     alibaba_cloud_access_key_secret: str = ""
     alibaba_cloud_region_id: str = "cn-shanghai"

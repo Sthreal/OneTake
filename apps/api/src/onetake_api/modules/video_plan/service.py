@@ -32,6 +32,7 @@ from onetake_api.modules.project.public import ProjectPublicService
 from onetake_api.modules.subtitle.domain import SUBTITLE_CONFIRMED
 from onetake_api.modules.subtitle.public import SubtitlePublicService
 from onetake_api.modules.video_plan.domain import COMPLETED, FAILED, PLAN_READY, RENDERING, VIDEO_GENERATING, VIDEO_READY, VideoPlan
+from onetake_api.modules.video_plan.estimate import VideoGenerationEstimate, estimate_video_generation
 from onetake_api.modules.video_plan.repository import VideoPlanRepository
 from onetake_api.modules.voice.domain import VOICE_CONFIRMED
 from onetake_api.modules.voice.public import VoicePublicService
@@ -96,6 +97,13 @@ class VideoPlanApplicationService:
     def latest(self, session: Session, project_id: str) -> VideoView:
         self._projects.get_project(session, project_id=project_id)
         return self._view(self._repository.latest(session, project_id))
+
+    def estimate(self, session: Session, *, project_id: str, plan_id: str) -> VideoGenerationEstimate:
+        self._projects.get_project(session, project_id=project_id)
+        plan = self._repository.get(session, plan_id)
+        if plan is None or plan.project_id != project_id:
+            raise VideoPlanNotFoundError("视频方案不存在")
+        return estimate_video_generation(plan, get_settings())
 
     def create_plan(self, session: Session, *, project_id: str, mode: str, template_id: str | None) -> VideoView:
         self._projects.get_project(session, project_id=project_id)
@@ -272,7 +280,7 @@ class VideoPlanApplicationService:
 
     def _create_base_video(self, session: Session, plan: VideoPlan, main_image: bytes) -> bytes:
         settings = get_settings()
-        if plan.mode == "product" and plan.template_id == "dynamic" and settings.product_scene_enabled:
+        if plan.mode == "product" and plan.template_id == "dynamic" and settings.product_scene_enabled and not settings.mock_providers:
             errors = self._product_scene_config_errors(settings)
             if errors:
                 raise VideoPlanConflictError("商品场景真实链路配置不完整：" + "；".join(errors))
@@ -312,6 +320,8 @@ class VideoPlanApplicationService:
     @staticmethod
     def _product_scene_config_errors(settings: Settings) -> list[str]:
         errors: list[str] = []
+        if settings.mock_providers:
+            errors.append("MOCK_PROVIDERS 必须为 false")
         if settings.image_edit_provider != "real":
             errors.append("IMAGE_EDIT_PROVIDER 必须为 real")
         if settings.wan_i2v_provider != "real":
