@@ -45,6 +45,12 @@ vi.mock("../../shared/api/scriptApi", () => ({
   editScript: vi.fn().mockResolvedValue({ version: null }),
   confirmScript: vi.fn().mockResolvedValue({ version: null }),
 }));
+vi.mock("../../shared/api/contentPlanApi", () => ({
+  getContentPlan: vi.fn().mockResolvedValue(null),
+  generateContentPlan: vi.fn().mockResolvedValue(null),
+  updateContentPlan: vi.fn().mockResolvedValue(null),
+  confirmContentPlan: vi.fn().mockResolvedValue(null),
+}));
 vi.mock("../../shared/api/videoApi", () => ({
   getVideo: vi.fn().mockResolvedValue({ plan: null }),
   getOutput: vi.fn().mockResolvedValue(null),

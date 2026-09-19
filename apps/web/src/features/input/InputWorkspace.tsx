@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 
 import { FlowProgress } from "./FlowProgress";
 import { ProjectRail } from "./ProjectRail";
+import { ContentPlanPanel } from "../content-plan/ContentPlanPanel";
+import { useContentPlan } from "../content-plan/useContentPlan";
 import { SubtitlePanel } from "../audio-subtitle/SubtitlePanel";
 import { useSubtitle } from "../audio-subtitle/useSubtitle";
 import { VoicePanel } from "../audio-subtitle/VoicePanel";
@@ -47,6 +49,7 @@ export function InputWorkspace() {
   const script = useScript(project?.project_id ?? null);
   const voice = useVoice(project?.project_id ?? null);
   const subtitle = useSubtitle(project?.project_id ?? null);
+  const contentPlan = useContentPlan(project?.project_id ?? null);
   const video = useVideo(project?.project_id ?? null);
   const [productName, setProductName] = useState("");
   const [productNote, setProductNote] = useState("");
@@ -341,6 +344,20 @@ export function InputWorkspace() {
                 />
               ) : null}
 
+              {subtitle.state.version?.status === "confirmed" || contentPlan.plan ? (
+                <ContentPlanPanel
+                  plan={contentPlan.plan}
+                  canStart={subtitle.pipeline?.status === "audio_subtitle_confirmed" || subtitle.state.version?.status === "confirmed"}
+                  isGenerating={contentPlan.isGenerating}
+                  isSaving={contentPlan.isSaving}
+                  isConfirming={contentPlan.isConfirming}
+                  error={contentPlan.error}
+                  onGenerate={() => void contentPlan.generate()}
+                  onSave={(index, scenes) => void contentPlan.save(index, scenes)}
+                  onConfirm={() => void contentPlan.confirm()}
+                />
+              ) : null}
+
               {subtitle.pipeline?.status === "audio_subtitle_confirmed" || subtitle.state.version?.status === "confirmed" || video.state.plan ? (
                 <VideoPanel
                   state={video.state}
@@ -409,7 +426,7 @@ export function InputWorkspace() {
 
           <section className="inspector-card soft-card">
             <strong>当前边界</strong>
-            <p>当前已贯通素材、主图、文案、配音、字幕和 Mock 成片。Wan 与 Shotstack 将在下一阶段接入。</p>
+            <p>当前已贯通素材、主图、文案、配音、字幕、视频分镜和成片合成。真实 Wan 生成将在后续切片接入。</p>
           </section>
         </aside>
       </div>
