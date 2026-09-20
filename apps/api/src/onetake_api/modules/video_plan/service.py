@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import math
+from io import BytesIO
+from pathlib import Path
+import wave
 from dataclasses import dataclass, replace
 from datetime import timedelta
 
@@ -17,6 +20,7 @@ from onetake_api.integrations.product_scene.scene_assets import load_scene_keyfr
 from onetake_api.integrations.product_scene.style_profiles import apply_style_to_keyframe, get_style_profile
 from onetake_api.modules.content_plan.prompt_schema import build_background_negative_prompt, build_background_prompt
 from onetake_api.integrations.wan_i2v.adapter import WanI2VAdapter
+from onetake_api.integrations.wan_s2v.adapter import WanS2VAdapter
 from onetake_api.integrations.object_storage.dependencies import get_object_storage
 from onetake_api.integrations.object_storage.public import ObjectStoragePublicService
 from onetake_api.modules.composition.port import CompositionPort, CompositionRequest, ProductLayer
@@ -202,7 +206,8 @@ class VideoPlanApplicationService:
         session.commit()
         try:
             main_image = b"".join(self.storage.read_object(object_key=plan.main_image_object_key))
-            base_video = self._create_base_video(session, plan, main_image)
+            audio_bytes = b"".join(self.storage.read_object(object_key=plan.voice_object_key)) if plan.voice_enabled and plan.voice_object_key else None
+            base_video = self._create_base_video(session, plan, main_image, audio_bytes)
             base_key = f"projects/{plan.project_id}/video/{plan.id}/base.mp4"
             self.storage.put_bytes(object_key=base_key, content=base_video, mime_type="video/mp4")
             plan = replace(plan, status=VIDEO_READY, base_video_object_key=base_key, updated_at=self._clock.now())
@@ -210,7 +215,6 @@ class VideoPlanApplicationService:
             self._pipeline.mark_video_ready(session, plan.project_id)
             session.commit()
 
-            audio_bytes = b"".join(self.storage.read_object(object_key=plan.voice_object_key)) if plan.voice_enabled and plan.voice_object_key else None
             srt_bytes = b"".join(self.storage.read_object(object_key=plan.subtitle_object_key)) if plan.subtitle_enabled and plan.subtitle_object_key else None
             plan = replace(plan, status=RENDERING, updated_at=self._clock.now())
             self._repository.update(session, plan)
@@ -282,14 +286,14 @@ class VideoPlanApplicationService:
             self._jobs.mark_failed(session, job, "VIDEO_PROVIDER_ERROR")
             return self._mark_failed(session, plan, "VIDEO_PROVIDER_ERROR")
 
-    def _create_base_video(self, session: Session, plan: VideoPlan, main_image: bytes) -> bytes:
+    def _create_base_video(self, session: Session, plan: VideoPlan, main_image: bytes, audio_bytes: bytes | None) -> bytes:
         settings = get_settings()
-        if plan.mode == "product" and plan.template_id in PRODUCT_SCENE_TEMPLATES and settings.product_scene_enabled and not settings.mock_providers:
-            errors = self._product_scene_config_errors(settings)
-            if errors:
-                raise VideoPlanConflictError("商品场景真实链路配置不完整：" + "；".join(errors))
-            return self._create_product_scene_video(session, plan, main_image)
-        if plan.mode == "product" or settings.wan_i2v_provider != "real":
+        if plan.mode == "avatar":
+            if settings.avatar_video_provider == "real" and not settings.mock_providers:
+                errors = self._avatar_video_config_errors(settings)
+                if errors:
+                    raise VideoPlanConflictError("有人视频真实链路配置不完整：" + "；".join(errors))
+                return self._create_avatar_video(plan, audio_bytes)
             return render_base_video(
                 image_bytes=main_image,
                 mode=plan.mode,
@@ -299,27 +303,80 @@ class VideoPlanApplicationService:
                 height=plan.height,
                 fps=plan.fps,
             )
-        content_plan = ContentPlanPublicService().latest(session, plan.project_id)
-        if content_plan is None or content_plan.status != CONTENT_PLAN_CONFIRMED:
-            raise VideoPlanConflictError("请先确认视频分镜")
-        uploader = DashScopeTemporaryUploader(api_key=settings.dashscope_api_key, model=settings.wan_i2v_model)
-        adapter = WanI2VAdapter(
+
+        if plan.mode == "product":
+            if plan.template_id in PRODUCT_SCENE_TEMPLATES and settings.product_scene_enabled and not settings.mock_providers:
+                errors = self._product_scene_config_errors(settings)
+                if errors:
+                    raise VideoPlanConflictError("商品场景真实链路配置不完整：" + "；".join(errors))
+                return self._create_product_scene_video(session, plan, main_image)
+            return render_base_video(
+                image_bytes=main_image,
+                mode=plan.mode,
+                template_id=plan.template_id,
+                duration_seconds=plan.duration_seconds,
+                width=plan.width,
+                height=plan.height,
+                fps=plan.fps,
+            )
+
+        raise VideoPlanValidationError("视频类型必须是有人或无人模式")
+
+    def _create_avatar_video(self, plan: VideoPlan, audio_bytes: bytes | None) -> bytes:
+        settings = get_settings()
+        avatar_path = Path(settings.wan_s2v_avatar_path).expanduser()
+        if not avatar_path.is_file():
+            raise VideoPlanConflictError("WAN_S2V_AVATAR_PATH 指向的文件不存在")
+        image_bytes = avatar_path.read_bytes()
+        if not audio_bytes:
+            audio_bytes = self._silent_wav(plan.duration_seconds)
+        uploader = DashScopeTemporaryUploader(api_key=settings.dashscope_api_key, model=settings.wan_s2v_model)
+        adapter = WanS2VAdapter(
             api_key=settings.dashscope_api_key,
-            model=settings.wan_i2v_model,
-            resolution=settings.wan_i2v_resolution,
-            max_seconds=settings.wan_i2v_max_seconds,
-            upload_image=lambda content: uploader.upload_image(content, "wan-input.png"),
+            model=settings.wan_s2v_model,
+            resolution=settings.wan_s2v_resolution,
+            max_seconds=settings.wan_s2v_max_seconds,
+            upload_image=lambda content: uploader.upload_image(content, "avatar.png"),
+            upload_audio=lambda content: uploader.upload_audio(content, "voice.wav"),
         )
-        variant = content_plan.variants[content_plan.selected_variant_index]
-        clip_seconds = settings.wan_i2v_max_seconds
-        clip_count = max(1, math.ceil(plan.duration_seconds / clip_seconds))
-        clips = []
-        for index in range(clip_count):
-            scene = variant.scenes[min(index, len(variant.scenes) - 1)]
-            prompt = "保持商品外观、颜色、包装文字和结构完全不变，只生成自然镜头、背景、光线和轻微运动。" + scene.prompt
-            video_bytes, _task_id = adapter.generate(image_bytes=main_image, prompt=prompt, duration_seconds=clip_seconds)
-            clips.append(video_bytes)
-        return concatenate_videos(clips=clips, duration_seconds=plan.duration_seconds, fps=plan.fps)
+        video_bytes, _task_id = adapter.generate(
+            image_bytes=image_bytes,
+            audio_bytes=audio_bytes,
+            prompt="固定数字人正面对镜口播，自然眨眼和轻微头部动作，保持人物身份稳定，不生成商品、文字或水印",
+            duration_seconds=round(plan.duration_seconds),
+        )
+        return video_bytes
+
+    @staticmethod
+    def _silent_wav(duration_seconds: float) -> bytes:
+        frame_rate = 48000
+        frames = max(1, round(duration_seconds * frame_rate))
+        output = BytesIO()
+        with wave.open(output, "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(frame_rate)
+            wav.writeframes(b"\x00\x00" * frames)
+        return output.getvalue()
+
+    @staticmethod
+    def _avatar_video_config_errors(settings: Settings) -> list[str]:
+        errors: list[str] = []
+        if settings.mock_providers:
+            errors.append("MOCK_PROVIDERS 必须为 false")
+        if settings.avatar_video_provider != "real":
+            errors.append("AVATAR_VIDEO_PROVIDER 必须为 real")
+        if settings.composition_provider != "shotstack":
+            errors.append("COMPOSITION_PROVIDER 必须为 shotstack")
+        if not settings.dashscope_api_key:
+            errors.append("缺少 DASHSCOPE_API_KEY")
+        if not settings.wan_s2v_model:
+            errors.append("缺少 WAN_S2V_MODEL")
+        if not settings.wan_s2v_avatar_path:
+            errors.append("缺少 WAN_S2V_AVATAR_PATH")
+        if not settings.shotstack_api_key:
+            errors.append("缺少 SHOTSTACK_API_KEY")
+        return errors
 
     @staticmethod
     def _product_scene_config_errors(settings: Settings) -> list[str]:

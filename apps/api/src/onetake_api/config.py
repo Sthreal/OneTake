@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     composition_provider: Literal["mock", "shotstack"] = "mock"
     creative_planner_provider: Literal["rules", "qwen"] = "rules"
     wan_i2v_provider: Literal["mock", "real"] = "mock"
+    avatar_video_provider: Literal["mock", "real"] = "mock"
     product_scene_enabled: bool = False
     content_qa_provider: Literal["rules", "qwen"] = "rules"
     recognition_model: str = "qwen-vl-plus"
@@ -59,11 +60,17 @@ class Settings(BaseSettings):
     wan_i2v_with_audio: bool = False
     wan_i2v_max_seconds: int = 5
     wan_i2v_price_per_second: float = 0.15
+    wan_s2v_model: str = ""
+    wan_s2v_resolution: Literal["480P", "720P"] = "720P"
+    wan_s2v_max_seconds: int = 30
+    wan_s2v_price_per_second: float | str | None = None
+    wan_s2v_avatar_path: str = ""
     alibaba_cloud_access_key_id: str = ""
     alibaba_cloud_access_key_secret: str = ""
     alibaba_cloud_region_id: str = "cn-shanghai"
     aliyun_imageseg_endpoint: str = "imageseg.cn-shanghai.aliyuncs.com"
     project_ttl_hours: int = 24
+    media_cleanup_interval_seconds: int = 3600
 
     model_config = SettingsConfigDict(
         env_file=".env",

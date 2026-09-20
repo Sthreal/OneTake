@@ -45,10 +45,19 @@ class VideoGenerationEstimate:
 
 
 def estimate_video_generation(plan: VideoPlan, settings: Settings) -> VideoGenerationEstimate:
+    avatar_real = plan.mode == "avatar" and settings.avatar_video_provider == "real"
+    product_scene_real = (
+        plan.mode == "product"
+        and plan.template_id in PRODUCT_SCENE_TEMPLATES
+        and settings.product_scene_enabled
+        and settings.wan_i2v_provider == "real"
+    )
+    needs_video = not settings.mock_providers and (avatar_real or product_scene_real)
     is_paid = not settings.mock_providers and (
-        settings.wan_i2v_provider == "real"
-        or settings.composition_provider == "shotstack"
+        settings.composition_provider == "shotstack"
         or settings.product_scene_enabled
+        or avatar_real
+        or product_scene_real
     )
     if not is_paid:
         return VideoGenerationEstimate(
@@ -72,24 +81,37 @@ def estimate_video_generation(plan: VideoPlan, settings: Settings) -> VideoGener
             price_notes=["Mock Provider 不产生费用"],
         )
 
-    needs_wan = settings.wan_i2v_provider == "real" and (
-        plan.mode == "avatar"
-        or (plan.mode == "product" and plan.template_id in PRODUCT_SCENE_TEMPLATES and settings.product_scene_enabled)
-    )
-    shotstack_renders = 1 if settings.composition_provider == "shotstack" else 0
-    clip_seconds = max(1, settings.wan_i2v_max_seconds)
-    if needs_wan and settings.product_scene_enabled and plan.mode == "product" and plan.template_id in PRODUCT_SCENE_TEMPLATES:
-        durations = [duration for beat in BEATS for duration in _split_duration(beat["end"] - beat["start"], clip_seconds)]
-        wan_clip_count = len(durations)
-        wan_generated_seconds = sum(durations)
-    else:
-        wan_clip_count = max(1, ceil(plan.duration_seconds / clip_seconds)) if needs_wan else 0
-        wan_generated_seconds = wan_clip_count * clip_seconds
-    estimated_wan_cost = round(wan_generated_seconds * settings.wan_i2v_price_per_second, 2)
-
-    known_costs = [estimated_wan_cost] if needs_wan else []
+    wan_clip_count = 0
+    wan_generated_seconds = 0
+    estimated_wan_cost = 0.0
+    known_costs: list[float] = []
     missing: list[str] = []
     notes: list[str] = []
+
+    if needs_video and plan.mode == "avatar":
+        wan_clip_count = 1
+        wan_generated_seconds = max(1, round(plan.duration_seconds))
+        price = _optional_price(settings.wan_s2v_price_per_second)
+        if price is None:
+            missing.append("WAN_S2V_PRICE_PER_SECOND")
+            notes.append("Wan S2V 费用待核算")
+        else:
+            estimated_wan_cost = round(wan_generated_seconds * price, 2)
+            known_costs.append(estimated_wan_cost)
+        notes.append("有人视频使用固定数字人 Wan S2V")
+    elif needs_video and plan.mode == "product":
+        durations = [duration for beat in BEATS for duration in _split_duration(beat["end"] - beat["start"], settings.wan_i2v_max_seconds)]
+        wan_clip_count = len(durations)
+        wan_generated_seconds = sum(durations)
+        price = _optional_price(settings.wan_i2v_price_per_second)
+        if price is None:
+            missing.append("WAN_I2V_PRICE_PER_SECOND")
+            notes.append("Wan I2V 费用待核算")
+        else:
+            estimated_wan_cost = round(wan_generated_seconds * price, 2)
+            known_costs.append(estimated_wan_cost)
+
+    shotstack_renders = 1 if settings.composition_provider == "shotstack" else 0
     shotstack_price = _optional_price(settings.shotstack_render_price)
     if shotstack_renders:
         if shotstack_price is None:

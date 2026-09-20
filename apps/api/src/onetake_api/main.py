@@ -120,16 +120,14 @@ def health() -> JSONResponse:
 
 @app.get("/api/info")
 def info() -> dict[str, object]:
+    statuses = get_provider_statuses()
+    providers = {item.capability: item.effective_provider for item in statuses}
+    providers["tts"] = providers.get("voice", "mock-cosyvoice-v2")
     return {
         "name": "One Take",
         "version": "0.7.0",
         "stage": "m1-video-mock",
         "architecture": "modular-monolith",
         "orchestration": "pipeline",
-        "providers": {
-            **{item.capability: item.effective_provider for item in get_provider_statuses()},
-            "tts": "mock",
-            "avatar_video": "mock",
-            "product_video": "mock",
-        },
+        "providers": providers,
     }

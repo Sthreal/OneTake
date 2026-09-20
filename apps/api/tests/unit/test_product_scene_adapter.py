@@ -201,6 +201,6 @@ def test_create_base_video_routes_all_product_templates_to_scene_pipeline(monkey
             height=1920,
             fps=30,
         )
-        assert service._create_base_video(None, plan, b"main-image") == b"product-scene"
+        assert service._create_base_video(None, plan, b"main-image", None) == b"product-scene"
 
     assert calls == ["clean", "dynamic", "lifestyle"]

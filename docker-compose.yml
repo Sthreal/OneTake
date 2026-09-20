@@ -125,6 +125,12 @@ services:
       WAN_I2V_WITH_AUDIO: ${WAN_I2V_WITH_AUDIO:-false}
       WAN_I2V_MAX_SECONDS: ${WAN_I2V_MAX_SECONDS:-5}
       WAN_I2V_PRICE_PER_SECOND: ${WAN_I2V_PRICE_PER_SECOND:-0.15}
+      AVATAR_VIDEO_PROVIDER: ${AVATAR_VIDEO_PROVIDER:-mock}
+      WAN_S2V_MODEL: ${WAN_S2V_MODEL:-}
+      WAN_S2V_RESOLUTION: ${WAN_S2V_RESOLUTION:-720P}
+      WAN_S2V_MAX_SECONDS: ${WAN_S2V_MAX_SECONDS:-30}
+      WAN_S2V_PRICE_PER_SECOND: ${WAN_S2V_PRICE_PER_SECOND:-}
+      WAN_S2V_AVATAR_PATH: ${WAN_S2V_AVATAR_PATH:-}
       VIDEO_ESTIMATE_CONFIRMATION_THRESHOLD: ${VIDEO_ESTIMATE_CONFIRMATION_THRESHOLD:-5}
       VIDEO_ESTIMATE_MINUTES_PER_CLIP: ${VIDEO_ESTIMATE_MINUTES_PER_CLIP:-1}
       VIDEO_ESTIMATE_OVERHEAD_MINUTES: ${VIDEO_ESTIMATE_OVERHEAD_MINUTES:-0.5}
@@ -143,6 +149,7 @@ services:
       ALIBABA_CLOUD_REGION_ID: ${ALIBABA_CLOUD_REGION_ID:-cn-shanghai}
       ALIYUN_IMAGESEG_ENDPOINT: ${ALIYUN_IMAGESEG_ENDPOINT:-imageseg.cn-shanghai.aliyuncs.com}
       PROJECT_TTL_HOURS: ${PROJECT_TTL_HOURS:-24}
+      MEDIA_CLEANUP_INTERVAL_SECONDS: ${MEDIA_CLEANUP_INTERVAL_SECONDS:-3600}
     ports:
       - "8000:8000"
     depends_on:
@@ -213,6 +220,12 @@ services:
       WAN_I2V_WITH_AUDIO: ${WAN_I2V_WITH_AUDIO:-false}
       WAN_I2V_MAX_SECONDS: ${WAN_I2V_MAX_SECONDS:-5}
       WAN_I2V_PRICE_PER_SECOND: ${WAN_I2V_PRICE_PER_SECOND:-0.15}
+      AVATAR_VIDEO_PROVIDER: ${AVATAR_VIDEO_PROVIDER:-mock}
+      WAN_S2V_MODEL: ${WAN_S2V_MODEL:-}
+      WAN_S2V_RESOLUTION: ${WAN_S2V_RESOLUTION:-720P}
+      WAN_S2V_MAX_SECONDS: ${WAN_S2V_MAX_SECONDS:-30}
+      WAN_S2V_PRICE_PER_SECOND: ${WAN_S2V_PRICE_PER_SECOND:-}
+      WAN_S2V_AVATAR_PATH: ${WAN_S2V_AVATAR_PATH:-}
       VIDEO_ESTIMATE_CONFIRMATION_THRESHOLD: ${VIDEO_ESTIMATE_CONFIRMATION_THRESHOLD:-5}
       VIDEO_ESTIMATE_MINUTES_PER_CLIP: ${VIDEO_ESTIMATE_MINUTES_PER_CLIP:-1}
       VIDEO_ESTIMATE_OVERHEAD_MINUTES: ${VIDEO_ESTIMATE_OVERHEAD_MINUTES:-0.5}
@@ -230,6 +243,7 @@ services:
       ALIBABA_CLOUD_ACCESS_KEY_SECRET: ${ALIBABA_CLOUD_ACCESS_KEY_SECRET:-}
       ALIBABA_CLOUD_REGION_ID: ${ALIBABA_CLOUD_REGION_ID:-cn-shanghai}
       ALIYUN_IMAGESEG_ENDPOINT: ${ALIYUN_IMAGESEG_ENDPOINT:-imageseg.cn-shanghai.aliyuncs.com}
+      MEDIA_CLEANUP_INTERVAL_SECONDS: ${MEDIA_CLEANUP_INTERVAL_SECONDS:-3600}
     depends_on:
       postgres:
         condition: service_healthy
@@ -237,7 +251,7 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    command: rq worker video voice subtitle script image_edit matting main_image recognition --url redis://redis:6379/0
+    command: sh -c "python -m onetake_api.modules.maintenance.scheduler & exec rq worker video voice subtitle script image_edit matting main_image recognition maintenance --url redis://redis:6379/0"
     volumes:
       - ./apps/api/src:/app/src
 

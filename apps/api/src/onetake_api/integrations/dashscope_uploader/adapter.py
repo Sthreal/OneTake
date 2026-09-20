@@ -22,10 +22,16 @@ class DashScopeTemporaryUploader:
         self._client = client or httpx.Client(timeout=120)
 
     def upload_image(self, content: bytes, filename: str = "input.png") -> str:
+        return self._upload(content, filename=filename, content_type="application/octet-stream", empty_message="上传图片为空")
+
+    def upload_audio(self, content: bytes, filename: str = "voice.wav") -> str:
+        return self._upload(content, filename=filename, content_type="audio/wav", empty_message="上传音频为空")
+
+    def _upload(self, content: bytes, *, filename: str, content_type: str, empty_message: str) -> str:
         if not self._api_key:
             raise DashScopeUploadError("DASHSCOPE_API_KEY 未配置")
         if not content:
-            raise DashScopeUploadError("上传图片为空")
+            raise DashScopeUploadError(empty_message)
         try:
             policy_response = self._client.get(
                 self._endpoint,
@@ -50,7 +56,7 @@ class DashScopeTemporaryUploader:
                     "key": key,
                     "success_action_status": "200",
                 },
-                files={"file": (safe_name, content, "application/octet-stream")},
+                files={"file": (safe_name, content, content_type)},
             )
             upload_response.raise_for_status()
         except (httpx.HTTPError, KeyError) as exc:

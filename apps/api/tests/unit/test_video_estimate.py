@@ -43,19 +43,32 @@ def test_mock_estimate_does_not_require_confirmation() -> None:
     assert estimate.estimated_known_cost == 0.0
 
 
-def test_estimate_rounds_partial_clip_up() -> None:
+def test_avatar_estimate_uses_one_s2v_call_for_audio_duration() -> None:
     settings = Settings(
         mock_providers=False,
-        product_scene_enabled=True,
-        image_edit_provider="real",
-        wan_i2v_provider="real",
+        avatar_video_provider="real",
+        wan_i2v_provider="mock",
         composition_provider="shotstack",
-        wan_i2v_max_seconds=5,
-        wan_i2v_price_per_second=0.15,
+        wan_s2v_price_per_second=0.15,
     )
     estimate = estimate_video_generation(_plan(mode="avatar", template_id=None, duration_seconds=12.1), settings)
-    assert estimate.wan_clip_count == 3
-    assert estimate.wan_generated_seconds == 15
+    assert estimate.wan_clip_count == 1
+    assert estimate.wan_generated_seconds == 12
+    assert estimate.estimated_wan_cost == 1.8
+
+
+def test_avatar_estimate_marks_s2v_price_missing() -> None:
+    settings = Settings(
+        mock_providers=False,
+        avatar_video_provider="real",
+        wan_i2v_provider="mock",
+        composition_provider="shotstack",
+        wan_s2v_price_per_second=None,
+        shotstack_render_price=None,
+    )
+    estimate = estimate_video_generation(_plan(mode="avatar", template_id=None, duration_seconds=18), settings)
+    assert estimate.wan_clip_count == 1
+    assert "WAN_S2V_PRICE_PER_SECOND" in estimate.missing_price_config
 
 
 def test_all_product_templates_use_real_scene_segmentation() -> None:

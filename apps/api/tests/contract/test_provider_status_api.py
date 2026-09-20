@@ -6,7 +6,7 @@ def test_provider_status_api_defaults_to_mock(client) -> None:
     response = client.get("/api/v1/providers/status")
     assert response.status_code == 200
     data = response.json()["data"]
-    assert [item["capability"] for item in data] == ["recognition", "image_edit", "matting", "script", "voice", "composition", "product_video"]
+    assert [item["capability"] for item in data] == ["recognition", "image_edit", "matting", "script", "voice", "avatar_video", "composition", "product_video"]
     assert all(item["effective_mode"] == "mock" for item in data)
     assert "api_key" not in response.text.lower()
 
@@ -74,3 +74,18 @@ def test_shotstack_composition_requires_key() -> None:
     assert composition.effective_mode == "mock"
     assert composition.ready is False
     assert composition.reason is not None
+
+
+def test_avatar_video_requires_s2v_model_and_avatar_path() -> None:
+    settings = Settings(
+        mock_providers=False,
+        avatar_video_provider="real",
+        dashscope_api_key="configured",
+        wan_s2v_model="",
+        wan_s2v_avatar_path="",
+    )
+    avatar = next(item for item in get_provider_statuses(settings) if item.capability == "avatar_video")
+    assert avatar.configured is False
+    assert avatar.effective_mode == "mock"
+    assert avatar.ready is False
+    assert avatar.reason is not None

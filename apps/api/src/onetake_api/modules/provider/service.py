@@ -23,6 +23,7 @@ _MOCK_NAMES = {
     "matting": "mock-photoroom",
     "script": "mock-qwen-vl-plus",
     "voice": "mock-cosyvoice-v2",
+    "avatar_video": "mock-avatar-video",
     "composition": "mock-ffmpeg",
     "product_video": "mock-product-video",
 }
@@ -33,6 +34,7 @@ _REAL_NAMES = {
     "matting_aliyun": "aliyun-imageseg-segmentcommodity",
     "script": "qwen-vl-plus",
     "voice": "cosyvoice-v2",
+    "avatar_video": "wan-s2v",
     "composition": "shotstack-stage",
     "product_video": "wan2.6-i2v",
 }
@@ -51,6 +53,8 @@ def _real_configured(settings: Settings, capability: str) -> bool:
         return bool(settings.dashscope_api_key)
     if capability == "composition":
         return bool(settings.shotstack_api_key)
+    if capability == "avatar_video":
+        return bool(settings.dashscope_api_key and settings.wan_s2v_model and settings.wan_s2v_avatar_path)
     if capability == "product_video":
         return bool(settings.dashscope_api_key and settings.wan_i2v_model)
     if capability == "matting":
@@ -63,7 +67,7 @@ def _real_configured(settings: Settings, capability: str) -> bool:
 def get_provider_statuses(settings: Settings | None = None) -> list[ProviderStatus]:
     settings = settings or get_settings()
     statuses: list[ProviderStatus] = []
-    for capability in ("recognition", "image_edit", "matting", "script", "voice", "composition", "product_video"):
+    for capability in ("recognition", "image_edit", "matting", "script", "voice", "avatar_video", "composition", "product_video"):
         configured_mode = settings.wan_i2v_provider if capability == "product_video" else getattr(settings, f"{capability}_provider")
         configured = configured_mode == "mock" or _real_configured(settings, capability)
         if settings.mock_providers:

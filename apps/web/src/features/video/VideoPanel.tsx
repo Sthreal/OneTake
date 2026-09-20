@@ -193,8 +193,8 @@ export function VideoPanel({
             <span>提交后会产生供应商费用</span>
           </div>
           <div className="video-estimate-grid">
-            <span>Wan：{estimate.wan_clip_count} 段 / {estimate.wan_generated_seconds} 秒</span>
-            <span>Wan 费用：¥{estimate.estimated_wan_cost.toFixed(2)}</span>
+            <span>{estimate.mode === "avatar" ? "Wan S2V" : "Wan"}：{estimate.wan_clip_count} 段 / {estimate.wan_generated_seconds} 秒</span>
+            <span>{estimate.mode === "avatar" ? "Wan S2V 费用" : "Wan 费用"}：¥{estimate.estimated_wan_cost.toFixed(2)}</span>
             <span>Qwen 图像编辑：{estimate.qwen_image_edit_calls} 次</span>
             <span>Shotstack：{estimate.shotstack_renders} 次渲染</span>
             <span>预计耗时：约 {estimate.estimated_minutes.toFixed(1)} 分钟</span>
