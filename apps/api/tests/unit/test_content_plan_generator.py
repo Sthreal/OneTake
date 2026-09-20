@@ -16,4 +16,10 @@ def test_rule_generator_builds_three_variants_and_keeps_timeline() -> None:
         assert variant.scenes[-1].purpose == "cta"
         assert variant.scenes[0].start_seconds == 0.0
         assert variant.scenes[-1].end_seconds == 18.0
-        assert all(scene.overlay_product for scene in variant.scenes)
+        assert variant.scenes[0].visual_goal == "pain_point"
+        assert variant.scenes[0].product_mode == "absent"
+        assert variant.scenes[-1].visual_goal == "cta"
+        assert all("商品" not in scene.subject_action for scene in variant.scenes)
+        assert all(scene.product_mode in {"absent", "overlay", "closeup"} for scene in variant.scenes)
+        assert variant.scenes[0].overlay_product is False
+        assert all(scene.overlay_product for scene in variant.scenes[1:])

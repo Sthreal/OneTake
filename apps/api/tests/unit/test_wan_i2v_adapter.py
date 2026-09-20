@@ -44,7 +44,7 @@ def _adapter(*, resolution: str, dimensions: tuple[int, int], prepared: bytes = 
 def test_wan_i2v_adapter_requests_vertical_output_and_downloads() -> None:
     FakeVideoSynthesis.calls.clear()
     adapter = _adapter(resolution='720P', dimensions=(720, 1280))
-    video, task_id = adapter.generate(image_bytes=b'image', prompt='商品保持原样', duration_seconds=8)
+    video, task_id = adapter.generate(image_bytes=b'image', prompt='商品保持原样', duration_seconds=8, negative_prompt='商品, 包装, 文字')
 
     assert video == b'generated-video'
     assert task_id == 'task_1'
@@ -53,6 +53,7 @@ def test_wan_i2v_adapter_requests_vertical_output_and_downloads() -> None:
     assert call['duration'] == 5
     assert 'size' not in call
     assert 'ratio' not in call
+    assert call['negative_prompt'] == '商品, 包装, 文字'
 
 
 def test_wan_i2v_adapter_requests_1080p_vertical() -> None:

@@ -3,6 +3,13 @@ from typing import Protocol
 
 
 @dataclass(frozen=True)
+class ProductLayer:
+    start: float
+    length: float
+    effect: str | None = None
+
+
+@dataclass(frozen=True)
 class CompositionRequest:
     base_video_bytes: bytes
     audio_bytes: bytes | None
@@ -14,6 +21,7 @@ class CompositionRequest:
     height: int
     fps: int
     motion_effect: str | None = None
+    product_layers: list[ProductLayer] | None = None
 
 
 class CompositionPort(Protocol):

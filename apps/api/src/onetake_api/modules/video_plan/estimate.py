@@ -4,7 +4,16 @@ from dataclasses import dataclass
 from math import ceil
 
 from onetake_api.config import Settings
-from onetake_api.modules.video_plan.domain import VideoPlan
+from onetake_api.modules.content_plan.generator import BEATS
+from onetake_api.modules.video_plan.domain import PRODUCT_SCENE_TEMPLATES, VideoPlan
+
+
+def _split_duration(duration_seconds: float, max_seconds: int) -> list[int]:
+    total = max(1, round(duration_seconds))
+    max_seconds = max(1, max_seconds)
+    count = max(1, ceil(total / max_seconds))
+    base, remainder = divmod(total, count)
+    return [base + (1 if index < remainder else 0) for index in range(count)]
 
 
 def _optional_price(value: float | str | None) -> float | None:
@@ -65,31 +74,23 @@ def estimate_video_generation(plan: VideoPlan, settings: Settings) -> VideoGener
 
     needs_wan = settings.wan_i2v_provider == "real" and (
         plan.mode == "avatar"
-        or (plan.mode == "product" and plan.template_id == "dynamic" and settings.product_scene_enabled)
-    )
-    needs_image_edit = (
-        settings.product_scene_enabled
-        and plan.mode == "product"
-        and plan.template_id == "dynamic"
-        and settings.image_edit_provider == "real"
+        or (plan.mode == "product" and plan.template_id in PRODUCT_SCENE_TEMPLATES and settings.product_scene_enabled)
     )
     shotstack_renders = 1 if settings.composition_provider == "shotstack" else 0
     clip_seconds = max(1, settings.wan_i2v_max_seconds)
-    wan_clip_count = max(1, ceil(plan.duration_seconds / clip_seconds)) if needs_wan else 0
-    wan_generated_seconds = wan_clip_count * clip_seconds
+    if needs_wan and settings.product_scene_enabled and plan.mode == "product" and plan.template_id in PRODUCT_SCENE_TEMPLATES:
+        durations = [duration for beat in BEATS for duration in _split_duration(beat["end"] - beat["start"], clip_seconds)]
+        wan_clip_count = len(durations)
+        wan_generated_seconds = sum(durations)
+    else:
+        wan_clip_count = max(1, ceil(plan.duration_seconds / clip_seconds)) if needs_wan else 0
+        wan_generated_seconds = wan_clip_count * clip_seconds
     estimated_wan_cost = round(wan_generated_seconds * settings.wan_i2v_price_per_second, 2)
 
     known_costs = [estimated_wan_cost] if needs_wan else []
     missing: list[str] = []
     notes: list[str] = []
-    qwen_price = _optional_price(settings.qwen_image_edit_price_per_call)
     shotstack_price = _optional_price(settings.shotstack_render_price)
-    if needs_image_edit:
-        if qwen_price is None:
-            missing.append("QWEN_IMAGE_EDIT_PRICE_PER_CALL")
-            notes.append("Qwen 图像编辑费用待核算")
-        else:
-            known_costs.append(qwen_price)
     if shotstack_renders:
         if shotstack_price is None:
             missing.append("SHOTSTACK_RENDER_PRICE")
@@ -110,7 +111,7 @@ def estimate_video_generation(plan: VideoPlan, settings: Settings) -> VideoGener
         is_paid=True,
         wan_clip_count=wan_clip_count,
         wan_generated_seconds=wan_generated_seconds,
-        qwen_image_edit_calls=1 if needs_image_edit else 0,
+        qwen_image_edit_calls=0,
         shotstack_renders=shotstack_renders,
         estimated_wan_cost=estimated_wan_cost,
         estimated_known_cost=estimated_known_cost,

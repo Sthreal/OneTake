@@ -233,16 +233,31 @@ class ShotstackCompositionAdapter:
     ) -> dict[str, Any]:
         tracks: list[dict[str, Any]] = []
         if product_image_url:
-            product_clip = {
-                "asset": {"type": "image", "src": product_image_url},
-                "start": 0,
-                "length": request.duration_seconds,
-                "fit": "contain",
-                "position": "center",
-            }
-            if request.motion_effect:
-                product_clip["effect"] = request.motion_effect
-            tracks.append({"clips": [product_clip]})
+            product_clips = []
+            if request.product_layers:
+                for layer in request.product_layers:
+                    product_clip = {
+                        "asset": {"type": "image", "src": product_image_url},
+                        "start": layer.start,
+                        "length": layer.length,
+                        "fit": "contain",
+                        "position": "center",
+                    }
+                    if layer.effect:
+                        product_clip["effect"] = layer.effect
+                    product_clips.append(product_clip)
+            else:
+                product_clip = {
+                    "asset": {"type": "image", "src": product_image_url},
+                    "start": 0,
+                    "length": request.duration_seconds,
+                    "fit": "contain",
+                    "position": "center",
+                }
+                if request.motion_effect:
+                    product_clip["effect"] = request.motion_effect
+                product_clips.append(product_clip)
+            tracks.append({"clips": product_clips})
         video_clip = {
             "asset": {"type": "video", "src": base_video_url},
             "start": 0,

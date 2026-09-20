@@ -3,7 +3,7 @@ import json
 import httpx
 
 from onetake_api.integrations.shotstack.adapter import ShotstackCompositionAdapter
-from onetake_api.modules.composition.port import CompositionRequest
+from onetake_api.modules.composition.port import CompositionRequest, ProductLayer
 
 
 def test_shotstack_adapter_uploads_assets_and_returns_rendered_video(monkeypatch) -> None:
@@ -105,3 +105,33 @@ def test_shotstack_adapter_retries_transient_transport_errors() -> None:
     source = adapter.upload_asset(content=b"base-video", filename="base.mp4", mime_type="video/mp4")
     assert source == "https://source.example/retry.bin"
     assert attempts == 2
+
+
+def test_shotstack_builds_product_layers() -> None:
+    request = CompositionRequest(
+        base_video_bytes=b"base-video",
+        audio_bytes=None,
+        srt_bytes=None,
+        product_image_bytes=b"product-image",
+        overlay_product=True,
+        duration_seconds=18,
+        width=1080,
+        height=1920,
+        fps=30,
+        product_layers=[
+            ProductLayer(start=3, length=3, effect="zoomIn"),
+            ProductLayer(start=6, length=7, effect="zoomIn"),
+            ProductLayer(start=13, length=5, effect="zoomIn"),
+        ],
+    )
+
+    payload = ShotstackCompositionAdapter._build_edit_payload(
+        request=request,
+        base_video_url="https://source.example/base.mp4",
+        audio_url=None,
+        product_image_url="https://source.example/product.png",
+    )
+
+    product_clips = payload["timeline"]["tracks"][0]["clips"]
+    assert [(clip["start"], clip["length"]) for clip in product_clips] == [(3, 3), (6, 7), (13, 5)]
+    assert all(clip["effect"] == "zoomIn" for clip in product_clips)

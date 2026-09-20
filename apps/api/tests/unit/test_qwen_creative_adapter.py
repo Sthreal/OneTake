@@ -19,5 +19,5 @@ def test_qwen_creative_only_updates_visual_fields() -> None:
     planner = QwenCreativePlanner(api_key="key", endpoint="https://example.test/qwen", model="qwen-plus", client=httpx.Client(transport=httpx.MockTransport(handler)))
     result = planner.enhance(variants=variants, facts={"product_name": "榨汁杯"})
     assert result[0].scenes[0].start_seconds == 0
-    assert result[0].scenes[0].script_excerpt == "第一句"
+    assert result[0].scenes[0].script_excerpt == "第一句第二句"
     assert result[0].scenes[0].prompt == "创意-scene_1"

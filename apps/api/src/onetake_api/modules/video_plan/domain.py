@@ -7,6 +7,7 @@ VIDEO_READY = "video_ready"
 RENDERING = "rendering"
 COMPLETED = "completed"
 FAILED = "failed"
+PRODUCT_SCENE_TEMPLATES = frozenset({"clean", "dynamic", "lifestyle"})
 
 
 @dataclass(frozen=True)

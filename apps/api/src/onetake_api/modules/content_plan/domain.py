@@ -22,6 +22,11 @@ class ContentScene:
     template_id: str
     subtitle_segment_ids: list[int]
     qa_rules: list[str]
+    visual_goal: str = ""
+    subject_action: str = ""
+    camera_move: str = "slow_push_in"
+    product_mode: str = "overlay"
+    transition: str = "fade"
 
 
 @dataclass(frozen=True)

@@ -44,7 +44,7 @@ class WanI2VAdapter:
             video_synthesis = VideoSynthesis
         self._video_synthesis = video_synthesis
 
-    def generate(self, *, image_bytes: bytes, prompt: str, duration_seconds: int) -> tuple[bytes, str]:
+    def generate(self, *, image_bytes: bytes, prompt: str, duration_seconds: int, negative_prompt: str | None = None) -> tuple[bytes, str]:
         if not self._api_key:
             raise WanI2VError("DASHSCOPE_API_KEY 未配置")
         if not self.model:
@@ -65,6 +65,7 @@ class WanI2VAdapter:
                 prompt=prompt,
                 resolution=self.resolution,
                 duration=duration,
+                negative_prompt=negative_prompt or "",
                 prompt_extend=False,
                 watermark=False,
             )

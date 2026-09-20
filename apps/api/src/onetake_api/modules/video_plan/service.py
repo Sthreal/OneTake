@@ -10,14 +10,16 @@ from sqlalchemy.orm import Session
 from onetake_api.config import Settings, get_settings
 
 from onetake_api.integrations.dashscope_uploader.adapter import DashScopeTemporaryUploader
+from onetake_api.integrations.media.image_utils import add_contact_shadow
 from onetake_api.integrations.media.video_utils import concatenate_videos
 from onetake_api.integrations.mock_video.renderer import render_base_video, validate_final_video
-from onetake_api.integrations.product_scene.adapter import ProductSceneAdapter
-from onetake_api.integrations.qwen_image_edit.adapter import QwenImageEditAdapter
+from onetake_api.integrations.product_scene.scene_assets import load_scene_keyframe
+from onetake_api.integrations.product_scene.style_profiles import apply_style_to_keyframe, get_style_profile
+from onetake_api.modules.content_plan.prompt_schema import build_background_negative_prompt, build_background_prompt
 from onetake_api.integrations.wan_i2v.adapter import WanI2VAdapter
 from onetake_api.integrations.object_storage.dependencies import get_object_storage
 from onetake_api.integrations.object_storage.public import ObjectStoragePublicService
-from onetake_api.modules.composition.port import CompositionPort, CompositionRequest
+from onetake_api.modules.composition.port import CompositionPort, CompositionRequest, ProductLayer
 from onetake_api.modules.composition.service import get_composition_provider
 from onetake_api.modules.content_plan.domain import STATUS_CONFIRMED as CONTENT_PLAN_CONFIRMED
 from onetake_api.modules.content_plan.public import ContentPlanPublicService
@@ -31,7 +33,7 @@ from onetake_api.modules.pipeline.public import PipelinePublicService
 from onetake_api.modules.project.public import ProjectPublicService
 from onetake_api.modules.subtitle.domain import SUBTITLE_CONFIRMED
 from onetake_api.modules.subtitle.public import SubtitlePublicService
-from onetake_api.modules.video_plan.domain import COMPLETED, FAILED, PLAN_READY, RENDERING, VIDEO_GENERATING, VIDEO_READY, VideoPlan
+from onetake_api.modules.video_plan.domain import COMPLETED, FAILED, PLAN_READY, PRODUCT_SCENE_TEMPLATES, RENDERING, VIDEO_GENERATING, VIDEO_READY, VideoPlan
 from onetake_api.modules.video_plan.estimate import VideoGenerationEstimate, estimate_video_generation
 from onetake_api.modules.video_plan.repository import VideoPlanRepository
 from onetake_api.modules.voice.domain import VOICE_CONFIRMED
@@ -41,7 +43,6 @@ from onetake_api.platform.errors import DomainError
 from onetake_api.platform.ids import new_id
 from onetake_api.platform.queue import get_queue
 
-ALLOWED_TEMPLATES = {"clean", "dynamic", "lifestyle"}
 ACTIVE_PIPELINE_STATUSES = {"video_generating", "video_ready", "rendering"}
 REGENERABLE_PIPELINE_STATUSES = {"audio_subtitle_confirmed", "video_plan_ready", "completed", "failed"}
 OUTPUT_URL_SECONDS = 24 * 60 * 60
@@ -109,7 +110,7 @@ class VideoPlanApplicationService:
         self._projects.get_project(session, project_id=project_id)
         if mode not in {"avatar", "product"}:
             raise VideoPlanValidationError("视频类型必须是有人或无人模式")
-        if mode == "product" and template_id not in ALLOWED_TEMPLATES:
+        if mode == "product" and template_id not in PRODUCT_SCENE_TEMPLATES:
             raise VideoPlanValidationError("无人模式必须选择有效模板")
         if mode == "avatar":
             template_id = None
@@ -217,17 +218,20 @@ class VideoPlanApplicationService:
             session.commit()
 
             uses_product_scene = self._uses_product_scene(plan)
+            product_layers = self._product_layers(session, plan) if uses_product_scene else None
+            product_image = add_contact_shadow(main_image) if uses_product_scene else main_image
             final_video = self._composition.compose(CompositionRequest(
                 base_video_bytes=base_video,
                 audio_bytes=audio_bytes,
                 srt_bytes=srt_bytes,
-                product_image_bytes=main_image,
-                overlay_product=plan.mode == "avatar" or uses_product_scene,
+                product_image_bytes=product_image,
+                overlay_product=plan.mode == "avatar" or bool(product_layers),
                 duration_seconds=plan.duration_seconds,
                 width=plan.width,
                 height=plan.height,
                 fps=plan.fps,
-                motion_effect="zoomIn" if uses_product_scene else None,
+                motion_effect=None,
+                product_layers=product_layers,
             ))
             metadata = validate_final_video(
                 final_video,
@@ -280,7 +284,7 @@ class VideoPlanApplicationService:
 
     def _create_base_video(self, session: Session, plan: VideoPlan, main_image: bytes) -> bytes:
         settings = get_settings()
-        if plan.mode == "product" and plan.template_id == "dynamic" and settings.product_scene_enabled and not settings.mock_providers:
+        if plan.mode == "product" and plan.template_id in PRODUCT_SCENE_TEMPLATES and settings.product_scene_enabled and not settings.mock_providers:
             errors = self._product_scene_config_errors(settings)
             if errors:
                 raise VideoPlanConflictError("商品场景真实链路配置不完整：" + "；".join(errors))
@@ -342,9 +346,28 @@ class VideoPlanApplicationService:
         return (
             settings.product_scene_enabled
             and plan.mode == "product"
-            and plan.template_id == "dynamic"
+            and plan.template_id in PRODUCT_SCENE_TEMPLATES
             and not VideoPlanApplicationService._product_scene_config_errors(settings)
         )
+
+    def _product_layers(self, session: Session, plan: VideoPlan) -> list[ProductLayer] | None:
+        content_plan = ContentPlanPublicService().latest(session, plan.project_id)
+        if content_plan is None or content_plan.status != CONTENT_PLAN_CONFIRMED:
+            raise VideoPlanConflictError("请先确认视频分镜")
+        variant = content_plan.variants[content_plan.selected_variant_index]
+        layers = []
+        for scene in variant.scenes:
+            if scene.product_mode == "absent":
+                continue
+            length = scene.end_seconds - scene.start_seconds
+            if length <= 0:
+                continue
+            layers.append(ProductLayer(
+                start=scene.start_seconds,
+                length=length,
+                effect="zoomIn" if scene.product_mode in {"overlay", "closeup"} else None,
+            ))
+        return layers
 
     def _create_product_scene_video(self, session: Session, plan: VideoPlan, main_image: bytes) -> bytes:
         if self._composition.provider_name == "mock-video":
@@ -353,11 +376,6 @@ class VideoPlanApplicationService:
         if content_plan is None or content_plan.status != CONTENT_PLAN_CONFIRMED:
             raise VideoPlanConflictError("请先确认视频分镜")
         settings = get_settings()
-        image_edit = QwenImageEditAdapter(
-            api_key=settings.dashscope_api_key,
-            endpoint=settings.image_edit_endpoint,
-            model=settings.image_edit_model,
-        )
         uploader = DashScopeTemporaryUploader(api_key=settings.dashscope_api_key, model=settings.wan_i2v_model)
         background_video = WanI2VAdapter(
             api_key=settings.dashscope_api_key,
@@ -366,26 +384,33 @@ class VideoPlanApplicationService:
             max_seconds=settings.wan_i2v_max_seconds,
             upload_image=lambda content: uploader.upload_image(content, "wan-background.png"),
         )
-        product_scene = ProductSceneAdapter(image_edit=image_edit, background_video=background_video)
         variant = content_plan.variants[content_plan.selected_variant_index]
-        background_image = product_scene.generate_background_image(
-            main_image,
-            scene_style=variant.scenes[0].background_style,
-        )
-        background_key = f"projects/{plan.project_id}/video/{plan.id}/background.png"
-        self.storage.put_bytes(object_key=background_key, content=background_image, mime_type="image/png")
         clip_seconds = settings.wan_i2v_max_seconds
-        clip_count = max(1, math.ceil(plan.duration_seconds / clip_seconds))
+        style_profile = get_style_profile(plan.template_id)
         clips = []
-        for index in range(clip_count):
-            scene = variant.scenes[min(index, len(variant.scenes) - 1)]
-            video_bytes, _task_id = product_scene.animate_background(
-                background_image=background_image,
-                prompt=f"场景风格：{scene.background_style}。",
-                duration_seconds=clip_seconds,
-            )
-            clips.append(video_bytes)
+        for scene in variant.scenes:
+            keyframe = apply_style_to_keyframe(load_scene_keyframe(scene.visual_goal), style_profile)
+            scene_seconds = max(1, round(scene.end_seconds - scene.start_seconds))
+            for duration in self._split_segment_duration(scene_seconds, clip_seconds):
+                prompt = build_background_prompt(scene, style_profile)
+                negative_prompt = build_background_negative_prompt(scene, style_profile)
+                video_bytes, _task_id = background_video.generate(
+                    image_bytes=keyframe,
+                    prompt=prompt,
+                    duration_seconds=duration,
+                    negative_prompt=negative_prompt,
+                )
+                clips.append(video_bytes)
         return concatenate_videos(clips=clips, duration_seconds=plan.duration_seconds, fps=plan.fps)
+
+    @staticmethod
+    def _split_segment_duration(duration_seconds: int, max_seconds: int) -> list[int]:
+        max_seconds = max(1, max_seconds)
+        if duration_seconds <= max_seconds:
+            return [duration_seconds]
+        count = math.ceil(duration_seconds / max_seconds)
+        base, remainder = divmod(duration_seconds, count)
+        return [base + (1 if index < remainder else 0) for index in range(count)]
 
     def _view(self, plan: VideoPlan | None) -> VideoView:
         if plan is None or not plan.final_object_key:
