@@ -76,6 +76,23 @@ class MinioAssetStorage:
             response.close()
             response.release_conn()
 
+    def delete_object(self, *, object_key: str) -> None:
+        try:
+            self._internal_client.remove_object(self._bucket, object_key)
+        except S3Error as exc:
+            if exc.code in {"NoSuchKey", "NoSuchObject", "NoSuchBucket"}:
+                return
+            raise
+
+    def list_objects(self, *, prefix: str) -> list[str]:
+        return [item.object_name for item in self._internal_client.list_objects(self._bucket, prefix=prefix, recursive=True)]
+
+    def delete_prefix(self, *, prefix: str) -> int:
+        object_keys = self.list_objects(prefix=prefix)
+        for object_key in object_keys:
+            self.delete_object(object_key=object_key)
+        return len(object_keys)
+
     def put_bytes(self, *, object_key: str, content: bytes, mime_type: str) -> ObjectInfo:
         stream = BytesIO(content)
         result = self._internal_client.put_object(

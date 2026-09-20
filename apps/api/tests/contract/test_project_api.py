@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from io import BytesIO
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -123,3 +124,26 @@ def test_update_project_writes_event(client, db_session: Session) -> None:
     )
     assert event is not None
     assert event.status == "pending"
+
+
+def test_delete_project_media_api(client, minio_client) -> None:
+    created = client.post(
+        "/api/v1/projects",
+        json={"product_name": "媒体删除项目"},
+    ).json()["data"]
+    project_id = created["project_id"]
+    prefix = f"projects/{project_id}/"
+    object_key = f"{prefix}assets/test.txt"
+    minio_client.put_object(
+        "onetake-media",
+        object_key,
+        BytesIO(b"media"),
+        length=5,
+        content_type="text/plain",
+    )
+
+    response = client.delete(f"/api/v1/projects/{project_id}/media")
+
+    assert response.status_code == 204
+    remaining = list(minio_client.list_objects("onetake-media", prefix=prefix, recursive=True))
+    assert remaining == []

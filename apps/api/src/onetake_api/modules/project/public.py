@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from sqlalchemy.orm import Session
 
 from onetake_api.modules.project.application.commands import CreateProjectCommand, UpdateProjectCommand
@@ -27,6 +29,8 @@ class ProjectPublicService:
     def get_project(self, session: Session, *, project_id: str) -> Project:
         return self._service.get_project(session, GetProjectQuery(project_id=project_id))
 
+    def list_expired(self, session: Session, *, before: datetime) -> list[Project]:
+        return self._service.list_expired(session, before=before)
     def list_projects(self, session: Session, *, limit: int = 20) -> list[Project]:
         return self._service.list_projects(session, ListProjectsQuery(limit=limit))
 

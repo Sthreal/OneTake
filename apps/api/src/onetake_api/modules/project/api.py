@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from pydantic import BaseModel, StringConstraints
 from sqlalchemy.orm import Session
 from typing_extensions import Annotated
 
 from onetake_api.config import get_settings
+from onetake_api.integrations.object_storage.dependencies import get_object_storage
+from onetake_api.modules.maintenance.service import MediaLifecycleService
 from onetake_api.modules.project.domain.errors import ProjectValidationError
 from onetake_api.modules.project.domain.model import Project
 from onetake_api.modules.project.public import ProjectPublicService
@@ -104,6 +106,20 @@ def list_projects(
         data=[_project_data(project) for project in projects],
         request_id=get_request_id(),
     )
+
+
+@router.delete("/{project_id}/media", status_code=status.HTTP_204_NO_CONTENT)
+def delete_project_media(
+    project_id: str,
+    session: Session = Depends(get_session),
+    storage=Depends(get_object_storage),
+) -> Response:
+    MediaLifecycleService().delete_project_media(
+        session,
+        project_id=project_id,
+        storage=storage,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/{project_id}", response_model=ProjectResponse)

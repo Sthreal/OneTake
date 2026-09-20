@@ -39,6 +39,15 @@ class ObjectStoragePublicService:
     def read_object(self, *, object_key: str) -> Iterator[bytes]:
         return self._storage.read_object(object_key=object_key)
 
+    def delete_object(self, *, object_key: str) -> None:
+        return self._storage.delete_object(object_key=object_key)
+
+    def list_objects(self, *, prefix: str) -> list[str]:
+        return self._storage.list_objects(prefix=prefix)
+
+    def delete_prefix(self, *, prefix: str) -> int:
+        return self._storage.delete_prefix(prefix=prefix)
+
     def put_bytes(
         self,
         *,

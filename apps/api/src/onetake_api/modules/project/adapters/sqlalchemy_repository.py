@@ -60,6 +60,11 @@ class SqlAlchemyProjectRepository:
         model.product_note = project.product_note
         model.updated_at = project.updated_at
 
+    def list_expired(self, session: Session, before: datetime) -> list[Project]:
+        models = session.scalars(
+            select(ProjectModel).where(ProjectModel.expires_at <= before).order_by(ProjectModel.expires_at.asc())
+        ).all()
+        return [_to_domain(model) for model in models]
     def list_projects(self, session: Session, limit: int) -> list[Project]:
         models = session.scalars(
             select(ProjectModel).order_by(ProjectModel.updated_at.desc()).limit(limit)

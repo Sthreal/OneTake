@@ -54,6 +54,9 @@ class ProjectApplicationService:
     def list_projects(self, session: Session, query: ListProjectsQuery) -> list[Project]:
         return self._repository.list_projects(session, query.limit)
 
+    def list_expired(self, session: Session, *, before) -> list[Project]:
+        return self._repository.list_expired(session, before)
+
     def update_project(self, session: Session, command: UpdateProjectCommand) -> Project:
         project = self._repository.get(session, command.project_id)
         if project is None:
