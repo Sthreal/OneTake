@@ -48,7 +48,7 @@ from onetake_api.platform.ids import new_id
 from onetake_api.platform.queue import get_queue
 
 ACTIVE_PIPELINE_STATUSES = {"video_generating", "video_ready", "rendering"}
-REGENERABLE_PIPELINE_STATUSES = {"audio_subtitle_confirmed", "video_plan_ready", "completed", "failed"}
+REGENERABLE_PIPELINE_STATUSES = {"audio_subtitle_confirmed", "content_plan_confirmed", "content_qa_passed", "video_plan_ready", "completed", "failed"}
 OUTPUT_URL_SECONDS = 24 * 60 * 60
 
 
