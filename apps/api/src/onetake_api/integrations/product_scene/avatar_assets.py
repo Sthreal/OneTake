@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 AVATAR_DIR = Path(__file__).resolve().parents[2] / "assets" / "avatar"
-MOCK_AVATAR_PATH = AVATAR_DIR / "mock-avatar.png"
+MOCK_AVATAR_PATH = AVATAR_DIR / "high-res-avatar.png"
 
 
 def load_mock_avatar() -> bytes:
