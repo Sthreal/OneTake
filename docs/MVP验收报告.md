@@ -1,7 +1,7 @@
 # One Take MVP 验收报告
 
 - 日期：2026-09-21
-- 当前阶段：M1-16D
+- 当前阶段：M1-16D.1
 - 默认运行模式：Mock Provider
 - 真实付费烟测：暂停
 
@@ -44,10 +44,26 @@
 ### Provider 安全
 
 - `.env` 默认保持 `MOCK_PROVIDERS=true`
-- 未调用真实付费 API
+- 未调用真实付费视频 API
 - Provider 状态接口可查看 effective provider
 
-## 二、未验证
+## 二、真实 S2V 调研结论
+
+`wan2.2-s2v-detect` 是 `wan2.2-s2v` 的辅助模型，官方页面仅提供模型信息：
+
+```text
+图片检测：0.004 元/张
+```
+
+目前没有找到可公开单独调用的 detect API 示例。使用通用 `MultiModalConversation` 或 `VideoSynthesis` 直接调用时，即使图片是有效的 HTTPS OSS URL，也返回：
+
+```text
+InvalidParameter: url error
+```
+
+因此真实链路不应把“单独调用 detect”作为前置步骤。后续应直接按最短 `wan2.2-s2v` 烟测验证。
+
+## 三、未验证
 
 以下能力代码已接入或已有方案，但没有执行真实付费验收：
 
@@ -56,15 +72,16 @@
 - 真实 Shotstack Production 成片
 - 真实 Qwen Image Edit / Qwen-VL / CosyVoice 全链路
 
-## 三、已知限制
+## 四、已知限制
 
-- 当前人物头像已居中裁切为 720×1280，可用于 Mock；正式 S2V 仍需通过 wan2.2-s2v-detect 检测
-- 真实 S2V 需要高清合规人物素材和百炼余额
+- 当前人物头像已居中裁切为 720×1280，可用于 Mock
+- 正式 S2V 需要高清合规人物素材和百炼余额
+- 真实 S2V 单次费用较高，720P 约 0.9 元/秒
 - 真实商品视频画质尚未经用户确认真实成片
 - Seedance 未接入
 - 没有账号体系、云端历史、收款和批量生产
 
-## 四、自动验收命令
+## 五、自动验收命令
 
 ```powershell
 $env:Path='E:\DockerDesktop\resources\bin;'+$env:Path
@@ -75,6 +92,6 @@ docker compose exec -T web npm run build
 python scripts/mock_e2e.py
 ```
 
-## 五、结论
+## 六、结论
 
-当前 MVP 的 Mock P0 主链路已经闭环。代码侧可以冻结，等待预算和合规人物素材后再进入真实 S2V 验收。
+当前 MVP 的 Mock P0 主链路已经闭环。代码侧可以冻结，等待预算和合规人物素材后再进入真实 S2V 烟测。
