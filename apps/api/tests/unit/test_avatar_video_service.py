@@ -55,3 +55,35 @@ def test_silent_wav_has_expected_duration_header() -> None:
         assert wav.getframerate() == 48000
         assert wav.getnchannels() == 1
         assert wav.getnframes() == 48000
+
+def test_create_base_video_uses_mock_avatar_asset(monkeypatch) -> None:
+    import onetake_api.modules.video_plan.service as service_module
+
+    settings = SimpleNamespace(mock_providers=True, avatar_video_provider="mock")
+    monkeypatch.setattr(service_module, "get_settings", lambda: settings)
+    monkeypatch.setattr(service_module, "load_mock_avatar", lambda: b"mock-avatar")
+    calls = []
+
+    def fake_render_base_video(*, image_bytes, **_kwargs):
+        calls.append(image_bytes)
+        return b"base-video"
+
+    monkeypatch.setattr(service_module, "render_base_video", fake_render_base_video)
+    service = VideoPlanApplicationService(composition=SimpleNamespace(provider_name="mock-video"))
+    plan = SimpleNamespace(
+        mode="avatar",
+        template_id=None,
+        duration_seconds=18,
+        width=1080,
+        height=1920,
+        fps=30,
+    )
+
+    assert service._create_base_video(None, plan, b"main-image", b"voice") == b"base-video"
+    assert calls == [b"mock-avatar"]
+
+
+def test_mock_avatar_asset_is_available() -> None:
+    from onetake_api.integrations.product_scene.avatar_assets import load_mock_avatar
+
+    assert load_mock_avatar()

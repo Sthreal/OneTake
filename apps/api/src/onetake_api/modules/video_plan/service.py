@@ -16,6 +16,7 @@ from onetake_api.integrations.dashscope_uploader.adapter import DashScopeTempora
 from onetake_api.integrations.media.image_utils import add_contact_shadow
 from onetake_api.integrations.media.video_utils import concatenate_videos
 from onetake_api.integrations.mock_video.renderer import render_base_video, validate_final_video
+from onetake_api.integrations.product_scene.avatar_assets import load_mock_avatar
 from onetake_api.integrations.product_scene.scene_assets import load_scene_keyframe
 from onetake_api.integrations.product_scene.style_profiles import apply_style_to_keyframe, get_style_profile
 from onetake_api.modules.content_plan.prompt_schema import build_background_negative_prompt, build_background_prompt
@@ -294,8 +295,12 @@ class VideoPlanApplicationService:
                 if errors:
                     raise VideoPlanConflictError("有人视频真实链路配置不完整：" + "；".join(errors))
                 return self._create_avatar_video(plan, audio_bytes)
+            try:
+                avatar_image = load_mock_avatar()
+            except FileNotFoundError:
+                avatar_image = main_image
             return render_base_video(
-                image_bytes=main_image,
+                image_bytes=avatar_image,
                 mode=plan.mode,
                 template_id=plan.template_id,
                 duration_seconds=plan.duration_seconds,
