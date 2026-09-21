@@ -149,6 +149,7 @@ def complete_upload(
         ),
         storage=storage,
     )
+    session.commit()
     return AssetResponse(data=_asset_data(asset), request_id=get_request_id())
 
 

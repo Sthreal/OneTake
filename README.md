@@ -4,7 +4,7 @@ One Take 商品 AI 视频生成 MVP 的工程仓库。
 
 ## 当前阶段
 
-当前为 **M1-16A：有人视频 Wan S2V 真实适配**。
+当前为 **M1-16D：MVP 收口与真实链路启用手册**。
 
 已具备：
 
@@ -28,6 +28,7 @@ One Take 商品 AI 视频生成 MVP 的工程仓库。
 - Noto Sans SC 本地烧录中文字幕，避免云端字体缺失或不一致
 - 输出语音、输出字幕两个独立开关
 - 项目媒体立即删除 API、24 小时过期媒体清理和 maintenance 队列
+- Mock P0 全流程验收脚本 `scripts/mock_e2e.py`
 - Provider 配置预检、图片响应校验、透明 PNG 校验和失败隔离
 - 主图处理 Pipeline：图像编辑 → 智能去背 → Pillow 标准化 → 人工确认
 - 文案处理 Pipeline：事实校验 → Qwen-VL-Plus Port → 结构化文案 → 编辑确认
@@ -128,3 +129,5 @@ npm run build
 
 - [架构设计](docs/架构设计.md)
 - [方案档案](docs/方案档案.md)
+- [MVP 验收报告](docs/MVP验收报告.md)
+- [真实 S2V 启用手册](docs/真实S2V启用手册.md)

@@ -73,6 +73,7 @@ def create_project(
         product_name=payload.product_name,
         product_note=payload.product_note,
     )
+    session.commit()
     return ProjectResponse(data=_project_data(project), request_id=get_request_id())
 
 
@@ -93,6 +94,7 @@ def update_project(
         product_note=payload.product_note,
         update_product_note="product_note" in payload.model_fields_set,
     )
+    session.commit()
     return ProjectResponse(data=_project_data(project), request_id=get_request_id())
 
 
