@@ -4,7 +4,7 @@ One Take 商品 AI 视频生成 MVP 的工程仓库。
 
 ## 当前阶段
 
-当前为 **M3 P6-05：仓库与正式部署合并**。
+当前为 **M3 P7-03：前端源码冻结与开发拓扑验收**。
 
 已具备：
 
@@ -88,12 +88,12 @@ Shotstack 使用 Stage 时成片带水印，仅用于开发和联调；Productio
 
 ```powershell
 Copy-Item .env.example .env
-docker compose up -d --build
+docker compose up -d --build api worker mcp
 ```
 
 ### 启动 One Take 产品后端
 
-One Take Web 是唯一产品前端，原 MiniClaw Web 不启动。需要 Agent、Memory、Scheduler 或 MCP 能力时，另开 PowerShell：
+One Take Web 是唯一产品前端，原 MiniClaw Web 已从项目中删除。需要 Agent、Memory、Scheduler 或 MCP 能力时，另开 PowerShell：
 
 ```powershell
 cd "D:\download new\ai_coding\miniclaw-onetake"
@@ -101,6 +101,13 @@ $env:ONETAKE_MCP_URL = "http://127.0.0.1:8010/mcp"
 $env:ONETAKE_MCP_TOKEN = "<与 One Take MCP 配置一致>"
 $env:ONETAKE_API_URL = "http://127.0.0.1:8000"
 npm run dev:backend
+
+One Take 产品前端由 MiniClaw 仓库的 `web/` 提供。另开终端：
+
+```powershell
+cd "D:\download new\ai_coding\miniclaw-onetake"
+npm run dev:web
+```
 ```
 
 不要读取或修改 One Take 仓库中的 `.env`；Token 直接使用本机已有值。
