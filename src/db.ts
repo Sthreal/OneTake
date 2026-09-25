@@ -103,7 +103,7 @@ let db: InstanceType<typeof Database>;
  * restating the number. Hardcoding it meant every schema bump edited a dozen
  * unrelated test files, which is churn that hides real assertion changes.
  */
-export const CURRENT_SCHEMA_VERSION = 69;
+export const CURRENT_SCHEMA_VERSION = 70;
 
 export function isDatabaseInitialized(): boolean {
   return Boolean(db?.open);
@@ -745,6 +745,20 @@ export function initDatabase(): void {
     );
     CREATE INDEX IF NOT EXISTS idx_workspaces_folder ON workspaces(folder);
     CREATE INDEX IF NOT EXISTS idx_workspaces_owner ON workspaces(owner_user_id, status);
+    CREATE TABLE IF NOT EXISTS workspace_external_refs (
+      namespace TEXT NOT NULL,
+      external_id TEXT NOT NULL,
+      owner_user_id TEXT NOT NULL,
+      workspace_jid TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (namespace, external_id, owner_user_id),
+      FOREIGN KEY (workspace_jid) REFERENCES workspaces(jid) ON DELETE CASCADE
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_workspace_external_ref_workspace
+      ON workspace_external_refs(namespace, workspace_jid);
+    CREATE INDEX IF NOT EXISTS idx_workspace_external_ref_owner
+      ON workspace_external_refs(owner_user_id, namespace, updated_at DESC);
     -- Runtime resume state projected from the legacy sessions table. This is
     -- deliberately not named sessions: product conversation Sessions live in
     -- agents, while these rows only track SDK/provider resume metadata.
@@ -9587,6 +9601,22 @@ export interface WorkspaceRecord {
   updated_at: string;
 }
 
+export interface WorkspaceExternalRefRecord {
+  namespace: string;
+  external_id: string;
+  owner_user_id: string;
+  workspace_jid: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export class WorkspaceExternalRefConflictError extends Error {
+  constructor(message = 'Workspace external reference conflict') {
+    super(message);
+    this.name = 'WorkspaceExternalRefConflictError';
+  }
+}
+
 /** SDK/provider resume state. This is not a user-visible product Session. */
 export interface WorkspaceRuntimeSessionRecord {
   group_folder: string;
@@ -9699,6 +9729,9 @@ function syncWorkspaceFromRegisteredGroup(
 
 function deleteWorkspaceMirror(jid: string, folder?: string): void {
   deleteWorkspaceMemoryData(jid);
+  db.prepare('DELETE FROM workspace_external_refs WHERE workspace_jid = ?').run(
+    jid,
+  );
   db.prepare('DELETE FROM workspaces WHERE jid = ?').run(jid);
   db.prepare(
     'DELETE FROM workspace_runtime_sessions WHERE workspace_jid = ?',
@@ -9872,6 +9905,120 @@ export function listWorkspaceRecords(): WorkspaceRecord[] {
     .prepare('SELECT * FROM workspaces ORDER BY updated_at DESC')
     .all() as Array<Record<string, unknown>>;
   return rows.map(parseWorkspaceRecord);
+}
+
+function parseWorkspaceExternalRefRecord(
+  row: Record<string, unknown>,
+): WorkspaceExternalRefRecord {
+  return {
+    namespace: String(row.namespace),
+    external_id: String(row.external_id),
+    owner_user_id: String(row.owner_user_id),
+    workspace_jid: String(row.workspace_jid),
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at),
+  };
+}
+
+export function getWorkspaceExternalRef(
+  namespace: string,
+  externalId: string,
+  ownerUserId: string,
+): WorkspaceExternalRefRecord | undefined {
+  const row = db
+    .prepare(
+      `SELECT * FROM workspace_external_refs
+       WHERE namespace = ? AND external_id = ? AND owner_user_id = ?`,
+    )
+    .get(namespace, externalId, ownerUserId) as
+    | Record<string, unknown>
+    | undefined;
+  return row ? parseWorkspaceExternalRefRecord(row) : undefined;
+}
+
+export function getWorkspaceExternalRefByWorkspace(
+  namespace: string,
+  workspaceJid: string,
+): WorkspaceExternalRefRecord | undefined {
+  const row = db
+    .prepare(
+      `SELECT * FROM workspace_external_refs
+       WHERE namespace = ? AND workspace_jid = ?`,
+    )
+    .get(namespace, workspaceJid) as Record<string, unknown> | undefined;
+  return row ? parseWorkspaceExternalRefRecord(row) : undefined;
+}
+
+export function bindWorkspaceExternalRef(input: {
+  namespace: string;
+  externalId: string;
+  ownerUserId: string;
+  workspaceJid: string;
+}): { created: boolean; record: WorkspaceExternalRefRecord } {
+  const existing = getWorkspaceExternalRef(
+    input.namespace,
+    input.externalId,
+    input.ownerUserId,
+  );
+  if (existing) {
+    if (existing.workspace_jid !== input.workspaceJid) {
+      throw new WorkspaceExternalRefConflictError(
+        'External reference is already bound to another workspace',
+      );
+    }
+    return { created: false, record: existing };
+  }
+
+  const workspaceBinding = getWorkspaceExternalRefByWorkspace(
+    input.namespace,
+    input.workspaceJid,
+  );
+  if (workspaceBinding) {
+    throw new WorkspaceExternalRefConflictError(
+      'Workspace is already bound to another external reference',
+    );
+  }
+
+  const workspace = getWorkspaceRecord(input.workspaceJid);
+  if (!workspace) {
+    throw new WorkspaceExternalRefConflictError('Workspace not found');
+  }
+
+  const now = new Date().toISOString();
+  try {
+    db.prepare(
+      `INSERT INTO workspace_external_refs (
+        namespace, external_id, owner_user_id, workspace_jid, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run(
+      input.namespace,
+      input.externalId,
+      input.ownerUserId,
+      input.workspaceJid,
+      now,
+      now,
+    );
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message.includes('UNIQUE constraint failed')
+    ) {
+      throw new WorkspaceExternalRefConflictError();
+    }
+    throw error;
+  }
+
+  return {
+    created: true,
+    record: {
+      namespace: input.namespace,
+      external_id: input.externalId,
+      owner_user_id: input.ownerUserId,
+      workspace_jid: input.workspaceJid,
+      created_at: now,
+      updated_at: now,
+    },
+  };
 }
 
 export function getWorkspaceRuntimeSession(
@@ -11470,6 +11617,9 @@ export function deleteGroupData(
     ).run(folder);
     // 3b. 删除 canonical workspace/session 镜像
     deleteWorkspaceMemoryData(jid);
+    db.prepare(
+      'DELETE FROM workspace_external_refs WHERE workspace_jid = ?',
+    ).run(jid);
     db.prepare('DELETE FROM workspaces WHERE jid = ?').run(jid);
     db.prepare(
       'DELETE FROM workspace_runtime_sessions WHERE group_folder = ?',

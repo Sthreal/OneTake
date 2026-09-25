@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
+    "dev:backend": "npm run dev",
     "self-test": "npm run build:all && npm run self-test:agent-runner && npm test -- --run",
     "self-test:agent-runner": "tsx scripts/self-test-agent-runner.ts",
     "reset:admin": "tsx src/reset-admin.ts",

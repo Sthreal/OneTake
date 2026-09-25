@@ -163,7 +163,15 @@ npm start
 
 默认地址：<http://127.0.0.1:3000>
 
-开发模式可以直接启动 Backend 和 Vite Web Client：
+开发模式可以按用途选择启动方式。
+
+只运行 MiniClaw Backend，供 One Take 前端调用：
+
+```bash
+npm run dev:backend
+```
+
+MiniClaw 自带 Web Client 仅作为开发调试界面，不参与 One Take 产品部署。需要调试 MiniClaw 原 Web 时再启动两者：
 
 ```bash
 npm run dev:all
@@ -215,6 +223,7 @@ npm run desktop:package
 
 | 命令 | 说明 |
 | --- | --- |
+| `npm run dev:backend` | 只启动 Backend，供 One Take 前端使用 |
 | `npm run dev:all` | 启动 Backend 与 Vite Web Client |
 | `npm run build:all` | 构建 Backend、Web Client 与 Agent Runner |
 | `npm run typecheck` | 检查 Backend TypeScript |
@@ -241,8 +250,8 @@ npm run desktop:package
 | `ONETAKE_MCP_URL` | One Take MCP HTTP 地址 | `http://127.0.0.1:8010/mcp` |
 | `ONETAKE_MCP_TOKEN` | One Take MCP Bearer Token | 无 |
 | `ONETAKE_MCP_APPROVAL_TOKEN` | One Take 人工审批 Token，仅后端使用 | 无 |
-| `ONETAKE_EDITOR_URL` | One Take legacy 编辑器地址 | `http://127.0.0.1:5173` |
-| `ONETAKE_API_URL` | MiniClaw 原生编辑器调用的 One Take API | `http://127.0.0.1:8000` |
+| `ONETAKE_EDITOR_URL` | One Take 产品前端地址 | `http://127.0.0.1:5173` |
+| `ONETAKE_API_URL` | MiniClaw 后端访问 One Take API 的地址 | `http://127.0.0.1:8000` |
 
 不要把 API Key、Session Cookie 或其他凭证写入命令行历史、截图或提交到仓库。远程部署时使用 HTTPS/WSS，并为反向代理、Cookie 和访问控制配置独立的安全边界。
 
@@ -266,7 +275,11 @@ http://host.docker.internal:8010/mcp
 
 写工具由 One Take MCP 侧的 `ONETAKE_MCP_WRITE_ENABLED` 控制；真实配音和视频生成还需要 `ONETAKE_MCP_PAID_ENABLED=true`，并由本页面人工确认。
 
-MiniClaw 的“商品视频”页面路径为 `/onetake`，后端只读代理为 `/api/onetake/*`。
+### One Take 产品模式
+
+One Take Web 是唯一产品前端。MiniClaw 只运行 Backend，通过 MCP 调用 One Take，并向 One Take Agent 面板提供认证、会话、Memory 和调度能力。
+
+MiniClaw 自带 Web Client 和 `/onetake` 页面仅保留为开发调试与历史回退，不作为正式用户入口。
 ## 执行与安全边界
 
 - Backend 由 Node.js 运行，负责认证、API、WebSocket、队列、调度、渠道连接、Provider、用量和 SQLite 持久化。

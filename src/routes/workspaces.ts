@@ -11,12 +11,15 @@ import type { AuthUser, RegisteredGroup } from '../types.js';
 import {
   getAgentProfile,
   getRegisteredGroup,
+  bindWorkspaceExternalRef,
   getWorkspaceAgentProfileId,
+  getWorkspaceExternalRef,
   getWorkspaceInteractionMode,
   listAgentChannelMountsByWorkspace,
   listWorkspaceRecords,
   listWorkspaceRuntimeSessionsByWorkspace,
   type AgentChannelMountRecord,
+  WorkspaceExternalRefConflictError,
   type WorkspaceRecord,
 } from '../db.js';
 import { MiniclawOwnerProfileMutationSchema } from '../schemas.js';
@@ -187,6 +190,81 @@ workspaceRoutes.get('/', authMiddleware, (c) => {
   );
   return c.json({ workspaces });
 });
+
+function parseWorkspaceExternalRefParams(c: Context) {
+  const namespace = c.req.param('namespace');
+  const externalId = c.req.param('externalId');
+  if (
+    !namespace ||
+    !/^[a-z0-9][a-z0-9_-]{0,31}$/.test(namespace) ||
+    !externalId ||
+    externalId.length > 200
+  ) {
+    return null;
+  }
+  return { namespace, externalId };
+}
+
+workspaceRoutes.get(
+  '/external-refs/:namespace/:externalId',
+  authMiddleware,
+  (c) => {
+    const user = c.get('user') as AuthUser;
+    const params = parseWorkspaceExternalRefParams(c);
+    if (!params) return c.json({ error: 'Invalid external reference' }, 400);
+
+    const externalRef = getWorkspaceExternalRef(
+      params.namespace,
+      params.externalId,
+      user.id,
+    );
+    if (!externalRef) {
+      return c.json({ error: 'External reference not found' }, 404);
+    }
+    return c.json({ external_ref: externalRef });
+  },
+);
+
+workspaceRoutes.put(
+  '/external-refs/:namespace/:externalId',
+  authMiddleware,
+  async (c) => {
+    const user = c.get('user') as AuthUser;
+    const params = parseWorkspaceExternalRefParams(c);
+    if (!params) return c.json({ error: 'Invalid external reference' }, 400);
+
+    const body = await c.req.json().catch(() => ({}));
+    const workspaceJid =
+      typeof body.workspace_jid === 'string' ? body.workspace_jid.trim() : '';
+    if (!workspaceJid || !workspaceJid.startsWith('web:')) {
+      return c.json({ error: 'A web workspace_jid is required' }, 400);
+    }
+
+    const group = getRegisteredGroup(workspaceJid);
+    if (!group) return c.json({ error: 'Workspace not found' }, 404);
+    if (!canModifyGroup(user, { ...group, jid: workspaceJid })) {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
+
+    try {
+      const result = bindWorkspaceExternalRef({
+        namespace: params.namespace,
+        externalId: params.externalId,
+        ownerUserId: user.id,
+        workspaceJid,
+      });
+      return c.json(
+        { external_ref: result.record },
+        result.created ? 201 : 200,
+      );
+    } catch (error) {
+      if (error instanceof WorkspaceExternalRefConflictError) {
+        return c.json({ error: error.message }, 409);
+      }
+      throw error;
+    }
+  },
+);
 
 workspaceRoutes.get('/mounts', authMiddleware, (c) => {
   const user = c.get('user') as AuthUser;
