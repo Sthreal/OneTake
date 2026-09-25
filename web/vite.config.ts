@@ -40,6 +40,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@onetake/editor': path.resolve(__dirname, '../packages/onetake-editor/src/index.ts'),
     },
   },
   build: {

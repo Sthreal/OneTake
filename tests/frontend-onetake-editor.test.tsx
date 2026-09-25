@@ -4,7 +4,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import { OneTakeEditor } from '../web/src/features/onetake/OneTakeEditor';
+import { OneTakeEditor } from '../packages/onetake-editor/src/OneTakeEditor';
 
 (
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }

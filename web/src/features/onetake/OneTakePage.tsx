@@ -4,7 +4,7 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Button } from '@/components/ui/button';
 import { SkeletonCardList } from '@/components/common/Skeletons';
-import { OneTakeEditor } from './OneTakeEditor';
+import { OneTakeEditor } from '@onetake/editor';
 import {
   getOneTakeCapabilities,
   getOneTakeEstimate,

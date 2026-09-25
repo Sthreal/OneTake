@@ -20,8 +20,10 @@
     "noUncheckedSideEffectImports": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@onetake/editor": ["../packages/onetake-editor/src/index.ts"],
+
     }
   },
-  "include": ["src"]
+  "include": ["src", "../packages/onetake-editor/src"]
 }
