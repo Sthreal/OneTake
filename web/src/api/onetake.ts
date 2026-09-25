@@ -39,6 +39,7 @@ export interface OneTakeCapabilities {
   write_enabled?: boolean;
   paid_enabled?: boolean;
   asset_import_enabled?: boolean;
+  editor_url?: string;
 }
 
 export interface OneTakeProvider {

@@ -57,6 +57,7 @@ export function OneTakePage() {
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showEditor, setShowEditor] = useState(false);
 
   const loadProjects = useCallback(async () => {
     setLoading(true);
@@ -134,10 +135,19 @@ export function OneTakePage() {
           title="商品视频"
           subtitle="只读查看 One Take 项目、生成流程、费用预估与成片状态。"
           actions={
-            <Button variant="outline" size="sm" onClick={() => void loadProjects()}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              刷新
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowEditor((value) => !value)}
+              >
+                {showEditor ? '关闭编辑器' : '打开专业编辑器'}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => void loadProjects()}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                刷新
+              </Button>
+            </>
           }
         />
 
@@ -145,6 +155,14 @@ export function OneTakePage() {
           <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
             {error}
           </div>
+        )}
+
+        {showEditor && capabilities?.editor_url && (
+          <iframe
+            title="One Take 专业编辑器"
+            src={capabilities.editor_url}
+            className="h-[70vh] w-full rounded-2xl border border-border bg-card"
+          />
         )}
 
         <div className="grid gap-5 lg:grid-cols-[20rem_minmax(0,1fr)]">

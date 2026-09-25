@@ -241,6 +241,7 @@ npm run desktop:package
 | `ONETAKE_MCP_URL` | One Take MCP HTTP 地址 | `http://127.0.0.1:8010/mcp` |
 | `ONETAKE_MCP_TOKEN` | One Take MCP Bearer Token | 无 |
 | `ONETAKE_MCP_APPROVAL_TOKEN` | One Take 人工审批 Token，仅后端使用 | 无 |
+| `ONETAKE_EDITOR_URL` | MiniClaw 内嵌的专业编辑器地址 | `http://127.0.0.1:5173` |
 
 不要把 API Key、Session Cookie 或其他凭证写入命令行历史、截图或提交到仓库。远程部署时使用 HTTPS/WSS，并为反向代理、Cookie 和访问控制配置独立的安全边界。
 

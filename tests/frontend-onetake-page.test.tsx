@@ -42,7 +42,7 @@ describe('One Take read-only page', () => {
       }
       if (url.includes('/api/onetake/capabilities')) {
         return new Response(
-          JSON.stringify({ data: { write_enabled: true, paid_enabled: false } }),
+          JSON.stringify({ data: { write_enabled: true, paid_enabled: false, editor_url: 'http://editor.test' } }),
           { status: 200, headers: { 'content-type': 'application/json' } },
         );
       }
@@ -119,6 +119,7 @@ describe('One Take read-only page', () => {
       expect(container?.textContent).toContain('completed');
       expect(container?.textContent).toContain('CNY 16.2');
       expect(container?.textContent).toContain('打开成片');
+      expect(container?.textContent).toContain('打开专业编辑器');
     });
   });
 });

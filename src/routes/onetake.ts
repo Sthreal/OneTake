@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 
 import type { Variables } from '../web-context.js';
+import { ONETAKE_EDITOR_URL } from '../config.js';
 import {
   adminRoleMiddleware,
   authMiddleware,
@@ -48,9 +49,22 @@ onetakeRoutes.get('/provider-status', async (c) =>
   callTool(c, 'onetake_get_provider_status', {}),
 );
 
-onetakeRoutes.get('/capabilities', async (c) =>
-  callTool(c, 'onetake_get_mcp_capabilities', {}),
-);
+onetakeRoutes.get('/capabilities', async (c) => {
+  try {
+    const data = await createOneTakeToolRunner().callTool(
+      'onetake_get_mcp_capabilities',
+      {},
+    );
+    return c.json({
+      data: {
+        ...(typeof data === 'object' && data ? data : {}),
+        editor_url: ONETAKE_EDITOR_URL,
+      },
+    });
+  } catch (error) {
+    return c.json({ error: errorMessage(error) }, 502);
+  }
+});
 
 onetakeRoutes.get('/projects', async (c) => {
   const rawLimit = Number(c.req.query('limit') || '20');
