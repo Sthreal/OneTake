@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   MiniClawApiError,
@@ -124,13 +124,24 @@ export function useAgentSession(
   const [workspace, setWorkspace] = useState<MiniClawWorkspace | null>(null);
   const [workspaceJid, setWorkspaceJid] = useState<string | null>(null);
   const [messages, setMessages] = useState<MiniClawMessage[]>([]);
+  const pendingUserMessageIdRef = useRef<string | null>(null);
 
   const loadMessages = useCallback(async (jid: string) => {
     const page = await listMiniClawMessages(jid);
     const chronological = sortMessages([...page.messages].reverse());
     setMessages(chronological);
-    const newest = chronological.at(-1);
-    if (newest?.is_from_me) setRunStatus("idle");
+
+    const pendingId = pendingUserMessageIdRef.current;
+    if (pendingId && pendingId !== "sending") {
+      const pendingMessageVisible = chronological.some(
+        (message) => message.id === pendingId,
+      );
+      const newest = chronological.at(-1);
+      if (pendingMessageVisible && newest?.id !== pendingId) {
+        pendingUserMessageIdRef.current = null;
+        setRunStatus("idle");
+      }
+    }
   }, []);
 
   const load = useCallback(async () => {
@@ -227,12 +238,15 @@ export function useAgentSession(
       const trimmed = content.trim();
       if (!trimmed) return;
 
+      pendingUserMessageIdRef.current = "sending";
       setRunStatus("running");
       setError(null);
       try {
-        await sendMiniClawMessage(workspaceJid, trimmed);
+        const response = await sendMiniClawMessage(workspaceJid, trimmed);
+        pendingUserMessageIdRef.current = response.messageId;
         await loadMessages(workspaceJid);
       } catch (nextError) {
+        pendingUserMessageIdRef.current = null;
         if (nextError instanceof MiniClawApiError && nextError.status === 401) {
           onUnauthorized?.();
         }
