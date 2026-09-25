@@ -1,0 +1,5 @@
+{
+  "description": "Read-only One Take tools for project and pipeline inspection",
+  "version": "0.1.0",
+  "name": "onetake-readonly"
+}

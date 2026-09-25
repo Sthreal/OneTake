@@ -241,6 +241,23 @@ npm run desktop:package
 
 不要把 API Key、Session Cookie 或其他凭证写入命令行历史、截图或提交到仓库。远程部署时使用 HTTPS/WSS，并为反向代理、Cookie 和访问控制配置独立的安全边界。
 
+## One Take 集成
+
+仓库包含开发版只读插件：
+
+```text
+integrations/miniclaw/onetake-readonly/
+```
+
+插件通过 HTTP MCP 读取 One Take 的项目、Provider、Pipeline、视频和费用预估。当前只读，不允许 Agent 创建项目、确认付费步骤或修改任务。
+
+本地默认 MCP 地址：
+
+```text
+http://host.docker.internal:8010/mcp
+```
+
+默认 token 仅用于本地开发，共享或远程部署前必须更换。
 ## 执行与安全边界
 
 - Backend 由 Node.js 运行，负责认证、API、WebSocket、队列、调度、渠道连接、Provider、用量和 SQLite 持久化。
