@@ -4,7 +4,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import { OneTakePage } from '../web/src/features/onetake/OneTakePage';
+import { OneTakePage } from '../web-miniclaw/src/features/onetake/OneTakePage';
 
 (
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }

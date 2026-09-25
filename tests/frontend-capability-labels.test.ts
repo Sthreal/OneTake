@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'vitest';
 
-import type { Skill } from '../web/src/stores/skills';
-import { capabilitySourceLabel } from '../web/src/utils/capability-sources';
+import type { Skill } from '../web-miniclaw/src/stores/skills';
+import { capabilitySourceLabel } from '../web-miniclaw/src/utils/capability-sources';
 import {
   effectiveSkillSource,
   skillConflictLabel,
-} from '../web/src/utils/skill-sources';
+} from '../web-miniclaw/src/utils/skill-sources';
 
 function skill(overrides: Partial<Skill>): Skill {
   return {

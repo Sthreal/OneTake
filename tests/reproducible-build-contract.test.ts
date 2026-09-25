@@ -8,14 +8,14 @@ const read = (file: string) => fs.readFileSync(path.join(root, file), 'utf8');
 
 const lockfiles = [
   'package-lock.json',
-  'web/package-lock.json',
+  'web-miniclaw/package-lock.json',
   'container/agent-runner/package-lock.json',
 ];
 
 const streamEventFiles = [
   'shared/stream-event.ts',
   'src/stream-event.types.ts',
-  'web/src/stream-event.types.ts',
+  'web-miniclaw/src/stream-event.types.ts',
   'container/agent-runner/src/stream-event.types.ts',
 ];
 

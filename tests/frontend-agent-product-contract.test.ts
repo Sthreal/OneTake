@@ -10,18 +10,18 @@ import {
   isAgentSectionCollapsible,
   partitionAgentWorkspaceSections,
   workspaceCreationBlockReason,
-} from '../web/src/utils/agent-product';
+} from '../web-miniclaw/src/utils/agent-product';
 import {
   buildTaskWorkspacePatch,
   canSelectTaskExecutionMode,
   getAllowedTaskExecutionModes,
-} from '../web/src/utils/task-edit';
-import type { GroupEntry } from '../web/src/utils/group-utils';
+} from '../web-miniclaw/src/utils/task-edit';
+import type { GroupEntry } from '../web-miniclaw/src/utils/group-utils';
 import {
   getAgentContextSource,
   withAgentContextSource,
   type AgentProfileRuntimePolicy,
-} from '../web/src/types';
+} from '../web-miniclaw/src/types';
 
 function workspace(
   jid: string,

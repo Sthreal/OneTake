@@ -7,10 +7,10 @@ const read = (relativePath: string) =>
 
 describe('task run status contract', () => {
   test('shows queued runs before execution starts', () => {
-    const store = read('web/src/stores/tasks.ts');
-    const detail = read('web/src/components/tasks/TaskDetail.tsx');
-    const card = read('web/src/components/tasks/TaskCard.tsx');
-    const page = read('web/src/pages/TasksPage.tsx');
+    const store = read('web-miniclaw/src/stores/tasks.ts');
+    const detail = read('web-miniclaw/src/components/tasks/TaskDetail.tsx');
+    const card = read('web-miniclaw/src/components/tasks/TaskCard.tsx');
+    const page = read('web-miniclaw/src/pages/TasksPage.tsx');
 
     for (const status of [
       'queued',
@@ -61,7 +61,7 @@ describe('task run status contract', () => {
     expect(page).toContain('清空回收站');
     expect(page).toContain('永久删除');
     expect(store).toContain("'/api/tasks/purge'");
-    const createForm = read('web/src/components/tasks/CreateTaskForm.tsx');
+    const createForm = read('web-miniclaw/src/components/tasks/CreateTaskForm.tsx');
     expect(createForm).toContain('Docker 容器脚本不会被执行');
     expect(createForm).toContain("groups[jid]?.execution_mode === 'host'");
     expect(createForm).toContain('disabled={isScript || adminHostOnlyMode}');

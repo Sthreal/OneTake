@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { filterNavItems } from '../web/src/components/layout/nav-items.js';
+import { filterNavItems } from '../web-miniclaw/src/components/layout/nav-items.js';
 
 describe('billing navigation visibility', () => {
   test('does not expose billing in the main navigation while billing is disabled', () => {

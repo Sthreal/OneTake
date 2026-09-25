@@ -8,7 +8,7 @@ import {
   runsFromAuthoritativeSnapshot,
   shouldApplyRunScopedPayload,
   waitKeysForQueuedChats,
-} from '../web/src/stores/run-lifecycle.js';
+} from '../web-miniclaw/src/stores/run-lifecycle.js';
 
 const run = (chatJid: string, runId: string) => ({
   chatJid,

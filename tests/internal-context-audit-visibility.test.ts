@@ -58,8 +58,8 @@ describe('internal context audit visibility contract', () => {
   });
 
   test('drops live and cached diagnostics before rendering chat UI', () => {
-    const store = read('web/src/stores/chat.ts');
-    const display = read('web/src/components/chat/StreamingDisplay.tsx');
+    const store = read('web-miniclaw/src/stores/chat.ts');
+    const display = read('web-miniclaw/src/components/chat/StreamingDisplay.tsx');
 
     expect(store).toMatch(
       /if \(event\.eventType === 'context_audit'\) return;/,

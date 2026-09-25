@@ -11,7 +11,7 @@ vi.mock('@/components/ui/input', () => ({
 vi.mock('@/components/ui/label', () => ({
   Label: () => null,
 }));
-vi.mock('../web/src/components/shared/DirectoryBrowser', () => ({
+vi.mock('../web-miniclaw/src/components/shared/DirectoryBrowser', () => ({
   DirectoryBrowser: () => null,
 }));
 
@@ -21,7 +21,7 @@ import {
   type HostDirectoryMountDraft,
   toAdditionalMountInputs,
   validateHostDirectoryMounts,
-} from '../web/src/components/chat/HostDirectoryMountEditor';
+} from '../web-miniclaw/src/components/chat/HostDirectoryMountEditor';
 
 function draft(
   id: string,
@@ -119,7 +119,7 @@ describe('host directory mount editor contract', () => {
   });
 
   it('gates mount controls to container-mode admins and clears stale drafts', () => {
-    const dialog = read('web/src/components/chat/CreateContainerDialog.tsx');
+    const dialog = read('web-miniclaw/src/components/chat/CreateContainerDialog.tsx');
 
     expect(dialog).toContain(
       "const canHostExec = useAuthStore((s) => s.user?.role === 'admin');",
@@ -134,8 +134,8 @@ describe('host directory mount editor contract', () => {
   });
 
   it('passes mounts through createFlow and preserves the real API error', () => {
-    const dialog = read('web/src/components/chat/CreateContainerDialog.tsx');
-    const store = read('web/src/stores/chat.ts');
+    const dialog = read('web-miniclaw/src/components/chat/CreateContainerDialog.tsx');
+    const store = read('web-miniclaw/src/stores/chat.ts');
 
     expect(dialog).toContain(
       'options.additional_mounts = toAdditionalMountInputs(hostMounts);',
@@ -151,7 +151,7 @@ describe('host directory mount editor contract', () => {
   });
 
   it('keeps non-selectable mount browse paths navigable but not selectable', () => {
-    const browser = read('web/src/components/shared/DirectoryBrowser.tsx');
+    const browser = read('web-miniclaw/src/components/shared/DirectoryBrowser.tsx');
 
     expect(browser).toContain('selectable?: boolean;');
     expect(browser).toContain('currentSelectable?: boolean;');

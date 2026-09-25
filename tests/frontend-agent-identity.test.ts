@@ -3,7 +3,7 @@ import path from 'node:path';
 import { describe, expect, test } from 'vitest';
 
 import { AppearanceConfigSchema } from '../src/schemas.js';
-import { resolveAgentDisplayIdentity } from '../web/src/utils/agent-identity.js';
+import { resolveAgentDisplayIdentity } from '../web-miniclaw/src/utils/agent-identity.js';
 
 const root = process.cwd();
 const read = (relativePath: string) =>
@@ -67,15 +67,15 @@ describe('frontend identity ownership', () => {
   });
 
   test('removes legacy bot appearance editors and reads from chat rendering', () => {
-    const profile = read('web/src/components/settings/ProfileSection.tsx');
+    const profile = read('web-miniclaw/src/components/settings/ProfileSection.tsx');
     const appearance = read(
-      'web/src/components/settings/AppearanceSection.tsx',
+      'web-miniclaw/src/components/settings/AppearanceSection.tsx',
     );
     const chatSources = [
-      'web/src/components/chat/MessageBubble.tsx',
-      'web/src/components/chat/MessageList.tsx',
-      'web/src/components/chat/StreamingDisplay.tsx',
-      'web/src/components/chat/ShareImageDialog.tsx',
+      'web-miniclaw/src/components/chat/MessageBubble.tsx',
+      'web-miniclaw/src/components/chat/MessageList.tsx',
+      'web-miniclaw/src/components/chat/StreamingDisplay.tsx',
+      'web-miniclaw/src/components/chat/ShareImageDialog.tsx',
     ]
       .map(read)
       .join('\n');
@@ -87,10 +87,10 @@ describe('frontend identity ownership', () => {
   });
 
   test('renders uploaded user images in desktop and mobile account menus', () => {
-    expect(read('web/src/components/layout/UnifiedSidebar.tsx')).toContain(
+    expect(read('web-miniclaw/src/components/layout/UnifiedSidebar.tsx')).toContain(
       'imageUrl={user?.avatar_url}',
     );
-    expect(read('web/src/pages/ChatPage.tsx')).toContain(
+    expect(read('web-miniclaw/src/pages/ChatPage.tsx')).toContain(
       'imageUrl={user?.avatar_url}',
     );
   });

@@ -4,8 +4,8 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import { AgentGovernanceSection } from '../web/src/components/agents/AgentGovernanceSection';
-import type { AgentProfile, AgentProfileGovernance } from '../web/src/types';
+import { AgentGovernanceSection } from '../web-miniclaw/src/components/agents/AgentGovernanceSection';
+import type { AgentProfile, AgentProfileGovernance } from '../web-miniclaw/src/types';
 
 (
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }

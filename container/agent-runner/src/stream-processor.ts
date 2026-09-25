@@ -25,7 +25,7 @@ import type { WorkflowRunSnapshot } from './stream-event.types.js';
 import { BackgroundTaskDrainTracker } from './background-task-drain.js';
 
 // SDK 任务终态（task_updated.patch.status 语义下"不会再有后续信号"的状态）。
-// web/src/stores/chat.ts、src/web.ts、src/index.ts 各有等价映射——SDK 新增
+// web-miniclaw/src/stores/chat.ts、src/web.ts、src/index.ts 各有等价映射——SDK 新增
 // 终态时需同步检查；此处漏判的代价是 pendingSdkTasks 泄漏导致关流被永久推迟。
 const SDK_TERMINAL_TASK_STATUSES = new Set(['completed', 'failed', 'killed']);
 

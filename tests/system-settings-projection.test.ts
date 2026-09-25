@@ -14,7 +14,7 @@ const read = (rel: string) => fs.readFileSync(path.join(repoRoot, rel), 'utf8');
  */
 describe('system settings API projection', () => {
   test('exposes every field the settings UI declares', () => {
-    const uiType = read('web/src/components/settings/types.ts');
+    const uiType = read('web-miniclaw/src/components/settings/types.ts');
     const block = uiType.slice(
       uiType.indexOf('export interface SystemSettings {'),
       uiType.indexOf('export interface HostIntegrationSettings'),

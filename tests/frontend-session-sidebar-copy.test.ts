@@ -8,8 +8,8 @@ const read = (relativePath: string) =>
 
 describe('session sidebar copy', () => {
   test('uses useful empty-state copy without repeating context implementation details', () => {
-    const sidebar = read('web/src/components/chat/SessionSidebar.tsx');
-    const chatView = read('web/src/components/chat/ChatView.tsx');
+    const sidebar = read('web-miniclaw/src/components/chat/SessionSidebar.tsx');
+    const chatView = read('web-miniclaw/src/components/chat/ChatView.tsx');
 
     expect(sidebar).not.toContain('使用独立上下文');
     expect(sidebar).toContain("messagePreview(session) || '暂无消息'");
@@ -18,8 +18,8 @@ describe('session sidebar copy', () => {
   });
 
   test('keeps Web session creation available alongside channel-native topics', () => {
-    const sidebar = read('web/src/components/chat/SessionSidebar.tsx');
-    const chatView = read('web/src/components/chat/ChatView.tsx');
+    const sidebar = read('web-miniclaw/src/components/chat/SessionSidebar.tsx');
+    const chatView = read('web-miniclaw/src/components/chat/ChatView.tsx');
     const routes = read('src/routes/agents.ts');
 
     expect(sidebar).toContain('{canModify && onCreateSession && (');

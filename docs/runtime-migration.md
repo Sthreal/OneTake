@@ -135,7 +135,7 @@ Migration slices verified:
 - Pi subagent extension session construction smoke test passes;
 - focused runtime migration and subagent contract tests pass;
 - full branding sweep: zero user-visible `Miniclaw` strings remain in
-  `web/src`, `src`, runner prompts, or scripts; only documented compatibility
+  `web-miniclaw/src`, `src`, runner prompts, or scripts; only documented compatibility
   surfaces keep the legacy name.
 
 Remaining acceptance items that require a live model endpoint and a running

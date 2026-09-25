@@ -16,7 +16,7 @@ function componentSource(source: string, name: string, nextName: string) {
 
 describe('shared selection interaction states', () => {
   test('gives every Select trigger and option visible pointer feedback', () => {
-    const source = read('web/src/components/ui/select.tsx');
+    const source = read('web-miniclaw/src/components/ui/select.tsx');
     const trigger = componentSource(source, 'SelectTrigger', 'SelectContent');
     const item = componentSource(source, 'SelectItem', 'SelectSeparator');
 
@@ -39,7 +39,7 @@ describe('shared selection interaction states', () => {
   ])(
     '%s supports pointer, keyboard, and roving-focus selection',
     (name, next) => {
-      const source = read('web/src/components/ui/dropdown-menu.tsx');
+      const source = read('web-miniclaw/src/components/ui/dropdown-menu.tsx');
       const component = componentSource(source, name, next);
 
       expect(component).toContain('hover:bg-accent');

@@ -6,7 +6,7 @@ import {
   DEFAULT_INTERACTION_MODE,
   normalizeInteractionMode,
   shouldShowStreamingPartialText,
-} from '../web/src/lib/interaction-mode';
+} from '../web-miniclaw/src/lib/interaction-mode';
 
 const root = process.cwd();
 const read = (relativePath: string) =>
@@ -24,9 +24,9 @@ describe('frontend workspace interaction mode contract', () => {
   });
 
   test('sends the selected mode on create and PATCHes workspace changes', () => {
-    const store = read('web/src/stores/chat.ts');
+    const store = read('web-miniclaw/src/stores/chat.ts');
     const createDialog = read(
-      'web/src/components/chat/CreateContainerDialog.tsx',
+      'web-miniclaw/src/components/chat/CreateContainerDialog.tsx',
     );
 
     expect(store).toContain('body.interaction_mode = normalizeInteractionMode');
@@ -41,12 +41,12 @@ describe('frontend workspace interaction mode contract', () => {
   });
 
   test('exposes mode and safe runtime restart semantics in workspace settings', () => {
-    const chatView = read('web/src/components/chat/ChatView.tsx');
+    const chatView = read('web-miniclaw/src/components/chat/ChatView.tsx');
     const settingsDialog = read(
-      'web/src/components/chat/WorkspaceInteractionModeDialog.tsx',
+      'web-miniclaw/src/components/chat/WorkspaceInteractionModeDialog.tsx',
     );
     const selector = read(
-      'web/src/components/chat/InteractionModeSelector.tsx',
+      'web-miniclaw/src/components/chat/InteractionModeSelector.tsx',
     );
 
     expect(chatView).toContain('<WorkspaceInteractionModeDialog');
@@ -72,9 +72,9 @@ describe('frontend workspace interaction mode contract', () => {
     expect(shouldShowStreamingPartialText('proactive')).toBe(false);
 
     const streamingDisplay = read(
-      'web/src/components/chat/StreamingDisplay.tsx',
+      'web-miniclaw/src/components/chat/StreamingDisplay.tsx',
     );
-    const messageList = read('web/src/components/chat/MessageList.tsx');
+    const messageList = read('web-miniclaw/src/components/chat/MessageList.tsx');
 
     expect(streamingDisplay).toContain(
       'showPartialText && streaming.partialText',
@@ -93,8 +93,8 @@ describe('frontend workspace interaction mode contract', () => {
   });
 
   test('re-evaluates workspace read state when the active conversation changes', () => {
-    const chatView = read('web/src/components/chat/ChatView.tsx');
-    const store = read('web/src/stores/chat.ts');
+    const chatView = read('web-miniclaw/src/components/chat/ChatView.tsx');
+    const store = read('web-miniclaw/src/stores/chat.ts');
 
     expect(chatView).toContain('}, [activeAgentTab, groupJid, markChatRead]);');
     expect(store).toContain('s.currentGroup === jid && s.unreadReplies[jid]');

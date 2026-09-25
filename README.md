@@ -1,7 +1,7 @@
 # Miniclaw
 
 <p align="center">
-  <img src="web/public/icons/logo-1024.png" alt="Miniclaw logo" width="96" />
+  <img src="web-miniclaw/public/icons/logo-1024.png" alt="Miniclaw logo" width="96" />
 </p>
 
 <p align="center">
@@ -59,7 +59,7 @@ Miniclaw 采用本地优先和显式集成的思路：数据库、工作区元�
 新的 Miniclaw 图标同时用于 Web/PWA、Electron 窗口和安装包资源：
 
 <p align="center">
-  <img src="web/public/icons/logo-1024.png" alt="Miniclaw application icon" width="160" />
+  <img src="web-miniclaw/public/icons/logo-1024.png" alt="Miniclaw application icon" width="160" />
 </p>
 
 ## 核心功能
@@ -171,10 +171,10 @@ npm start
 npm run dev:backend
 ```
 
-MiniClaw 自带 Web Client 仅作为开发调试界面，不参与 One Take 产品部署。需要调试 MiniClaw 原 Web 时再启动两者：
+MiniClaw 自带 Web Client 仅作为开发调试界面，不参与 One Take 产品部署。需要调试 MiniClaw 原 Web 时，同时启动 Backend 和原 Web：
 
 ```bash
-npm run dev:all
+npm run dev:miniclaw-all
 ```
 
 首次进入时完成管理员初始化和 Provider 配置即可。Provider/渠道接入步骤现在可以选择“稍后设置”，跳过后仍可进入工作台，之后在设置中补齐模型和渠道配置。
@@ -183,7 +183,7 @@ Agent 容器镜像默认使用 `helsome/miniclaw-agent:latest`，可以通过 `M
 
 ### 启动 Electron Desktop
 
-先启动 Backend 与 Vite：
+先启动 Backend 与 MiniClaw 开发前端：
 
 ```bash
 npm run dev:all
@@ -192,7 +192,7 @@ npm run dev:all
 再在另一个终端启动桌面端：
 
 ```bash
-MINICLAW_RENDERER_URL=http://127.0.0.1:5173 npm run desktop:dev
+MINICLAW_RENDERER_URL=http://127.0.0.1:5174 npm run desktop:dev
 ```
 
 如果直接使用 Backend 提供的构建后页面，可以省略 `MINICLAW_RENDERER_URL`：
@@ -224,8 +224,9 @@ npm run desktop:package
 | 命令 | 说明 |
 | --- | --- |
 | `npm run dev:backend` | 只启动 Backend，供 One Take 前端使用 |
-| `npm run dev:all` | 启动 Backend 与 Vite Web Client |
-| `npm run build:all` | 构建 Backend、Web Client 与 Agent Runner |
+| `npm run dev:all` | 启动 Backend 与 One Take 产品 Web |
+| `npm run dev:miniclaw-all` | 启动 Backend 与 MiniClaw 开发调试 Web |
+| `npm run build:all` | 构建 Backend、One Take Web、MiniClaw Web 与 Agent Runner |
 | `npm run typecheck` | 检查 Backend TypeScript |
 | `make typecheck` | 执行 Backend、Web、Agent Runner 的完整类型与文档检查 |
 | `npm test -- --run` | 运行 Vitest 测试 |
@@ -280,6 +281,12 @@ http://host.docker.internal:8010/mcp
 One Take Web 是唯一产品前端。MiniClaw 只运行 Backend，通过 MCP 调用 One Take，并向 One Take Agent 面板提供认证、会话、Memory 和调度能力。
 
 MiniClaw 自带 Web Client 和 `/onetake` 页面仅保留为开发调试与历史回退，不作为正式用户入口。
+
+### Web 目录
+
+- `web/`：One Take 产品前端，正式构建产物由 MiniClaw Backend 提供。
+- `web-miniclaw/`：MiniClaw 开发调试前端，默认端口 `5174`。
+- One Take 原仓库保留为回退镜像，P6-05 未删除其 `apps/web/`。
 ## 执行与安全边界
 
 - Backend 由 Node.js 运行，负责认证、API、WebSocket、队列、调度、渠道连接、Provider、用量和 SQLite 持久化。

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import {
   createLatestRequestGate,
   isSelectionCurrent,
-} from '../web/src/utils/latest-request';
+} from '../web-miniclaw/src/utils/latest-request';
 
 describe('latest async selection request', () => {
   test('only the newest selected skill may commit success, error, or loading state', () => {

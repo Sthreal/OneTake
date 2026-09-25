@@ -4,7 +4,7 @@ import {
   getDisplayedTokenTotal,
   getPrimaryModelUsage,
   parseTokenUsage,
-} from '../web/src/lib/token-usage-presentation.js';
+} from '../web-miniclaw/src/lib/token-usage-presentation.js';
 import {
   formatFeishuTokenSummary,
   formatFeishuUsageNote,

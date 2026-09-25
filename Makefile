@@ -1,5 +1,5 @@
-.PHONY: dev dev-backend dev-web build build-backend build-web start \
-       typecheck typecheck-backend typecheck-web typecheck-agent-runner \
+.PHONY: dev dev-backend dev-web dev-miniclaw-web build build-backend build-web build-miniclaw-web start \
+       typecheck typecheck-backend typecheck-web typecheck-miniclaw-web typecheck-agent-runner \
        format format-check install install-host-tools clean reset-init update-pi-runtime update-sdk ensure-latest-pi-runtime ensure-latest-sdk sync-types \
        backup restore help _ensure-docker-image docker-pull logs status stop \
        _check-sync _ensure-builtin-skills _build-web-if-stale _build-ar-if-stale _build-backend-if-stale
@@ -22,7 +22,7 @@ export CONTAINER_IMAGE
 # ─── Development ─────────────────────────────────────────────
 
 dev: ## 启动前后端（首次自动安装依赖并拉取容器镜像）
-	@if [ ! -d node_modules ] || [ package.json -nt node_modules ] || [ package-lock.json -nt node_modules ] || [ web/package.json -nt web/node_modules ] || [ web/package-lock.json -nt web/node_modules ] || [ container/agent-runner/package.json -nt container/agent-runner/node_modules ] || [ container/agent-runner/package-lock.json -nt container/agent-runner/node_modules ]; then echo "📦 依赖有更新，安装依赖..."; $(MAKE) install; fi
+	@if [ ! -d node_modules ] || [ package.json -nt node_modules ] || [ package-lock.json -nt node_modules ] || [ web/package.json -nt web/node_modules ] || [ web/package-lock.json -nt web/node_modules ] || [ web-miniclaw/package.json -nt web-miniclaw/node_modules ] || [ web-miniclaw/package-lock.json -nt web-miniclaw/node_modules ] || [ container/agent-runner/package.json -nt container/agent-runner/node_modules ] || [ container/agent-runner/package-lock.json -nt container/agent-runner/node_modules ]; then echo "📦 依赖有更新，安装依赖..."; $(MAKE) install; fi
 	@$(MAKE) _ensure-builtin-skills
 	@$(MAKE) _ensure-docker-image
 	@$(PKG) --prefix container/agent-runner run build --silent 2>/dev/null || $(PKG) --prefix container/agent-runner run build
@@ -32,8 +32,11 @@ dev: ## 启动前后端（首次自动安装依赖并拉取容器镜像）
 dev-backend: ## 仅启动后端（tsx 直跑 TS）
 	$(RUNNER)
 
-dev-web: ## 仅启动前端
+dev-web: ## 仅启动 One Take 产品前端
 	cd web && $(PKG) run dev
+
+dev-miniclaw-web: ## 仅启动 MiniClaw 开发调试前端
+	cd web-miniclaw && $(PKG) run dev
 
 # ─── Build ───────────────────────────────────────────────────
 
@@ -44,8 +47,11 @@ build: sync-types ## 编译前后端及 agent-runner
 build-backend: ## 仅编译后端
 	$(PKG) run build
 
-build-web: ## 仅编译前端
+build-web: ## 仅编译 One Take 产品前端
 	cd web && $(PKG) run build
+
+build-miniclaw-web: ## 仅编译 MiniClaw 开发调试前端
+	cd web-miniclaw && $(PKG) run build
 
 # ─── Production ──────────────────────────────────────────────
 
@@ -58,7 +64,7 @@ start: ## 一键启动生产环境（前台阻塞运行）
 	  lsof -ti:$(PORT) -sTCP:LISTEN | xargs ps -fp 2>/dev/null | tail -1; \
 	  exit 1; \
 	fi
-	@if [ ! -d node_modules ] || [ package.json -nt node_modules ] || [ package-lock.json -nt node_modules ] || [ web/package.json -nt web/node_modules ] || [ web/package-lock.json -nt web/node_modules ] || [ container/agent-runner/package.json -nt container/agent-runner/node_modules ] || [ container/agent-runner/package-lock.json -nt container/agent-runner/node_modules ]; then echo "📦 依赖有更新，安装依赖..."; $(MAKE) install; fi
+	@if [ ! -d node_modules ] || [ package.json -nt node_modules ] || [ package-lock.json -nt node_modules ] || [ web/package.json -nt web/node_modules ] || [ web/package-lock.json -nt web/node_modules ] || [ web-miniclaw/package.json -nt web-miniclaw/node_modules ] || [ web-miniclaw/package-lock.json -nt web-miniclaw/node_modules ] || [ container/agent-runner/package.json -nt container/agent-runner/node_modules ] || [ container/agent-runner/package-lock.json -nt container/agent-runner/node_modules ]; then echo "📦 依赖有更新，安装依赖..."; $(MAKE) install; fi
 	@$(MAKE) _ensure-builtin-skills
 	@$(MAKE) _ensure-docker-image
 	@$(MAKE) _check-sync
@@ -72,7 +78,7 @@ start: ## 一键启动生产环境（前台阻塞运行）
 
 _check-sync: ## (内部) 检测 shared/ 类型变更并同步
 	@NEED_SYNC=0; \
-	for target in src/stream-event.types.ts web/src/stream-event.types.ts container/agent-runner/src/stream-event.types.ts src/image-detector.ts container/agent-runner/src/image-detector.ts src/channel-prefixes.ts container/agent-runner/src/channel-prefixes.ts; do \
+	for target in src/stream-event.types.ts web-miniclaw/src/stream-event.types.ts container/agent-runner/src/stream-event.types.ts src/image-detector.ts container/agent-runner/src/image-detector.ts src/channel-prefixes.ts container/agent-runner/src/channel-prefixes.ts; do \
 	  if [ ! -f "$$target" ] || [ -n "$$(find shared/ -newer "$$target" -name '*.ts' 2>/dev/null | head -1)" ]; then NEED_SYNC=1; break; fi; \
 	done; \
 	if [ "$$NEED_SYNC" = "1" ]; then echo "🔄 检测到 shared/ 类型变更，同步类型..."; $(MAKE) sync-types; fi
@@ -92,7 +98,7 @@ _build-web-if-stale: ## (内部) 前端变更时重新编译
 	  for f in web/package.json web/vite.config.ts web/index.html web/tsconfig.json; do \
 	    if [ -f "$$f" ] && [ "$$f" -nt web/dist/index.html ]; then NEED_WEB=1; break; fi; \
 	  done; \
-	  if [ "$$NEED_WEB" = "0" ] && [ -n "$$(find web/src/ web/public/ -type f -newer web/dist/index.html 2>/dev/null | head -1)" ]; then NEED_WEB=1; fi; \
+	  if [ "$$NEED_WEB" = "0" ] && [ -n "$$(find web/src/ -type f -newer web/dist/index.html 2>/dev/null | head -1)" ]; then NEED_WEB=1; fi; \
 	fi; \
 	if [ "$$NEED_WEB" = "1" ]; then echo "🔨 检测到前端变更，重新编译前端..."; cd web && $(PKG) run build; else echo "✅ 前端无变更，跳过编译"; fi
 
@@ -147,7 +153,7 @@ status: ## 查看服务运行状态
 
 # ─── Quality ─────────────────────────────────────────────────
 
-typecheck: sync-types typecheck-backend typecheck-web typecheck-agent-runner ## 全量类型检查
+typecheck: sync-types typecheck-backend typecheck-web typecheck-miniclaw-web typecheck-agent-runner ## 全量类型检查
 	@./scripts/check-stream-event-sync.sh
 	@./scripts/check-agent-runner-prompts.sh
 	@$(PKG) run docs:check
@@ -157,6 +163,9 @@ typecheck-backend:
 
 typecheck-web:
 	cd web && $(RUN) tsc --noEmit
+
+typecheck-miniclaw-web:
+	cd web-miniclaw && $(RUN) tsc --noEmit
 
 typecheck-agent-runner:
 	cd container/agent-runner && $(RUN) tsc --noEmit
@@ -222,14 +231,16 @@ install: ## 安装全部依赖并编译 agent-runner
 	@chmod +x node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper 2>/dev/null || true
 	cd container/agent-runner && $(PKG) ci
 	cd container/agent-runner && $(PKG) run build
+	cd web-miniclaw && $(PKG) ci
 	cd web && $(PKG) ci
 	@$(MAKE) _ensure-builtin-skills
 	@# 更新目录 mtime 以配合 start 中的依赖变更检测（[ package.json -nt node_modules ]）
-	@touch node_modules web/node_modules container/agent-runner/node_modules
+	@touch node_modules web/node_modules web-miniclaw/node_modules container/agent-runner/node_modules
 
 clean: ## 清理构建产物
 	rm -rf dist
 	rm -rf web/dist
+	rm -rf web-miniclaw/dist
 	rm -rf container/agent-runner/dist
 	rm -f .build-sentinel
 

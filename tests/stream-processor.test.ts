@@ -385,7 +385,7 @@ describe('StreamEventProcessor card-consumer data contracts', () => {
         (e) => e?.eventType === 'text_delta' && e?.text === '子 Agent 中间输出',
       );
     expect(subText).toBeDefined();
-    // The guard in src/index.ts (Feishu) and web/src/stores/chat.ts (Web) keys off
+    // The guard in src/index.ts (Feishu) and web-miniclaw/src/stores/chat.ts (Web) keys off
     // this field to keep sub-agent text out of the main card body.
     expect(subText?.parentToolUseId).toBe('task-parent-1');
     expect(subText?.agentScope).toBe('subagent');

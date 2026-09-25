@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest';
 
-import { resolveSystemMessage } from '../web/src/lib/system-message-registry';
+import { resolveSystemMessage } from '../web-miniclaw/src/lib/system-message-registry';
 
 describe('resolveSystemMessage', () => {
   test('精确 context_reset 返回固定中文 divider', () => {

@@ -4,7 +4,7 @@ import {
   acknowledgeTaskRunKey,
   clearTaskRunKeysForTest,
   getPendingTaskRunKey,
-} from '../web/src/utils/task-run-idempotency.js';
+} from '../web-miniclaw/src/utils/task-run-idempotency.js';
 
 afterEach(() => {
   clearTaskRunKeysForTest();

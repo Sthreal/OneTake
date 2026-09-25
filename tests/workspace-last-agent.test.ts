@@ -13,7 +13,7 @@ class MemoryStorage implements Storage {
 const memoryStorage = new MemoryStorage();
 vi.stubGlobal('localStorage', memoryStorage);
 
-const { getWorkspaceLastAgent, setWorkspaceLastAgent } = await import('../web/src/utils/workspaceLastAgent');
+const { getWorkspaceLastAgent, setWorkspaceLastAgent } = await import('../web-miniclaw/src/utils/workspaceLastAgent');
 
 const KEY = 'miniclaw-workspace-last-agent';
 

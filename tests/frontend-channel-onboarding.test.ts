@@ -8,7 +8,7 @@ const read = (relative: string) =>
 
 describe('channel onboarding frontend protocol contract', () => {
   test('first-run setup reuses the account manager instead of legacy singleton APIs', () => {
-    const source = read('web/src/pages/SetupChannelsPage.tsx');
+    const source = read('web-miniclaw/src/pages/SetupChannelsPage.tsx');
     expect(source).toContain('<ChannelAccountsManager />');
     expect(source).not.toContain('/api/config/user-im/');
     expect(source).not.toContain('WeChatQRDialog');
@@ -16,9 +16,9 @@ describe('channel onboarding frontend protocol contract', () => {
 
   test('QR onboarding never exposes WeChat or WhatsApp protocol output as inputs', () => {
     const fields = read(
-      'web/src/components/settings/channel-accounts/ProviderConnectionFields.tsx',
+      'web-miniclaw/src/components/settings/channel-accounts/ProviderConnectionFields.tsx',
     );
-    const definitions = read('web/src/utils/channel-accounts.ts');
+    const definitions = read('web-miniclaw/src/utils/channel-accounts.ts');
     expect(fields).toContain('扫码结果由 Miniclaw 安全保存');
     expect(fields).toContain('无需填写手机号或账号标识');
     expect(definitions).not.toMatch(
@@ -28,18 +28,18 @@ describe('channel onboarding frontend protocol contract', () => {
 
   test('Feishu owner identity is learned by the backend and never submitted by UI', () => {
     const fields = read(
-      'web/src/components/settings/channel-accounts/ProviderConnectionFields.tsx',
+      'web-miniclaw/src/components/settings/channel-accounts/ProviderConnectionFields.tsx',
     );
-    const definitions = read('web/src/utils/channel-accounts.ts');
+    const definitions = read('web-miniclaw/src/utils/channel-accounts.ts');
     expect(fields).not.toContain('ownerOpenId');
     expect(definitions).not.toContain("key: 'ownerOpenId'");
   });
 
   test('WhatsApp live status is isolated by immutable channel account id', () => {
     const source = read(
-      'web/src/components/settings/channel-accounts/QrOnboardingPanel.tsx',
+      'web-miniclaw/src/components/settings/channel-accounts/QrOnboardingPanel.tsx',
     );
-    const store = read('web/src/stores/channel-accounts.ts');
+    const store = read('web-miniclaw/src/stores/channel-accounts.ts');
     expect(source).toContain("'whatsapp_status'");
     expect(source).toContain('event.accountId !== account.id');
     expect(source).toContain('mergeWhatsAppOnboardingState');
@@ -48,7 +48,7 @@ describe('channel onboarding frontend protocol contract', () => {
 
   test('disabled QR accounts never auto-start and prompt before manual scanning', () => {
     const source = read(
-      'web/src/components/settings/channel-accounts/QrOnboardingPanel.tsx',
+      'web-miniclaw/src/components/settings/channel-accounts/QrOnboardingPanel.tsx',
     );
     expect(source).toContain('account.enabled &&');
     expect(source).toContain('if (!account.enabled)');
@@ -57,9 +57,9 @@ describe('channel onboarding frontend protocol contract', () => {
 
   test('WeChat QR verification and protocol states are wired end to end', () => {
     const panel = read(
-      'web/src/components/settings/channel-accounts/QrOnboardingPanel.tsx',
+      'web-miniclaw/src/components/settings/channel-accounts/QrOnboardingPanel.tsx',
     );
-    const store = read('web/src/stores/channel-accounts.ts');
+    const store = read('web-miniclaw/src/stores/channel-accounts.ts');
     expect(store).toContain('verifyOnboardingCode');
     expect(store).toContain('/onboarding/verify');
     expect(store).toContain('needsVerifyCode?: boolean');
@@ -80,9 +80,9 @@ describe('channel onboarding frontend protocol contract', () => {
 
   test('pairing and destructive protocol actions use account-scoped endpoints', () => {
     const manager = read(
-      'web/src/components/settings/ChannelAccountsManager.tsx',
+      'web-miniclaw/src/components/settings/ChannelAccountsManager.tsx',
     );
-    const store = read('web/src/stores/channel-accounts.ts');
+    const store = read('web-miniclaw/src/stores/channel-accounts.ts');
     expect(manager).toContain('/pairing-code');
     expect(manager).toContain('/paired-chats');
     expect(store).toContain('/disconnect');
@@ -91,7 +91,7 @@ describe('channel onboarding frontend protocol contract', () => {
 
   test('auth and transport status are rendered as independent states', () => {
     const manager = read(
-      'web/src/components/settings/ChannelAccountsManager.tsx',
+      'web-miniclaw/src/components/settings/ChannelAccountsManager.tsx',
     );
     expect(manager).toContain('auth_status');
     expect(manager).toContain('transport_status');
@@ -102,9 +102,9 @@ describe('channel onboarding frontend protocol contract', () => {
 
   test('renders setup steps, official entry points and accessible field help', () => {
     const fields = read(
-      'web/src/components/settings/channel-accounts/ProviderConnectionFields.tsx',
+      'web-miniclaw/src/components/settings/channel-accounts/ProviderConnectionFields.tsx',
     );
-    const definitions = read('web/src/utils/channel-accounts.ts');
+    const definitions = read('web-miniclaw/src/utils/channel-accounts.ts');
 
     expect(fields).toContain('ProviderSetupGuide');
     expect(fields).toContain('aria-labelledby');

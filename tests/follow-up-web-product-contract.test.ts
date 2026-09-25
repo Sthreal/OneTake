@@ -6,8 +6,8 @@ import { describe, expect, test } from 'vitest';
 import {
   alternateFollowUpMode,
   normalizeFollowUpMode,
-} from '../web/src/lib/follow-up-preferences.js';
-import { getPresentedMessageContent } from '../web/src/lib/message-presentation.js';
+} from '../web-miniclaw/src/lib/follow-up-preferences.js';
+import { getPresentedMessageContent } from '../web-miniclaw/src/lib/message-presentation.js';
 import {
   buildSteeredReply,
   buildStoppedReply,
@@ -28,9 +28,9 @@ describe('Codex-style Web follow-up product contract', () => {
   });
 
   test('keeps the default in settings instead of a permanent composer toggle', () => {
-    const input = read('web/src/components/chat/MessageInput.tsx');
+    const input = read('web-miniclaw/src/components/chat/MessageInput.tsx');
     const preferences = read(
-      'web/src/components/settings/PreferencesSection.tsx',
+      'web-miniclaw/src/components/settings/PreferencesSection.tsx',
     );
 
     expect(preferences).toMatch(/运行中的后续消息/);
@@ -40,8 +40,8 @@ describe('Codex-style Web follow-up product contract', () => {
   });
 
   test('uses an exact query attempt instead of a warm or backoff process for stop state', () => {
-    const chatView = read('web/src/components/chat/ChatView.tsx');
-    const store = read('web/src/stores/chat.ts');
+    const chatView = read('web-miniclaw/src/components/chat/ChatView.tsx');
+    const store = read('web-miniclaw/src/stores/chat.ts');
 
     expect(chatView).not.toMatch(/activeAgent\?\.status === 'running'/);
     expect(chatView).toMatch(/isRunning=\{currentContextWaiting\}/);
@@ -53,7 +53,7 @@ describe('Codex-style Web follow-up product contract', () => {
   });
 
   test('exposes every queued message with edit, reorder, send, and delete', () => {
-    const input = read('web/src/components/chat/MessageInput.tsx');
+    const input = read('web-miniclaw/src/components/chat/MessageInput.tsx');
 
     expect(input).toMatch(/handleFollowUpAction\(item, 'move_up'\)/);
     expect(input).toMatch(/handleFollowUpAction\(item, 'move_down'\)/);
@@ -65,7 +65,7 @@ describe('Codex-style Web follow-up product contract', () => {
   });
 
   test('recovers an unsaved queue edit if the dispatcher claims the item', () => {
-    const input = read('web/src/components/chat/MessageInput.tsx');
+    const input = read('web-miniclaw/src/components/chat/MessageInput.tsx');
 
     expect(input).toMatch(/未保存的修改已移到输入框/);
     expect(input).toMatch(/editingFollowUpInitialContentRef/);
@@ -81,14 +81,14 @@ describe('Codex-style Web follow-up product contract', () => {
     expect(buildStoppedReply('已生成的有效内容')).not.toContain('⚠️');
 
     const streamingDisplay = read(
-      'web/src/components/chat/StreamingDisplay.tsx',
+      'web-miniclaw/src/components/chat/StreamingDisplay.tsx',
     );
     expect(streamingDisplay).not.toMatch(/<span>已中断<\/span>/);
     expect(streamingDisplay).not.toMatch(/OctagonX/);
   });
 
   test('replaces a stopped stream with one terminal presentation', () => {
-    const store = read('web/src/stores/chat.ts');
+    const store = read('web-miniclaw/src/stores/chat.ts');
 
     expect(store).not.toMatch(/interruptPartialWhileFrozen/);
     expect(store).toMatch(

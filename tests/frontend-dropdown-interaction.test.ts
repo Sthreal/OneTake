@@ -3,7 +3,7 @@ import path from 'node:path';
 import { describe, expect, test } from 'vitest';
 
 const source = fs.readFileSync(
-  path.join(process.cwd(), 'web/src/components/ui/dropdown-menu.tsx'),
+  path.join(process.cwd(), 'web-miniclaw/src/components/ui/dropdown-menu.tsx'),
   'utf8',
 );
 

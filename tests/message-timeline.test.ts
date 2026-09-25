@@ -6,7 +6,7 @@ import {
   isMessageVisibleInTimeline,
   orderMessagesForTimeline,
   type TimelineMessageLike,
-} from '../web/src/lib/message-timeline.js';
+} from '../web-miniclaw/src/lib/message-timeline.js';
 
 type TestMessage = TimelineMessageLike & { content: string };
 

@@ -1,49 +1,35 @@
-import path from 'path';
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-import tailwindcss from '@tailwindcss/vite';
+import { defineConfig, loadEnv } from "vite";
+import react from "@vitejs/plugin-react";
 
-const API_PROXY_TARGET =
-  process.env.VITE_API_PROXY_TARGET || 'http://127.0.0.1:3000';
-const WS_PROXY_TARGET =
-  process.env.VITE_WS_PROXY_TARGET || 'ws://127.0.0.1:3000';
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), "");
+  const miniclawApiProxyTarget =
+    env.VITE_MINICLAW_API_PROXY_TARGET || "http://127.0.0.1:3000";
+  const miniclawWsProxyTarget =
+    env.VITE_MINICLAW_WS_PROXY_TARGET ||
+    miniclawApiProxyTarget.replace(/^http/, "ws");
 
-const APP_BASE = (() => {
-  const raw = (process.env.VITE_BASE_PATH || '/').trim();
-  if (!raw) return '/';
-  let base = raw;
-  if (!base.startsWith('/')) base = `/${base}`;
-  if (!base.endsWith('/')) base = `${base}/`;
-  return base;
-})();
-
-export default defineConfig({
-  base: APP_BASE,
-  plugins: [react(), tailwindcss()],
-  server: {
-    port: 5173,
-    host: '0.0.0.0',
-    strictPort: true,
-    allowedHosts: true,
-    hmr: {
-      // VS Code Remote port forwarding requires explicit HMR client config
-      clientPort: 5173,
-    },
-    proxy: {
-      '/api': API_PROXY_TARGET,
-      '/ws': {
-        target: WS_PROXY_TARGET,
-        ws: true,
+  return {
+    plugins: [react()],
+    server: {
+      port: 5173,
+      proxy: {
+        "/miniclaw-api": {
+          target: miniclawApiProxyTarget,
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/miniclaw-api/, "/api"),
+        },
+        "/miniclaw-ws": {
+          target: miniclawWsProxyTarget,
+          changeOrigin: true,
+          ws: true,
+          rewrite: (path) => path.replace(/^\/miniclaw-ws/, "/ws"),
+        },
+        "/api": {
+          target: env.VITE_API_PROXY_TARGET || "http://localhost:8000",
+          changeOrigin: true,
+        },
       },
     },
-  },
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-      '@onetake/editor': path.resolve(__dirname, '../packages/onetake-editor/src/index.ts'),
-    },
-  },
-  build: {
-    outDir: 'dist',
-  },
+  };
 });

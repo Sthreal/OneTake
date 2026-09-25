@@ -182,7 +182,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     checkAuthInFlight = (async () => {
       set({ checking: true });
-      // index.html 在 HTML 解析阶段预发了 /api/auth/me（见 web/index.html），
+      // index.html 在 HTML 解析阶段预发了 /api/auth/me（见 web-miniclaw/index.html），
       // 这里一次性消费，省掉「入口 JS 执行完才发认证请求」的整跳串行。
       // 任何异常都静默回落到下面的常规重试流程。
       const prewarm = (window as { __authPrewarm?: Promise<Response | null> })

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Message } from '../web/src/stores/chat';
+import type { Message } from '../web-miniclaw/src/stores/chat';
 
 const {
   apiGetMock,
@@ -26,7 +26,7 @@ const {
   showNotificationPromptToastMock: vi.fn(),
 }));
 
-vi.mock('../web/src/api/client', () => ({
+vi.mock('../web-miniclaw/src/api/client', () => ({
   api: {
     get: apiGetMock,
     post: apiPostMock,
@@ -35,7 +35,7 @@ vi.mock('../web/src/api/client', () => ({
   },
 }));
 
-vi.mock('../web/src/api/ws', () => ({
+vi.mock('../web-miniclaw/src/api/ws', () => ({
   wsManager: {
     send: vi.fn(() => true),
     on: vi.fn(() => vi.fn()),
@@ -45,7 +45,7 @@ vi.mock('../web/src/api/ws', () => ({
   },
 }));
 
-vi.mock('../web/src/stores/files', () => ({
+vi.mock('../web-miniclaw/src/stores/files', () => ({
   useFileStore: {
     getState: () => ({
       loadFiles: vi.fn(),
@@ -53,7 +53,7 @@ vi.mock('../web/src/stores/files', () => ({
   },
 }));
 
-vi.mock('../web/src/stores/auth', () => ({
+vi.mock('../web-miniclaw/src/stores/auth', () => ({
   useAuthStore: {
     getState: () => ({
       user: null,
@@ -61,14 +61,14 @@ vi.mock('../web/src/stores/auth', () => ({
   },
 }));
 
-vi.mock('../web/src/utils/toast', () => ({
+vi.mock('../web-miniclaw/src/utils/toast', () => ({
   showToast: vi.fn(),
   notifyIfHidden: notifyIfHiddenMock,
   shouldEmitBackgroundTaskNotice: vi.fn(() => false),
   showNotificationPromptToast: showNotificationPromptToastMock,
 }));
 
-vi.mock('../web/src/utils/messageSnapshotCache', () => ({
+vi.mock('../web-miniclaw/src/utils/messageSnapshotCache', () => ({
   deleteAgentMessageSnapshot: deleteAgentMessageSnapshotMock,
   deleteGroupMessageSnapshots: deleteGroupMessageSnapshotsMock,
   loadAgentMessageSnapshot: loadAgentMessageSnapshotMock,
@@ -76,7 +76,7 @@ vi.mock('../web/src/utils/messageSnapshotCache', () => ({
 }));
 
 const { shouldRecoverStaleWaiting, useChatStore } =
-  await import('../web/src/stores/chat');
+  await import('../web-miniclaw/src/stores/chat');
 const initialState = useChatStore.getState();
 
 function message(id: string, timestamp: string): Message {

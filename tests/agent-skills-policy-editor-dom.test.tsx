@@ -3,8 +3,8 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { act, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { PolicyModeCards } from '../web/src/components/agents/AgentSkillsPolicyEditor';
-import type { RuntimePolicyMode } from '../web/src/utils/agent-runtime-policy';
+import { PolicyModeCards } from '../web-miniclaw/src/components/agents/AgentSkillsPolicyEditor';
+import type { RuntimePolicyMode } from '../web-miniclaw/src/utils/agent-runtime-policy';
 
 (
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }

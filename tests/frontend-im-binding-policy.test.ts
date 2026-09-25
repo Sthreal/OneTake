@@ -3,8 +3,8 @@ import { describe, expect, test } from 'vitest';
 import {
   resolveBindingActivationMode,
   resolveBindingAudienceMode,
-} from '../web/src/utils/im-binding-policy.js';
-import type { AvailableImGroup } from '../web/src/types.js';
+} from '../web-miniclaw/src/utils/im-binding-policy.js';
+import type { AvailableImGroup } from '../web-miniclaw/src/types.js';
 
 function makeGroup(
   overrides: Partial<AvailableImGroup> = {},

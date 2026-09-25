@@ -18,7 +18,7 @@ const {
   setRouteRestoreEnabled,
   saveLastRoute,
   getLastRoute,
-} = await import('../web/src/utils/routeRestore');
+} = await import('../web-miniclaw/src/utils/routeRestore');
 
 describe('routeRestore', () => {
   beforeEach(() => {

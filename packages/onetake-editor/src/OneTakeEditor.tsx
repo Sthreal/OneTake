@@ -1,1 +1,1 @@
-export { OneTakeEditor } from '../../../web/src/features/onetake/OneTakeEditor';
+export { OneTakeEditor } from '../../../web-miniclaw/src/features/onetake/OneTakeEditor';

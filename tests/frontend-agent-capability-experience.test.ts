@@ -6,8 +6,8 @@ import {
   composeAgentPrompt,
   estimatePromptTokens,
   totalPromptStats,
-} from '../web/src/utils/agent-prompts';
-import { hostSkillPolicyForMode } from '../web/src/utils/agent-runtime-policy';
+} from '../web-miniclaw/src/utils/agent-prompts';
+import { hostSkillPolicyForMode } from '../web-miniclaw/src/utils/agent-runtime-policy';
 
 const root = process.cwd();
 const read = (relativePath: string) =>
@@ -69,10 +69,10 @@ describe('Agent prompt and capability frontend contract', () => {
   });
 
   test('offers a usable four-part creation wizard, template, and version diff', () => {
-    const page = read('web/src/pages/AgentProfilesPage.tsx');
-    const editor = read('web/src/components/agents/AgentPromptEditor.tsx');
+    const page = read('web-miniclaw/src/pages/AgentProfilesPage.tsx');
+    const editor = read('web-miniclaw/src/components/agents/AgentPromptEditor.tsx');
     const history = read(
-      'web/src/components/agents/AgentPromptVersionHistory.tsx',
+      'web-miniclaw/src/components/agents/AgentPromptVersionHistory.tsx',
     );
 
     expect(page).toMatch(
@@ -88,15 +88,15 @@ describe('Agent prompt and capability frontend contract', () => {
   });
 
   test('governs host Skills independently from host Prompt and Rules', () => {
-    const profiles = read('web/src/pages/AgentProfilesPage.tsx');
+    const profiles = read('web-miniclaw/src/pages/AgentProfilesPage.tsx');
     const skillEditor = read(
-      'web/src/components/agents/AgentSkillsPolicyEditor.tsx',
+      'web-miniclaw/src/components/agents/AgentSkillsPolicyEditor.tsx',
     );
     const main = read(
-      'web/src/components/settings/MainAgentCapabilitiesSection.tsx',
+      'web-miniclaw/src/components/settings/MainAgentCapabilitiesSection.tsx',
     );
     const system = read(
-      'web/src/components/settings/SystemSettingsSection.tsx',
+      'web-miniclaw/src/components/settings/SystemSettingsSection.tsx',
     );
 
     expect(profiles).toMatch(
@@ -122,7 +122,7 @@ describe('Agent prompt and capability frontend contract', () => {
       hostSkillPolicyForMode('custom', ['research', 'research', 'docs']),
     ).toEqual({ mode: 'custom', ids: ['research', 'docs'] });
 
-    const profiles = read('web/src/pages/AgentProfilesPage.tsx');
+    const profiles = read('web-miniclaw/src/pages/AgentProfilesPage.tsx');
     expect(profiles).toContain('onHostModeChange={handleHostSkillsModeChange}');
     expect(profiles).toContain('void persistHostSkillPolicy(');
     expect(profiles).toMatch(
@@ -131,13 +131,13 @@ describe('Agent prompt and capability frontend contract', () => {
   });
 
   test('isolates capability preview failures instead of blanking the page', () => {
-    const app = read('web/src/App.tsx');
-    const appLayout = read('web/src/components/layout/AppLayout.tsx');
-    const profiles = read('web/src/pages/AgentProfilesPage.tsx');
+    const app = read('web-miniclaw/src/App.tsx');
+    const appLayout = read('web-miniclaw/src/components/layout/AppLayout.tsx');
+    const profiles = read('web-miniclaw/src/pages/AgentProfilesPage.tsx');
     const main = read(
-      'web/src/components/settings/MainAgentCapabilitiesSection.tsx',
+      'web-miniclaw/src/components/settings/MainAgentCapabilitiesSection.tsx',
     );
-    const boundary = read('web/src/components/common/ErrorBoundary.tsx');
+    const boundary = read('web-miniclaw/src/components/common/ErrorBoundary.tsx');
 
     expect(appLayout).toMatch(
       /<ErrorBoundary resetKeys=\{\[location\.pathname\]\}>[\s\S]*<Outlet \/>/,
@@ -156,8 +156,8 @@ describe('Agent prompt and capability frontend contract', () => {
   });
 
   test('never refills or reveals stored MCP secrets', () => {
-    const detail = read('web/src/components/mcp-servers/McpServerDetail.tsx');
-    const store = read('web/src/stores/mcp-servers.ts');
+    const detail = read('web-miniclaw/src/components/mcp-servers/McpServerDetail.tsx');
+    const store = read('web-miniclaw/src/stores/mcp-servers.ts');
 
     expect(detail).not.toMatch(
       /\bEye\b|EyeOff|showEnvValues|server\.env(?!Keys)|server\.headers(?!Keys)/,
@@ -174,9 +174,9 @@ describe('Agent prompt and capability frontend contract', () => {
   });
 
   test('keeps each Skill source visible and read-only sources immutable', () => {
-    const page = read('web/src/pages/SkillsPage.tsx');
-    const card = read('web/src/components/skills/SkillCard.tsx');
-    const store = read('web/src/stores/skills.ts');
+    const page = read('web-miniclaw/src/pages/SkillsPage.tsx');
+    const card = read('web-miniclaw/src/components/skills/SkillCard.tsx');
+    const store = read('web-miniclaw/src/stores/skills.ts');
 
     expect(page).toMatch(/我的 Skills[\s\S]*Miniclaw 内置[\s\S]*宿主机/);
     expect(page).toContain('skill.sourceKey');
@@ -186,9 +186,9 @@ describe('Agent prompt and capability frontend contract', () => {
   });
 
   test('allows every saved model configuration to be selected by an Agent', () => {
-    const profiles = read('web/src/pages/AgentProfilesPage.tsx');
+    const profiles = read('web-miniclaw/src/pages/AgentProfilesPage.tsx');
     const main = read(
-      'web/src/components/settings/MainAgentCapabilitiesSection.tsx',
+      'web-miniclaw/src/components/settings/MainAgentCapabilitiesSection.tsx',
     );
 
     for (const source of [profiles, main]) {
@@ -199,7 +199,7 @@ describe('Agent prompt and capability frontend contract', () => {
 
   test('lets the main Miniclaw read and persist its reasoning effort', () => {
     const main = read(
-      'web/src/components/settings/MainAgentCapabilitiesSection.tsx',
+      'web-miniclaw/src/components/settings/MainAgentCapabilitiesSection.tsx',
     );
 
     expect(main).toContain('aria-label="主 Miniclaw 推理努力档位"');

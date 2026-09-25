@@ -5,7 +5,7 @@ const storeDeps = vi.hoisted(() => ({
   loadGroups: vi.fn(async () => undefined),
 }));
 
-vi.mock('../web/src/api/client', () => ({
+vi.mock('../web-miniclaw/src/api/client', () => ({
   api: {
     get: vi.fn(),
     post: vi.fn(),
@@ -14,22 +14,22 @@ vi.mock('../web/src/api/client', () => ({
   },
   apiFetch: vi.fn(),
 }));
-vi.mock('../web/src/stores/chat', () => ({
+vi.mock('../web-miniclaw/src/stores/chat', () => ({
   useChatStore: {
     getState: () => ({ loadGroups: storeDeps.loadChatGroups }),
     setState: vi.fn(),
   },
 }));
-vi.mock('../web/src/stores/groups', () => ({
+vi.mock('../web-miniclaw/src/stores/groups', () => ({
   useGroupsStore: {
     getState: () => ({ loadGroups: storeDeps.loadGroups }),
     setState: vi.fn(),
   },
 }));
 
-import { api } from '../web/src/api/client';
-import { useAgentProfilesStore } from '../web/src/stores/agent-profiles';
-import type { AgentProfile } from '../web/src/types';
+import { api } from '../web-miniclaw/src/api/client';
+import { useAgentProfilesStore } from '../web-miniclaw/src/stores/agent-profiles';
+import type { AgentProfile } from '../web-miniclaw/src/types';
 
 const profile: AgentProfile = {
   id: 'profile-1',

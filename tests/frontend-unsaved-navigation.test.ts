@@ -4,7 +4,7 @@ import path from 'node:path';
 import {
   createUnsavedNavigationGuard,
   navigationLocationKey,
-} from '../web/src/utils/unsaved-navigation';
+} from '../web-miniclaw/src/utils/unsaved-navigation';
 
 const current = {
   pathname: '/agent-profiles',
@@ -15,11 +15,11 @@ const current = {
 describe('Agent profile unsaved navigation guard', () => {
   test('runs inside a data router and wires both SPA and document navigation blockers', () => {
     const app = fs.readFileSync(
-      path.join(process.cwd(), 'web/src/App.tsx'),
+      path.join(process.cwd(), 'web-miniclaw/src/App.tsx'),
       'utf8',
     );
     const page = fs.readFileSync(
-      path.join(process.cwd(), 'web/src/pages/AgentProfilesPage.tsx'),
+      path.join(process.cwd(), 'web-miniclaw/src/pages/AgentProfilesPage.tsx'),
       'utf8',
     );
 
@@ -74,12 +74,12 @@ describe('Agent profile unsaved navigation guard', () => {
     const history = fs.readFileSync(
       path.join(
         process.cwd(),
-        'web/src/components/agents/AgentPromptVersionHistory.tsx',
+        'web-miniclaw/src/components/agents/AgentPromptVersionHistory.tsx',
       ),
       'utf8',
     );
     const page = fs.readFileSync(
-      path.join(process.cwd(), 'web/src/pages/AgentProfilesPage.tsx'),
+      path.join(process.cwd(), 'web-miniclaw/src/pages/AgentProfilesPage.tsx'),
       'utf8',
     );
 

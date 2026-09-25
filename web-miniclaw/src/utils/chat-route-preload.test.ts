@@ -25,11 +25,11 @@ describe('chat route preload policy', () => {
 
   test('keeps production HTML route-neutral and starts the chat split from the route policy', () => {
     const app = fs.readFileSync(
-      path.join(process.cwd(), 'web/src/App.tsx'),
+      path.join(process.cwd(), 'web-miniclaw/src/App.tsx'),
       'utf8',
     );
     const viteConfig = fs.readFileSync(
-      path.join(process.cwd(), 'web/vite.config.ts'),
+      path.join(process.cwd(), 'web-miniclaw/vite.config.ts'),
       'utf8',
     );
 

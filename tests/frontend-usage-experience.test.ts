@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 const apiMock = vi.hoisted(() => ({ get: vi.fn() }));
 
-vi.mock('../web/src/api/client', () => ({
+vi.mock('../web-miniclaw/src/api/client', () => ({
   api: { get: apiMock.get },
 }));
 
@@ -14,7 +14,7 @@ import {
   normalizeUsageResponse,
   useUsageStore,
   type UsageQuery,
-} from '../web/src/stores/usage';
+} from '../web-miniclaw/src/stores/usage';
 
 const root = process.cwd();
 const read = (relativePath: string) =>
@@ -298,7 +298,7 @@ describe('usage analytics frontend contract', () => {
 
 describe('usage page product and accessibility surface', () => {
   test('lazy-loads the Recharts route instead of importing it into the main bundle', () => {
-    const app = read('web/src/App.tsx');
+    const app = read('web-miniclaw/src/App.tsx');
     expect(app).not.toContain("import { UsagePage } from './pages/UsagePage'");
     expect(app).toMatch(
       /const UsagePage = lazy\(\(\) =>[\s\S]*import\('\.\/pages\/UsagePage'\)/,
@@ -309,8 +309,8 @@ describe('usage page product and accessibility surface', () => {
   });
 
   test('exposes trustworthy metric names, states, filters, and accessible controls', () => {
-    const page = read('web/src/pages/UsagePage.tsx');
-    const auth = read('web/src/stores/auth.ts');
+    const page = read('web-miniclaw/src/pages/UsagePage.tsx');
+    const auth = read('web-miniclaw/src/stores/auth.ts');
     expect(page).toMatch(/统计范围：|时区：|更新时间：/);
     expect(page).toMatch(
       /总 Token|智能体运行次数|模型估算费用 \(USD\)|平均每次成本/,

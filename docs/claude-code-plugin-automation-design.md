@@ -802,8 +802,8 @@ DELETE /api/plugins/marketplaces/:name
 
 文件：
 
-- 修改 `web/src/pages/PluginsPage.tsx`
-- 修改 `web/src/stores/plugins.ts`
+- 修改 `web-miniclaw/src/pages/PluginsPage.tsx`
+- 修改 `web-miniclaw/src/stores/plugins.ts`
 - 增加 migration helper
 
 内容：

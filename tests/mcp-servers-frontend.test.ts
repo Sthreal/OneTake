@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
 
-vi.mock('../web/src/api/client', () => ({
+vi.mock('../web-miniclaw/src/api/client', () => ({
   api: {
     get: vi.fn(),
     post: vi.fn(),
@@ -12,18 +12,18 @@ vi.mock('../web/src/api/client', () => ({
   },
 }));
 
-import { api } from '../web/src/api/client';
+import { api } from '../web-miniclaw/src/api/client';
 import {
   useMcpServersStore,
   type McpServer,
-} from '../web/src/stores/mcp-servers';
+} from '../web-miniclaw/src/stores/mcp-servers';
 import {
   buildMcpPolicyOptions,
   mcpServerEndpoint,
   normalizeMcpPolicyReferences,
   normalizeMcpServers,
   parseMcpSourceKey,
-} from '../web/src/utils/mcp-servers';
+} from '../web-miniclaw/src/utils/mcp-servers';
 
 const server = (overrides: Partial<McpServer> = {}): McpServer => ({
   id: 'github',
@@ -203,14 +203,14 @@ describe('source-qualified MCP frontend behavior', () => {
     const addDialog = fs.readFileSync(
       path.join(
         process.cwd(),
-        'web/src/components/mcp-servers/AddMcpServerDialog.tsx',
+        'web-miniclaw/src/components/mcp-servers/AddMcpServerDialog.tsx',
       ),
       'utf8',
     );
     const detail = fs.readFileSync(
       path.join(
         process.cwd(),
-        'web/src/components/mcp-servers/McpServerDetail.tsx',
+        'web-miniclaw/src/components/mcp-servers/McpServerDetail.tsx',
       ),
       'utf8',
     );
@@ -249,7 +249,7 @@ describe('source-qualified MCP frontend behavior', () => {
   test('renders selection and toggle as sibling native controls', () => {
     const filePath = path.join(
       process.cwd(),
-      'web/src/components/mcp-servers/McpServerCard.tsx',
+      'web-miniclaw/src/components/mcp-servers/McpServerCard.tsx',
     );
     const source = ts.createSourceFile(
       filePath,

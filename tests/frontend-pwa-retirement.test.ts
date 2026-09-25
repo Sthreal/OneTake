@@ -4,7 +4,7 @@ import { describe, expect, test } from 'vitest';
 import {
   isLegacyMiniclawRegistration,
   isLegacyPwaCacheName,
-} from '../web/src/utils/legacyPwaCleanup';
+} from '../web-miniclaw/src/utils/legacyPwaCleanup';
 
 const root = process.cwd();
 const read = (relativePath: string) =>
@@ -12,8 +12,8 @@ const read = (relativePath: string) =>
 
 describe('PWA cache retirement', () => {
   test('removes Workbox generation and runtime API caching', () => {
-    const viteConfig = read('web/vite.config.ts');
-    const packageJson = JSON.parse(read('web/package.json')) as {
+    const viteConfig = read('web-miniclaw/vite.config.ts');
+    const packageJson = JSON.parse(read('web-miniclaw/package.json')) as {
       devDependencies?: Record<string, string>;
     };
 
@@ -22,9 +22,9 @@ describe('PWA cache retirement', () => {
   });
 
   test('keeps the mobile standalone manifest without registering a worker', () => {
-    const html = read('web/index.html');
-    const main = read('web/src/main.tsx');
-    const manifest = JSON.parse(read('web/public/manifest.webmanifest')) as {
+    const html = read('web-miniclaw/index.html');
+    const main = read('web-miniclaw/src/main.tsx');
+    const manifest = JSON.parse(read('web-miniclaw/public/manifest.webmanifest')) as {
       display: string;
       start_url: string;
       scope: string;
@@ -49,7 +49,7 @@ describe('PWA cache retirement', () => {
   });
 
   test('ships a non-caching self-destruct worker for old installations', () => {
-    const worker = read('web/public/sw.js');
+    const worker = read('web-miniclaw/public/sw.js');
 
     expect(worker).toContain('self.skipWaiting()');
     expect(worker).toContain('self.registration.unregister()');
@@ -91,12 +91,12 @@ describe('PWA cache retirement', () => {
     ).toBe(false);
   });
 
-  test('rebuild detection includes mobile manifest and cleanup worker assets', () => {
+  test('rebuild detection includes product web sources and cleanup worker assets', () => {
     const makefile = read('Makefile');
     const webServer = read('src/web.ts');
 
     expect(makefile).toContain(
-      'find web/src/ web/public/ -type f -newer web/dist/index.html',
+      'find web/src/ -type f -newer web/dist/index.html',
     );
     expect(webServer).toContain("p === '/index.html'");
     expect(webServer).toContain("p === '/sw.js'");

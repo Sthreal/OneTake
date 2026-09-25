@@ -8,21 +8,21 @@ import { fileURLToPath } from 'node:url';
 export default defineConfig({
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./web/src', import.meta.url)),
+      '@': fileURLToPath(new URL('./web-miniclaw/src', import.meta.url)),
       '@onetake/editor': fileURLToPath(
         new URL('./packages/onetake-editor/src/index.ts', import.meta.url),
       ),
       react: fileURLToPath(
-        new URL('./web/node_modules/react', import.meta.url),
+        new URL('./web-miniclaw/node_modules/react', import.meta.url),
       ),
       'react-dom': fileURLToPath(
-        new URL('./web/node_modules/react-dom', import.meta.url),
+        new URL('./web-miniclaw/node_modules/react-dom', import.meta.url),
       ),
       'lucide-react': fileURLToPath(
-        new URL('./web/node_modules/lucide-react', import.meta.url),
+        new URL('./web-miniclaw/node_modules/lucide-react', import.meta.url),
       ),
       'react-router-dom': fileURLToPath(
-        new URL('./web/node_modules/react-router-dom', import.meta.url),
+        new URL('./web-miniclaw/node_modules/react-router-dom', import.meta.url),
       ),
     },
   },
@@ -32,7 +32,7 @@ export default defineConfig({
       '**/dist/**',
       'data/**',
       '.claude/**',
-      'web/tests/e2e/**',
+      'web-miniclaw/tests/e2e/**',
     ],
   },
 });

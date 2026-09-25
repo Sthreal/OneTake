@@ -42,8 +42,8 @@ describe('channel binding REST contract', () => {
   });
 
   test('settings UI classifies binding targets by direct-vs-group identity', () => {
-    const section = read('web/src/components/settings/BindingsSection.tsx');
-    const dialog = read('web/src/components/settings/BindingTargetDialog.tsx');
+    const section = read('web-miniclaw/src/components/settings/BindingsSection.tsx');
+    const dialog = read('web-miniclaw/src/components/settings/BindingTargetDialog.tsx');
 
     expect(section).toContain(
       '!(item.bound_session_id ?? item.bound_agent_id)',
@@ -62,7 +62,7 @@ describe('channel binding REST contract', () => {
   });
 
   test('frontend capability table mirrors workspace and native-thread policy', () => {
-    const capabilities = read('web/src/constants/im-capabilities.ts');
+    const capabilities = read('web-miniclaw/src/constants/im-capabilities.ts');
     expect((capabilities.match(/can_bind_workspace: true/g) ?? []).length).toBe(
       7,
     );
@@ -78,8 +78,8 @@ describe('channel binding REST contract', () => {
   });
 
   test('chat UI uses distinct workspace and session mutation endpoints', () => {
-    const store = read('web/src/stores/chat.ts');
-    const dialog = read('web/src/components/chat/ImBindingDialog.tsx');
+    const store = read('web-miniclaw/src/stores/chat.ts');
+    const dialog = read('web-miniclaw/src/components/chat/ImBindingDialog.tsx');
 
     expect(store).toContain('bindWorkspaceImGroup: async');
     expect(store).toContain(

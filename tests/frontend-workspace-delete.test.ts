@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   workspaceDeleteBindingNames,
   workspaceDeleteDialogMessage,
-} from '../web/src/utils/workspace-delete';
-import type { DeleteWorkspaceState } from '../web/src/hooks/useDeleteWorkspace';
+} from '../web-miniclaw/src/utils/workspace-delete';
+import type { DeleteWorkspaceState } from '../web-miniclaw/src/hooks/useDeleteWorkspace';
 
 function state(
   overrides: Partial<DeleteWorkspaceState> = {},

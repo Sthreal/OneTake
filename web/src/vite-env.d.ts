@@ -1,10 +1,9 @@
 /// <reference types="vite/client" />
 
-declare module '*.css' {
-  const content: string;
-  export default content;
+interface ImportMetaEnv {
+  readonly VITE_MINICLAW_ENABLED?: string;
 }
 
-interface Window {
-  __MINICLAW_HASH_ROUTER__?: boolean;
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
 }

@@ -8,7 +8,7 @@ const read = (file: string) =>
 describe('Agent runtime context explainability', () => {
   test('records actual context audits server-side without publishing them to chat', () => {
     const web = read('src/web.ts');
-    const store = read('web/src/stores/chat.ts');
+    const store = read('web-miniclaw/src/stores/chat.ts');
 
     expect(web).toContain('recordRunContextSnapshot({');
     expect(web).toMatch(
@@ -19,7 +19,7 @@ describe('Agent runtime context explainability', () => {
 
   test('shows prompt provenance, real Skill usage, and total SDK budget per workspace', () => {
     const preview = read(
-      'web/src/components/agents/EffectiveCapabilitiesPreview.tsx',
+      'web-miniclaw/src/components/agents/EffectiveCapabilitiesPreview.tsx',
     );
 
     expect(preview).toContain('run_context: RunContextSnapshot | null');

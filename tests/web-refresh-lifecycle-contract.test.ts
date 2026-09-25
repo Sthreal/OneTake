@@ -33,8 +33,8 @@ describe('Web logical-run refresh contract', () => {
   });
 
   test('cross-tab delivery restores only terminal-capable exact attempts', () => {
-    const store = read('web/src/stores/chat.ts');
-    const layout = read('web/src/components/layout/AppLayout.tsx');
+    const store = read('web-miniclaw/src/stores/chat.ts');
+    const layout = read('web-miniclaw/src/components/layout/AppLayout.tsx');
 
     expect(store).toMatch(/const startsDirectRun/);
     expect(store).toMatch(/hasExactQueryAttempt\(g\)/);
@@ -48,7 +48,7 @@ describe('Web logical-run refresh contract', () => {
 
   test('stream projections carry runId and reconnect publishes runs first', () => {
     const web = read('src/web.ts');
-    const view = read('web/src/components/chat/ChatView.tsx');
+    const view = read('web-miniclaw/src/components/chat/ChatView.tsx');
     const activeSnapshot = web.indexOf("type: 'active_run_snapshot'");
     const streamSnapshot = web.indexOf("type: 'stream_snapshot'");
 
@@ -62,7 +62,7 @@ describe('Web logical-run refresh contract', () => {
   });
 
   test('A-late interrupted is fenced before main or agent terminal branches', () => {
-    const store = read('web/src/stores/chat.ts');
+    const store = read('web-miniclaw/src/stores/chat.ts');
     const handler = store.slice(
       store.indexOf('handleStreamEvent: (chatJid, event, agentId, runId)'),
       store.indexOf('handleWsNewMessage: (chatJid, wsMsg'),
@@ -81,7 +81,7 @@ describe('Web logical-run refresh contract', () => {
   });
 
   test('exact terminal and explicit stop clear duration and run ownership', () => {
-    const store = read('web/src/stores/chat.ts');
+    const store = read('web-miniclaw/src/stores/chat.ts');
     const finished = store.slice(
       store.indexOf('handleRunFinished: (chatJid, runId)'),
       store.indexOf('handleActiveRunSnapshot: (runs)'),
@@ -99,7 +99,7 @@ describe('Web logical-run refresh contract', () => {
 
   test('runner process state no longer owns query snapshot cleanup', () => {
     const web = read('src/web.ts');
-    const store = read('web/src/stores/chat.ts');
+    const store = read('web-miniclaw/src/stores/chat.ts');
 
     const runnerState = web.slice(
       web.indexOf('export function broadcastRunnerState'),

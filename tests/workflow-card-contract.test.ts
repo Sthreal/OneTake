@@ -23,11 +23,11 @@ describe('dynamic Workflow product contract', () => {
 
   test('renders workflow and normal answer as separate presentation regions', () => {
     const bubble = fs.readFileSync(
-      'web/src/components/chat/MessageBubble.tsx',
+      'web-miniclaw/src/components/chat/MessageBubble.tsx',
       'utf8',
     );
     const card = fs.readFileSync(
-      'web/src/components/chat/WorkflowRunCard.tsx',
+      'web-miniclaw/src/components/chat/WorkflowRunCard.tsx',
       'utf8',
     );
 
@@ -45,11 +45,11 @@ describe('dynamic Workflow product contract', () => {
 
   test('makes the Workflow card the only running progress surface', () => {
     const list = fs.readFileSync(
-      'web/src/components/chat/MessageList.tsx',
+      'web-miniclaw/src/components/chat/MessageList.tsx',
       'utf8',
     );
     const streaming = fs.readFileSync(
-      'web/src/components/chat/StreamingDisplay.tsx',
+      'web-miniclaw/src/components/chat/StreamingDisplay.tsx',
       'utf8',
     );
     const projection = fs.readFileSync(
@@ -66,7 +66,7 @@ describe('dynamic Workflow product contract', () => {
 
   test('uses the same final-only presentation in conversation previews', () => {
     const sidebar = fs.readFileSync(
-      'web/src/components/chat/SessionSidebar.tsx',
+      'web-miniclaw/src/components/chat/SessionSidebar.tsx',
       'utf8',
     );
 
@@ -75,7 +75,7 @@ describe('dynamic Workflow product contract', () => {
 
   test('keeps running Workflow state across a held background acknowledgement', () => {
     const backend = fs.readFileSync('src/index.ts', 'utf8');
-    const store = fs.readFileSync('web/src/stores/chat.ts', 'utf8');
+    const store = fs.readFileSync('web-miniclaw/src/stores/chat.ts', 'utf8');
 
     expect(backend).toContain('activeWorkflowRuns');
     expect(backend).toContain('activeAgentWorkflowRuns');

@@ -4,7 +4,7 @@ import {
   buildDefaultProviderEnv,
   buildProviderModel,
   parseProviderModel,
-} from '../web/src/utils/provider-model.js';
+} from '../web-miniclaw/src/utils/provider-model.js';
 
 describe('third-party provider model settings', () => {
   test('parses the one-million context suffix from an existing model', () => {

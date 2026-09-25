@@ -1,0 +1,40 @@
+export type ContentPlanStatus = "ready" | "confirmed" | "failed";
+
+export interface ContentScene {
+  scene_id: string;
+  order: number;
+  purpose: string;
+  script_excerpt: string;
+  start_seconds: number;
+  end_seconds: number;
+  shot_type: string;
+  prompt: string;
+  overlay_product: boolean;
+  product_position: string;
+  background_style: string;
+  template_id: string;
+  subtitle_segment_ids: number[];
+  qa_rules: string[];
+}
+
+export interface ContentVariant {
+  variant_id: string;
+  name: string;
+  style: string;
+  scenes: ContentScene[];
+}
+
+export interface ContentPlan {
+  plan_id: string;
+  project_id: string;
+  status: ContentPlanStatus;
+  provider: string;
+  model: string;
+  selected_variant_index: number;
+  total_duration_seconds: number;
+  variants: ContentVariant[];
+  error_code: string | null;
+  created_at: string;
+  updated_at: string;
+  confirmed_at: string | null;
+}

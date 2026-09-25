@@ -9,7 +9,7 @@
 - 权限边界：`docs/ACL-MATRIX.md`
 - 运行时 Prompt：`container/agent-runner/prompts/`
 - 数据库 Schema：`src/db.ts` 中的 `CURRENT_SCHEMA_VERSION` 与建表/迁移代码
-- Web 路由：`web/src/App.tsx`
+- Web 路由：`web-miniclaw/src/App.tsx`
 - 系统设置及默认值：`src/runtime-config.ts`
 - 渠道能力与会话路由：`src/im-channel-capabilities.ts`、`src/channel-mount-service.ts`
 - StreamEvent：`shared/stream-event.ts`
@@ -74,8 +74,8 @@ HTTP 路由位于 `src/routes/`，完整模块索引见 `docs/API.md`。
 
 ### 3.2 Web
 
-Web 位于 `web/`，使用 React 19、Vite、Tailwind CSS 4、React Router、Zustand 和
-Radix UI。路由以 `web/src/App.tsx` 为准：
+Web 位于 `web-miniclaw/`，使用 React 19、Vite、Tailwind CSS 4、React Router、Zustand 和
+Radix UI。路由以 `web-miniclaw/src/App.tsx` 为准：
 
 | 路径                      | 用途                                  |
 | ------------------------- | ------------------------------------- |
@@ -311,7 +311,7 @@ npm run self-test
 约束：
 
 - 只使用 Node.js/npm，不使用 Bun。
-- 三个 Node 项目分别位于根目录、`web/`、`container/agent-runner/`，均使用
+- 四个 Node 项目分别位于根目录、`web/`、`web-miniclaw/`、`container/agent-runner/`，均使用
   `npm ci` 和已提交 lockfile。
 - 修改共享类型后运行 `make sync-types`；`make typecheck` 会检查副本一致性。
 - 修改 Prompt 后确保 `scripts/check-agent-runner-prompts.sh` 通过。
@@ -325,7 +325,7 @@ npm run self-test
 
 | 任务             | 入口                                                                         |
 | ---------------- | ---------------------------------------------------------------------------- |
-| 新增 Web 设置    | `src/runtime-config.ts`、`src/schemas.ts`、`web/src/components/settings/`    |
+| 新增 Web 设置    | `src/runtime-config.ts`、`src/schemas.ts`、`web-miniclaw/src/components/settings/`    |
 | 新增 HTTP API    | 对应 `src/routes/*.ts`，同步 `docs/API.md` 和 ACL                            |
 | 新增 MCP 工具    | `container/agent-runner/src/mcp-tools.ts` 与 `src/index.ts` IPC              |
 | 新增渠道         | 渠道工厂、`src/im-manager.ts`、`src/channel-prefixes.ts`、渠道账号 Schema/UI |

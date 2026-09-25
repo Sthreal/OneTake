@@ -9,13 +9,13 @@ const read = (relativePath: string) =>
 describe('product terminology', () => {
   test('uses 智能体 for the top-level product concept', () => {
     const productSurface = [
-      'web/src/components/layout/nav-items.ts',
-      'web/src/components/layout/UnifiedSidebar.tsx',
-      'web/src/pages/ChatPage.tsx',
-      'web/src/pages/AgentProfilesPage.tsx',
-      'web/src/components/chat/CreateContainerDialog.tsx',
-      'web/src/pages/UsagePage.tsx',
-      'web/src/pages/SettingsPage.tsx',
+      'web-miniclaw/src/components/layout/nav-items.ts',
+      'web-miniclaw/src/components/layout/UnifiedSidebar.tsx',
+      'web-miniclaw/src/pages/ChatPage.tsx',
+      'web-miniclaw/src/pages/AgentProfilesPage.tsx',
+      'web-miniclaw/src/components/chat/CreateContainerDialog.tsx',
+      'web-miniclaw/src/pages/UsagePage.tsx',
+      'web-miniclaw/src/pages/SettingsPage.tsx',
     ]
       .map(read)
       .join('\n');
@@ -31,10 +31,10 @@ describe('product terminology', () => {
   });
 
   test('keeps Pi runtime and subagent terminology technically explicit', () => {
-    const login = read('web/src/pages/LoginPage.tsx');
-    const streaming = read('web/src/components/chat/StreamingDisplay.tsx');
-    const workflow = read('web/src/components/chat/WorkflowRunCard.tsx');
-    const tools = read('web/src/components/chat/ToolActivityCard.tsx');
+    const login = read('web-miniclaw/src/pages/LoginPage.tsx');
+    const streaming = read('web-miniclaw/src/components/chat/StreamingDisplay.tsx');
+    const workflow = read('web-miniclaw/src/components/chat/WorkflowRunCard.tsx');
+    const tools = read('web-miniclaw/src/components/chat/ToolActivityCard.tsx');
     const readme = read('README.md');
 
     expect(login).toContain('Powered by Pi Agent Runtime');

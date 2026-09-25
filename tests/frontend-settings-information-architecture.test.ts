@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, test } from 'vitest';
-import type { Skill } from '../web/src/stores/skills';
-import { isReadonlySkill } from '../web/src/utils/skill-sources';
+import type { Skill } from '../web-miniclaw/src/stores/skills';
+import { isReadonlySkill } from '../web-miniclaw/src/utils/skill-sources';
 
 const root = process.cwd();
 const read = (relativePath: string) =>
@@ -10,7 +10,7 @@ const read = (relativePath: string) =>
 
 describe('settings information architecture', () => {
   test('keeps account, system, and administration scopes explicit', () => {
-    const nav = read('web/src/components/settings/SettingsNav.tsx');
+    const nav = read('web-miniclaw/src/components/settings/SettingsNav.tsx');
 
     expect(nav).toContain("label: '账户设置'");
     expect(nav).toContain("label: '系统配置'");
@@ -28,9 +28,9 @@ describe('settings information architecture', () => {
   });
 
   test('uses the app scroll root and keeps settings content out of shell cards', () => {
-    const appLayout = read('web/src/components/layout/AppLayout.tsx');
-    const settings = read('web/src/pages/SettingsPage.tsx');
-    const billing = read('web/src/pages/BillingPage.tsx');
+    const appLayout = read('web-miniclaw/src/components/layout/AppLayout.tsx');
+    const settings = read('web-miniclaw/src/pages/SettingsPage.tsx');
+    const billing = read('web-miniclaw/src/pages/BillingPage.tsx');
 
     expect(appLayout).toContain('data-app-scroll-root="true"');
     expect(settings).toContain('data-settings-page="true"');
@@ -44,10 +44,10 @@ describe('settings information architecture', () => {
   });
 
   test('moves product resources out of settings while preserving old links', () => {
-    const app = read('web/src/App.tsx');
-    const settings = read('web/src/pages/SettingsPage.tsx');
-    const navItems = read('web/src/components/layout/nav-items.ts');
-    const capabilities = read('web/src/pages/CapabilitiesPage.tsx');
+    const app = read('web-miniclaw/src/App.tsx');
+    const settings = read('web-miniclaw/src/pages/SettingsPage.tsx');
+    const navItems = read('web-miniclaw/src/components/layout/nav-items.ts');
+    const capabilities = read('web-miniclaw/src/pages/CapabilitiesPage.tsx');
 
     expect(app).toContain('path="/capabilities/:section?"');
     expect(app).toContain('path="/usage"');
@@ -65,8 +65,8 @@ describe('settings information architecture', () => {
   test('keeps workspaces private and removes the abandoned collaboration surface', () => {
     const database = read('src/db.ts');
     const groupRoutes = read('src/routes/groups.ts');
-    const chatView = read('web/src/components/chat/ChatView.tsx');
-    const groupTypes = read('web/src/types.ts');
+    const chatView = read('web-miniclaw/src/components/chat/ChatView.tsx');
+    const groupTypes = read('web-miniclaw/src/types.ts');
 
     expect(database).toContain('DROP TABLE IF EXISTS group_members');
     expect(groupRoutes).not.toMatch(/\/:jid\/members|canManageGroupMembers/);
@@ -77,14 +77,14 @@ describe('settings information architecture', () => {
   });
 
   test('separates profile, device preferences, messaging, and security', () => {
-    const profile = read('web/src/components/settings/ProfileSection.tsx');
+    const profile = read('web-miniclaw/src/components/settings/ProfileSection.tsx');
     const preferences = read(
-      'web/src/components/settings/PreferencesSection.tsx',
+      'web-miniclaw/src/components/settings/PreferencesSection.tsx',
     );
     const channels = read(
-      'web/src/components/settings/UserChannelsSection.tsx',
+      'web-miniclaw/src/components/settings/UserChannelsSection.tsx',
     );
-    const security = read('web/src/components/settings/SecuritySection.tsx');
+    const security = read('web-miniclaw/src/components/settings/SecuritySection.tsx');
 
     expect(profile).not.toMatch(/密码|default_require_mention|桌面通知/);
     expect(preferences).toMatch(
@@ -98,9 +98,9 @@ describe('settings information architecture', () => {
 
   test('keeps admin-only host policy separate from runtime settings', () => {
     const system = read(
-      'web/src/components/settings/SystemSettingsSection.tsx',
+      'web-miniclaw/src/components/settings/SystemSettingsSection.tsx',
     );
-    const page = read('web/src/pages/SettingsPage.tsx');
+    const page = read('web-miniclaw/src/pages/SettingsPage.tsx');
 
     expect(system).toMatch(/scope: 'runtime'/);
     expect(system).toMatch(/scope: 'security'/);
@@ -123,12 +123,12 @@ describe('settings information architecture', () => {
   });
 
   test('uses accurate channel and provider safety semantics', () => {
-    const bindings = read('web/src/components/settings/BindingsSection.tsx');
-    const bindingRow = read('web/src/components/settings/ImBindingRow.tsx');
-    const provider = read('web/src/components/settings/ProviderEditor.tsx');
-    const providerList = read('web/src/components/settings/ProviderList.tsx');
-    const providerModel = read('web/src/utils/provider-model.ts');
-    const settings = read('web/src/pages/SettingsPage.tsx');
+    const bindings = read('web-miniclaw/src/components/settings/BindingsSection.tsx');
+    const bindingRow = read('web-miniclaw/src/components/settings/ImBindingRow.tsx');
+    const provider = read('web-miniclaw/src/components/settings/ProviderEditor.tsx');
+    const providerList = read('web-miniclaw/src/components/settings/ProviderList.tsx');
+    const providerModel = read('web-miniclaw/src/utils/provider-model.ts');
+    const settings = read('web-miniclaw/src/pages/SettingsPage.tsx');
 
     expect(bindings).toMatch(/解除发言者限制|不可恢复|解除绑定/);
     expect(bindingRow).toMatch(
@@ -149,7 +149,7 @@ describe('settings information architecture', () => {
   });
 
   test('offers supported official model aliases', () => {
-    const provider = read('web/src/components/settings/ProviderEditor.tsx');
+    const provider = read('web-miniclaw/src/components/settings/ProviderEditor.tsx');
     const officialModels = provider.slice(
       provider.indexOf('/* ─── 官方模型选择 ─── */'),
       provider.indexOf('/* ─── 环境变量 ─── */'),
@@ -161,15 +161,15 @@ describe('settings information architecture', () => {
   });
 
   test('keeps Agent add-ons, project context, and Provider settings in distinct layers', () => {
-    const settings = read('web/src/pages/SettingsPage.tsx');
+    const settings = read('web-miniclaw/src/pages/SettingsPage.tsx');
     const mainCapabilities = read(
-      'web/src/components/settings/MainAgentCapabilitiesSection.tsx',
+      'web-miniclaw/src/components/settings/MainAgentCapabilitiesSection.tsx',
     );
-    const workspaceEnv = read('web/src/components/chat/ContainerEnvPanel.tsx');
-    const chatView = read('web/src/components/chat/ChatView.tsx');
-    const agentProfiles = read('web/src/pages/AgentProfilesPage.tsx');
+    const workspaceEnv = read('web-miniclaw/src/components/chat/ContainerEnvPanel.tsx');
+    const chatView = read('web-miniclaw/src/components/chat/ChatView.tsx');
+    const agentProfiles = read('web-miniclaw/src/pages/AgentProfilesPage.tsx');
     const effectivePreview = read(
-      'web/src/components/agents/EffectiveCapabilitiesPreview.tsx',
+      'web-miniclaw/src/components/agents/EffectiveCapabilitiesPreview.tsx',
     );
 
     expect(settings).toContain('<MainAgentCapabilitiesSection />');
@@ -194,8 +194,8 @@ describe('settings information architecture', () => {
   });
 
   test('supports governed Skill imports and preserves read-only sources', () => {
-    const dialog = read('web/src/components/skills/InstallSkillDialog.tsx');
-    const card = read('web/src/components/skills/SkillCard.tsx');
+    const dialog = read('web-miniclaw/src/components/skills/InstallSkillDialog.tsx');
+    const card = read('web-miniclaw/src/components/skills/SkillCard.tsx');
     const routes = read('src/routes/skills.ts');
     const importer = read('src/skill-import-service.ts');
 
@@ -241,13 +241,13 @@ describe('settings information architecture', () => {
   });
 
   test('exposes main-session binding and complete mobile workspace actions', () => {
-    const sessions = read('web/src/components/chat/SessionSidebar.tsx');
-    const chatView = read('web/src/components/chat/ChatView.tsx');
-    const bindingDialog = read('web/src/components/chat/ImBindingDialog.tsx');
-    const bindings = read('web/src/components/settings/BindingsSection.tsx');
-    const mobileChat = read('web/src/pages/ChatPage.tsx');
+    const sessions = read('web-miniclaw/src/components/chat/SessionSidebar.tsx');
+    const chatView = read('web-miniclaw/src/components/chat/ChatView.tsx');
+    const bindingDialog = read('web-miniclaw/src/components/chat/ImBindingDialog.tsx');
+    const bindings = read('web-miniclaw/src/components/settings/BindingsSection.tsx');
+    const mobileChat = read('web-miniclaw/src/pages/ChatPage.tsx');
     const createWorkspace = read(
-      'web/src/components/chat/CreateContainerDialog.tsx',
+      'web-miniclaw/src/components/chat/CreateContainerDialog.tsx',
     );
     const bindingRoute = read('src/routes/config.ts');
 
@@ -277,7 +277,7 @@ describe('settings information architecture', () => {
     expect(sessionBindingRoute).toContain(
       "threadCapable ? 'thread_map' : 'single_session'",
     );
-    const frontendTypes = read('web/src/types.ts');
+    const frontendTypes = read('web-miniclaw/src/types.ts');
     expect(frontendTypes).toContain("'native_thread'");
     expect(frontendTypes).toContain("'native_root'");
     expect(sessions).toContain('isNativeManagedSession(session)');
@@ -288,9 +288,9 @@ describe('settings information architecture', () => {
   });
 
   test('presents Feishu response audience independently from mention activation', () => {
-    const dialog = read('web/src/components/chat/ImBindingDialog.tsx');
-    const row = read('web/src/components/settings/ImBindingRow.tsx');
-    const constants = read('web/src/constants/im.ts');
+    const dialog = read('web-miniclaw/src/components/chat/ImBindingDialog.tsx');
+    const row = read('web-miniclaw/src/components/settings/ImBindingRow.tsx');
+    const constants = read('web-miniclaw/src/constants/im.ts');
 
     expect(constants).toContain('AUDIENCE_MODE_OPTIONS');
     expect(constants).toContain("value: 'everyone'");

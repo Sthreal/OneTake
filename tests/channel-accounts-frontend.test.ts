@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
-vi.mock('../web/src/api/client', () => ({
+vi.mock('../web-miniclaw/src/api/client', () => ({
   api: {
     get: vi.fn(),
     post: vi.fn(),
@@ -9,12 +9,12 @@ vi.mock('../web/src/api/client', () => ({
   },
 }));
 
-import { api } from '../web/src/api/client';
+import { api } from '../web-miniclaw/src/api/client';
 import {
   mergeChannelAccount,
   useChannelAccountsStore,
   type ChannelAccount,
-} from '../web/src/stores/channel-accounts';
+} from '../web-miniclaw/src/stores/channel-accounts';
 import {
   buildChannelAccountFilterOptions,
   buildChannelAccountPayload,
@@ -24,11 +24,11 @@ import {
   providerDefinition,
   supportsChannelConnectionTest,
   validateChannelAccountForm,
-} from '../web/src/utils/channel-accounts';
+} from '../web-miniclaw/src/utils/channel-accounts';
 import {
   buildMcpSecretClear,
   buildMcpSecretReplacement,
-} from '../web/src/utils/mcp-secrets';
+} from '../web-miniclaw/src/utils/mcp-secrets';
 
 const account = (overrides: Partial<ChannelAccount> = {}): ChannelAccount => ({
   id: 'account-1',

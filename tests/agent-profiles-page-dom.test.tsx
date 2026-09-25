@@ -86,7 +86,7 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock('../web/src/stores/agent-profiles', () => ({
+vi.mock('../web-miniclaw/src/stores/agent-profiles', () => ({
   useAgentProfilesStore: () => ({
     profiles: mocks.profiles,
     loading: false,
@@ -110,7 +110,7 @@ vi.mock('../web/src/stores/agent-profiles', () => ({
   }),
 }));
 
-vi.mock('../web/src/stores/auth', () => ({
+vi.mock('../web-miniclaw/src/stores/auth', () => ({
   useAuthStore: (selector: (state: unknown) => unknown) =>
     selector({
       user: { id: 'admin-user', role: mocks.userRole },
@@ -118,7 +118,7 @@ vi.mock('../web/src/stores/auth', () => ({
     }),
 }));
 
-vi.mock('../web/src/stores/skills', () => ({
+vi.mock('../web-miniclaw/src/stores/skills', () => ({
   useSkillsStore: (selector: (state: unknown) => unknown) =>
     selector({
       skills: [
@@ -136,7 +136,7 @@ vi.mock('../web/src/stores/skills', () => ({
     }),
 }));
 
-vi.mock('../web/src/stores/mcp-servers', () => ({
+vi.mock('../web-miniclaw/src/stores/mcp-servers', () => ({
   useMcpServersStore: (selector: (state: unknown) => unknown) =>
     selector({
       servers: [],
@@ -146,36 +146,36 @@ vi.mock('../web/src/stores/mcp-servers', () => ({
     }),
 }));
 
-vi.mock('../web/src/components/agents/AgentPromptAssistant', () => ({
+vi.mock('../web-miniclaw/src/components/agents/AgentPromptAssistant', () => ({
   AgentPromptAssistant: () => null,
 }));
-vi.mock('../web/src/components/agents/AgentPromptEditor', () => ({
+vi.mock('../web-miniclaw/src/components/agents/AgentPromptEditor', () => ({
   AgentPromptEditor: () => null,
 }));
-vi.mock('../web/src/components/agents/AgentPromptVersionHistory', () => ({
+vi.mock('../web-miniclaw/src/components/agents/AgentPromptVersionHistory', () => ({
   AgentPromptVersionHistory: () => null,
 }));
-vi.mock('../web/src/components/agents/EffectiveCapabilitiesPreview', () => ({
+vi.mock('../web-miniclaw/src/components/agents/EffectiveCapabilitiesPreview', () => ({
   EffectiveCapabilitiesPreview: () => null,
 }));
-vi.mock('../web/src/components/agents/AgentGovernanceSection', () => ({
+vi.mock('../web-miniclaw/src/components/agents/AgentGovernanceSection', () => ({
   AgentGovernanceSection: () => null,
 }));
-vi.mock('../web/src/components/agents/PolicyResourcePicker', () => ({
+vi.mock('../web-miniclaw/src/components/agents/PolicyResourcePicker', () => ({
   PolicyResourcePicker: ({ label }: { label: string }) => <div>{label}</div>,
 }));
-vi.mock('../web/src/components/common/EmojiAvatar', () => ({
+vi.mock('../web-miniclaw/src/components/common/EmojiAvatar', () => ({
   EmojiAvatar: () => <div />,
 }));
-vi.mock('../web/src/components/common/EmojiPicker', () => ({
+vi.mock('../web-miniclaw/src/components/common/EmojiPicker', () => ({
   EmojiPicker: () => <div />,
 }));
-vi.mock('../web/src/components/common/ColorPicker', () => ({
+vi.mock('../web-miniclaw/src/components/common/ColorPicker', () => ({
   ColorPicker: () => <div />,
 }));
 
 const { AgentProfilesPage } =
-  await import('../web/src/pages/AgentProfilesPage');
+  await import('../web-miniclaw/src/pages/AgentProfilesPage');
 
 (
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }

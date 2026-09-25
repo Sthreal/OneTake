@@ -4,7 +4,7 @@ import path from 'node:path';
 
 const readAgentProfilesPage = () =>
   fs.readFileSync(
-    path.join(process.cwd(), 'web/src/pages/AgentProfilesPage.tsx'),
+    path.join(process.cwd(), 'web-miniclaw/src/pages/AgentProfilesPage.tsx'),
     'utf8',
   );
 
