@@ -20,7 +20,7 @@ export function AgentConversation({
   session: ReturnType<typeof useAgentSession>;
 }) {
   const [draft, setDraft] = useState("");
-  const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
+  const [sendStartedAt, setSendStartedAt] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const listRef = useRef<HTMLDivElement>(null);
   const waitingForReply = session.messages.at(-1)?.is_from_me === false;
@@ -33,40 +33,39 @@ export function AgentConversation({
 
   useEffect(() => {
     if (!showThinking) {
-      setThinkingStartedAt(null);
+      setSendStartedAt(null);
       return;
     }
-
-    const lastUserMessage = [...session.messages]
-      .reverse()
-      .find((message) => !message.is_from_me);
-    const startedAt = lastUserMessage
-      ? Date.parse(lastUserMessage.timestamp)
-      : Date.now();
-
-    setNow(Date.now());
-    setThinkingStartedAt((current) => current ?? (startedAt || Date.now()));
-  }, [session.messages, showThinking]);
-
-  useEffect(() => {
-    if (!showThinking) return;
     setNow(Date.now());
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [showThinking]);
 
-  const thinkingSeconds = thinkingStartedAt
-    ? Math.max(0, Math.floor((now - thinkingStartedAt) / 1000))
-    : 0;
+  const lastUserMessage = [...session.messages]
+    .reverse()
+    .find((message) => !message.is_from_me);
+  const parsedThinkingStart = lastUserMessage
+    ? Date.parse(lastUserMessage.timestamp)
+    : Number.NaN;
+  const thinkingStartedAt = showThinking
+    ? sendStartedAt ??
+      (Number.isFinite(parsedThinkingStart) ? parsedThinkingStart : now)
+    : null;
+  const thinkingSeconds =
+    thinkingStartedAt !== null
+      ? Math.max(0, Math.floor((now - thinkingStartedAt) / 1000))
+      : 0;
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     const content = draft.trim();
     if (!content || showThinking) return;
+    setSendStartedAt(Date.now());
     setDraft("");
     try {
       await session.sendMessage(content);
     } catch {
+      setSendStartedAt(null);
       setDraft(content);
     }
   }
