@@ -326,7 +326,6 @@ Agent MCP 调用没有 Cookie，但必须携带由主进程创建的运行上下
 - `tests/owner-gate.test.ts`
 - `tests/im-owner-gate.test.ts`
 - `tests/im-audience-policy.test.ts`
-- `tests/channel-binding-rest-contract.test.ts`
 - `tests/channel-account-*.test.ts`
 - `tests/mcp-runtime-secret-boundary.test.ts`
 - `tests/host-execution-policy.test.ts`

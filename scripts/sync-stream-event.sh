@@ -21,7 +21,6 @@ SRC_SE="$ROOT/shared/stream-event.ts"
 for target in \
   "$ROOT/container/agent-runner/src/stream-event.types.ts" \
   "$ROOT/src/stream-event.types.ts" \
-  "$ROOT/web-miniclaw/src/stream-event.types.ts" \
 ; do
   sync_file "$SRC_SE" "$target"
 done

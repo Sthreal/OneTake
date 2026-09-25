@@ -1,10 +1,6 @@
 # Miniclaw
 
 <p align="center">
-  <img src="web-miniclaw/public/icons/logo-1024.png" alt="Miniclaw logo" width="96" />
-</p>
-
-<p align="center">
   <strong>自托管、Pi Agent 驱动的多渠道智能体工作台</strong><br />
   把 Agent、工作区、记忆、工具、渠道与自动化任务组织在同一个可控的运行环境中。
 </p>
@@ -32,35 +28,6 @@ Miniclaw 是一个面向个人与团队的自托管 AI Agent 工作台。它不�
 - Cron、间隔和一次性任务，以及任务运行历史、通知与恢复。
 
 Miniclaw 采用本地优先和显式集成的思路：数据库、工作区元数据、会话状态和配置由自己的服务管理；模型、消息渠道、Docker 与外部工具都作为可配置边界接入。
-
-## 界面与体验
-
-工作台围绕 `Agent → Workspace → Runtime Session` 组织信息。左侧导航提供工作台、智能体、能力库、任务、用量、账单和设置入口；进入工作台后，可以在同一个界面中切换 Agent、Workspace 和对话上下文。
-
-下面是当前桌面端工作台的实际界面：
-
-<p align="center">
-  <img src="docs/screenshots/workbench.png" alt="Miniclaw 智能体工作台" width="900" />
-</p>
-
-<p align="center">
-  <em>工作台：在同一个窗口中管理 Agent、Workspace、Session 与对话。</em>
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/capabilities.png" alt="Miniclaw 能力库" width="49%" />
-  <img src="docs/screenshots/settings-models.png" alt="Miniclaw 模型配置" width="49%" />
-</p>
-
-<p align="center">
-  <em>能力库与模型配置：把 Skills、MCP、Plugins 和 Provider 配置放在清晰的管理边界内。</em>
-</p>
-
-新的 Miniclaw 图标同时用于 Web/PWA、Electron 窗口和安装包资源：
-
-<p align="center">
-  <img src="web-miniclaw/public/icons/logo-1024.png" alt="Miniclaw application icon" width="160" />
-</p>
 
 ## 核心功能
 
@@ -171,53 +138,13 @@ npm start
 npm run dev:backend
 ```
 
-MiniClaw 自带 Web Client 仅作为开发调试界面，不参与 One Take 产品部署。需要调试 MiniClaw 原 Web 时，同时启动 Backend 和原 Web：
 
 ```bash
-npm run dev:miniclaw-all
 ```
 
 首次进入时完成管理员初始化和 Provider 配置即可。Provider/渠道接入步骤现在可以选择“稍后设置”，跳过后仍可进入工作台，之后在设置中补齐模型和渠道配置。
 
 Agent 容器镜像默认使用 `helsome/miniclaw-agent:latest`，可以通过 `MINICLAW_CONTAINER_IMAGE` 或 `CONTAINER_IMAGE` 覆盖。
-
-### 启动 Electron Desktop
-
-先启动 Backend 与 MiniClaw 开发前端：
-
-```bash
-npm run dev:all
-```
-
-再在另一个终端启动桌面端：
-
-```bash
-MINICLAW_RENDERER_URL=http://127.0.0.1:5174 npm run desktop:dev
-```
-
-如果直接使用 Backend 提供的构建后页面，可以省略 `MINICLAW_RENDERER_URL`：
-
-```bash
-npm run desktop:dev
-```
-
-连接远程 Backend 时：
-
-```bash
-MINICLAW_SERVER_URL=https://your-miniclaw.example.com npm run desktop:dev
-```
-
-打包命令：
-
-```bash
-# 生成未安装目录，适合本地冒烟验证
-npm run desktop:package:dir
-
-# 生成当前平台的安装包
-npm run desktop:package
-```
-
-打包配置位于 [`electron/electron-builder.yml`](electron/electron-builder.yml)，图标资源位于 [`electron/assets`](electron/assets)。正式发布前请为目标平台配置签名与公证。
 
 ## 常用命令
 
@@ -225,8 +152,7 @@ npm run desktop:package
 | --- | --- |
 | `npm run dev:backend` | 只启动 Backend，供 One Take 前端使用 |
 | `npm run dev:all` | 启动 Backend 与 One Take 产品 Web |
-| `npm run dev:miniclaw-all` | 启动 Backend 与 MiniClaw 开发调试 Web |
-| `npm run build:all` | 构建 Backend、One Take Web、MiniClaw Web 与 Agent Runner |
+| `npm run build:all` | 构建 Backend、One Take Web 与 Agent Runner |
 | `npm run typecheck` | 检查 Backend TypeScript |
 | `make typecheck` | 执行 Backend、Web、Agent Runner 的完整类型与文档检查 |
 | `npm test -- --run` | 运行 Vitest 测试 |
@@ -280,12 +206,10 @@ http://host.docker.internal:8010/mcp
 
 One Take Web 是唯一产品前端。One Take 产品后端（基于 MiniClaw Runtime）只运行 Backend，通过 MCP 调用 One Take，并向 One Take Agent 面板提供认证、会话、Memory 和调度能力。
 
-MiniClaw 自带 Web Client 和 `/onetake` 页面仅保留为开发调试与历史回退，不作为正式用户入口。
 
 ### Web 目录
 
 - `web/`：One Take 产品前端，正式构建产物由 One Take 产品后端提供。
-- `web-miniclaw/`：MiniClaw 开发调试前端，默认端口 `5174`。
 - One Take 原仓库保留为回退镜像，P6-05 未删除其 `apps/web/`。
 ## 执行与安全边界
 

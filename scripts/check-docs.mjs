@@ -88,7 +88,6 @@ const currentReferenceDocs = [
   'docs/API.md',
   'docs/ACL-MATRIX.md',
   'docs/PROMPT-SKILL-RUNTIME-TEST-PLAN.md',
-  'web-miniclaw/public/icons/README.md',
 ];
 
 function checkInlineRepositoryPaths() {

@@ -9,7 +9,7 @@
 - 权限边界：`docs/ACL-MATRIX.md`
 - 运行时 Prompt：`container/agent-runner/prompts/`
 - 数据库 Schema：`src/db.ts` 中的 `CURRENT_SCHEMA_VERSION` 与建表/迁移代码
-- Web 路由：`web-miniclaw/src/App.tsx`
+- 产品 Web 入口：`web/src/main.tsx`
 - 系统设置及默认值：`src/runtime-config.ts`
 - 渠道能力与会话路由：`src/im-channel-capabilities.ts`、`src/channel-mount-service.ts`
 - StreamEvent：`shared/stream-event.ts`
@@ -74,26 +74,7 @@ HTTP 路由位于 `src/routes/`，完整模块索引见 `docs/API.md`。
 
 ### 3.2 Web
 
-Web 位于 `web-miniclaw/`，使用 React 19、Vite、Tailwind CSS 4、React Router、Zustand 和
-Radix UI。路由以 `web-miniclaw/src/App.tsx` 为准：
-
-| 路径                      | 用途                                  |
-| ------------------------- | ------------------------------------- |
-| `/setup`                  | 首个管理员初始化                      |
-| `/setup/providers`        | Provider 引导                         |
-| `/setup/channels`         | 用户渠道引导                          |
-| `/login`、`/register`     | 登录和注册                            |
-| `/chat/:groupFolder?`     | 工作台与会话                          |
-| `/agent-profiles`         | Agent 管理                            |
-| `/capabilities/:section?` | Skills、MCP、Plugins                  |
-| `/tasks`                  | 定时任务                              |
-| `/usage`、`/billing`      | 用量与计费                            |
-| `/memory`                 | 记忆管理                              |
-| `/settings`               | 账户和系统设置                        |
-| `/monitor`                | 运行状态，需要 `manage_system_config` |
-| `/users`                  | 用户、邀请和审计管理                  |
-
-`/groups`、`/skills`、`/mcp-servers` 和 `/plugins` 是兼容重定向，不应新增独立页面。
+本项目不再包含 MiniClaw Web。产品 Web 位于 `web/`，使用 React 19 和 Vite；MiniClaw 只提供后端 API、WebSocket 和 Agent Runtime。
 
 ### 3.3 Agent Runner
 
@@ -104,7 +85,7 @@ Radix UI。路由以 `web-miniclaw/src/App.tsx` 为准：
 - 后续消息、工具请求和关闭控制通过独立 IPC 目录传递。
 - `container/agent-runner/prompts/` 中的 Prompt 在启动时加载。
 - Miniclaw MCP 工具由 `container/agent-runner/src/mcp-tools.ts` 注册。
-- `shared/stream-event.ts` 同步到主服务、Web 和 Runner。
+- `shared/stream-event.ts` 同步到主服务和 Runner。
 
 不要在文档中维护固定的 MCP 工具数量或 StreamEvent 数量；它们会随能力演进变化，
 应直接查看类型与注册代码。
@@ -311,7 +292,7 @@ npm run self-test
 约束：
 
 - 只使用 Node.js/npm，不使用 Bun。
-- 四个 Node 项目分别位于根目录、`web/`、`web-miniclaw/`、`container/agent-runner/`，均使用
+- 三个 Node 项目分别位于根目录、`web/`、`container/agent-runner/`，均使用
   `npm ci` 和已提交 lockfile。
 - 修改共享类型后运行 `make sync-types`；`make typecheck` 会检查副本一致性。
 - 修改 Prompt 后确保 `scripts/check-agent-runner-prompts.sh` 通过。
@@ -325,7 +306,6 @@ npm run self-test
 
 | 任务             | 入口                                                                         |
 | ---------------- | ---------------------------------------------------------------------------- |
-| 新增 Web 设置    | `src/runtime-config.ts`、`src/schemas.ts`、`web-miniclaw/src/components/settings/`    |
 | 新增 HTTP API    | 对应 `src/routes/*.ts`，同步 `docs/API.md` 和 ACL                            |
 | 新增 MCP 工具    | `container/agent-runner/src/mcp-tools.ts` 与 `src/index.ts` IPC              |
 | 新增渠道         | 渠道工厂、`src/im-manager.ts`、`src/channel-prefixes.ts`、渠道账号 Schema/UI |

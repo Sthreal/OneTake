@@ -89,7 +89,7 @@ describe('Docker image distribution contract', () => {
     const localEntrypoints = [
       'Makefile',
       'package.json',
-      'web-miniclaw/package.json',
+
       'container/agent-runner/package.json',
       ...['scripts', 'container'].flatMap((directory) =>
         fs

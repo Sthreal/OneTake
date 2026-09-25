@@ -4,7 +4,6 @@
  * This is the single source of truth. Build step copies this file to:
  *   - container/agent-runner/src/stream-event.types.ts
  *   - src/stream-event.types.ts
- *   - web-miniclaw/src/stream-event.types.ts
  *
  * DO NOT edit the copies directly -- edit this file and run `make build`.
  */
