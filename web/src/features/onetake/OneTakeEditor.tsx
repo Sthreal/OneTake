@@ -236,21 +236,19 @@ export function OneTakeEditor({ projectId }: { projectId: string }) {
             <Video className="h-4 w-4" />
             视频方案
           </h3>
-          {!video.plan_id && (
-            <div className="flex items-center gap-2">
-              <select
-                className="rounded-lg border border-border bg-background px-2 py-1 text-sm"
-                value={videoMode}
-                onChange={(event) => setVideoMode(event.target.value as 'avatar' | 'product')}
-              >
-                <option value="avatar">有人</option>
-                <option value="product">无人</option>
-              </select>
-              <Button size="sm" onClick={() => void run(() => createOneTakeVideoPlan(projectId, videoMode))}>
-                创建方案
-              </Button>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            <select
+              className="rounded-lg border border-border bg-background px-2 py-1 text-sm"
+              value={videoMode}
+              onChange={(event) => setVideoMode(event.target.value as 'avatar' | 'product')}
+            >
+              <option value="avatar">有人</option>
+              <option value="product">无人</option>
+            </select>
+            <Button size="sm" onClick={() => void run(() => createOneTakeVideoPlan(projectId, videoMode))}>
+              {video.plan_id ? '重新生成方案' : '创建方案'}
+            </Button>
+          </div>
         </div>
         {video.plan_id ? (
           <div className="mt-3 text-sm text-muted-foreground">
