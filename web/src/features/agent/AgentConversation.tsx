@@ -87,6 +87,19 @@ export function AgentConversation({
         <span>{project.product_name}</span>
       </div>
 
+      {session.runStatus === "running" && (
+        <div className="agent-thinking-card" role="status" aria-live="polite">
+          <span className="spinner small" />
+          <div>
+            <strong>One Take 助手正在思考…</strong>
+            <p>
+              已等待 {thinkingSeconds} 秒。生成完整方案通常需要十几秒到一分钟，
+              请不要重复发送。
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="agent-message-list" ref={listRef}>
         {session.messages.length ? (
           session.messages.map((message) => {
@@ -110,18 +123,6 @@ export function AgentConversation({
           <div className="agent-empty compact">
             <strong>还没有对话</strong>
             <p>可以询问商品卖点、视频方案或生成质量检查。</p>
-          </div>
-        )}
-        {session.runStatus === "running" && (
-          <div className="agent-thinking-card" role="status" aria-live="polite">
-            <span className="spinner small" />
-            <div>
-              <strong>One Take 助手正在思考…</strong>
-              <p>
-                已等待 {thinkingSeconds} 秒。生成完整方案通常需要十几秒到一分钟，
-                请不要重复发送。
-              </p>
-            </div>
           </div>
         )}
       </div>
