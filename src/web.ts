@@ -59,6 +59,7 @@ import browseRoutes from './routes/browse.js';
 import agentRoutes from './routes/agents.js';
 import mcpServersRoutes from './routes/mcp-servers.js';
 import pluginsRoutes from './routes/plugins.js';
+import onetakeRoutes from './routes/onetake.js';
 import workspaceConfigRoutes from './routes/workspace-config.js';
 import agentProfileRoutes from './routes/agent-profiles.js';
 import workspaceRoutes from './routes/workspaces.js';
@@ -275,6 +276,7 @@ app.route('/api/admin', adminRoutes);
 app.route('/api/browse', browseRoutes);
 app.route('/api/mcp-servers', mcpServersRoutes);
 app.route('/api/plugins', pluginsRoutes);
+app.route('/api/onetake', onetakeRoutes);
 app.route('/api/agent-profiles', agentProfileRoutes);
 app.route('/api/workspaces', workspaceRoutes);
 app.route('/api/groups', agentRoutes); // Workspace session routes; /agents paths remain compatibility aliases

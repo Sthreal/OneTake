@@ -119,3 +119,6 @@ export async function isDockerAvailable(): Promise<boolean> {
   }
   return _dockerAvailable;
 }
+export const ONETAKE_MCP_URL =
+  process.env.ONETAKE_MCP_URL || 'http://127.0.0.1:8010/mcp';
+export const ONETAKE_MCP_TOKEN = process.env.ONETAKE_MCP_TOKEN || '';

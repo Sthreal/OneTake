@@ -68,6 +68,9 @@ const UsersPage = lazy(() =>
 const MonitorPage = lazy(() =>
   import('./pages/MonitorPage').then((m) => ({ default: m.MonitorPage })),
 );
+const OneTakePage = lazy(() =>
+  import('./pages/OneTakePage').then((m) => ({ default: m.OneTakePage })),
+);
 const CapabilitiesPage = lazy(() =>
   import('./pages/CapabilitiesPage').then((m) => ({
     default: m.CapabilitiesPage,
@@ -148,6 +151,14 @@ const appRoutes = createRoutesFromElements(
             }
           >
             <ChatPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/onetake"
+        element={
+          <Suspense fallback={null}>
+            <OneTakePage />
           </Suspense>
         }
       />

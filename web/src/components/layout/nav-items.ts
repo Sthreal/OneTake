@@ -6,6 +6,7 @@ import {
   BarChart3,
   Wallet,
   Settings,
+  Clapperboard,
 } from 'lucide-react';
 
 interface NavItem {
@@ -19,6 +20,7 @@ interface NavItem {
 export const baseNavItems: NavItem[] = [
   { path: '/chat', icon: MessageCircle, label: '工作台' },
   { path: '/agent-profiles', icon: Bot, label: '智能体' },
+  { path: '/onetake', icon: Clapperboard, label: '商品视频' },
   { path: '/capabilities', icon: Puzzle, label: '能力库' },
   { path: '/tasks', icon: Clock4, label: '任务' },
   { path: '/usage', icon: BarChart3, label: '用量', hideOnMobile: true },

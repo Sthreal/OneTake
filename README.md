@@ -238,6 +238,8 @@ npm run desktop:package
 | `MINICLAW_CONTAINER_IMAGE` | Agent Runner 使用的容器镜像 | `helsome/miniclaw-agent:latest` |
 | `CONTAINER_IMAGE` | 容器镜像的兼容覆盖项 | 同上 |
 | `WEB_PORT` | Makefile 启动 Backend 使用的端口 | `3000` |
+| `ONETAKE_MCP_URL` | One Take MCP HTTP 地址 | `http://127.0.0.1:8010/mcp` |
+| `ONETAKE_MCP_TOKEN` | One Take MCP Bearer Token | 无 |
 
 不要把 API Key、Session Cookie 或其他凭证写入命令行历史、截图或提交到仓库。远程部署时使用 HTTPS/WSS，并为反向代理、Cookie 和访问控制配置独立的安全边界。
 
@@ -258,6 +260,8 @@ http://host.docker.internal:8010/mcp
 ```
 
 默认 token 仅用于本地开发，共享或远程部署前必须更换。
+
+MiniClaw 的“商品视频”页面路径为 `/onetake`，后端只读代理为 `/api/onetake/*`。
 ## 执行与安全边界
 
 - Backend 由 Node.js 运行，负责认证、API、WebSocket、队列、调度、渠道连接、Provider、用量和 SQLite 持久化。
