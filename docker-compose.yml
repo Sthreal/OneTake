@@ -255,6 +255,23 @@ services:
     volumes:
       - ./apps/api/src:/app/src
 
+  mcp:
+    build:
+      context: ./apps/mcp
+    environment:
+      ONETAKE_API_BASE_URL: http://api:8000
+      PYTHONPATH: /app/src
+      ONETAKE_MCP_TOKEN: ${ONETAKE_MCP_TOKEN:-onetake-mcp-dev-token}
+      ONETAKE_MCP_REQUEST_TIMEOUT_SECONDS: ${ONETAKE_MCP_REQUEST_TIMEOUT_SECONDS:-10}
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "8010:8010"
+    volumes:
+      - ./apps/mcp/src:/app/src
+      - ./apps/mcp/tests:/app/tests
+    command: uvicorn onetake_mcp.main:app --host 0.0.0.0 --port 8010 --reload
   web:
     build:
       context: ./apps/web
