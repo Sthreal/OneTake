@@ -108,7 +108,7 @@ describe("AgentDock", () => {
     vi.stubEnv("VITE_MINICLAW_ENABLED", "false");
     render(<AgentDock project={project} />);
 
-    expect(screen.queryByText("MiniClaw 助手")).not.toBeInTheDocument();
+    expect(screen.queryByText("One Take 助手")).not.toBeInTheDocument();
     expect(getMiniClawAuthStatus).not.toHaveBeenCalled();
   });
   it("loads the project workspace after login", async () => {

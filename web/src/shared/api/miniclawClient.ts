@@ -27,7 +27,7 @@ function errorMessage(body: unknown, status: number): string {
       return record.message;
     }
   }
-  return `MiniClaw 请求失败（${status}）`;
+  return `One Take 产品后端请求失败（${status}）`;
 }
 
 export async function miniclawRequest<T>(
@@ -35,7 +35,7 @@ export async function miniclawRequest<T>(
   init?: RequestInit,
 ): Promise<T> {
   if (/^https?:\/\//i.test(path)) {
-    throw new Error("MiniClaw 请求必须使用同源相对路径");
+    throw new Error("One Take 产品后端请求必须使用同源相对路径");
   }
 
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;

@@ -52,7 +52,7 @@ function AgentDockContent({ project }: { project: Project | null }) {
     } catch (error) {
       setAuthView("error");
       setAuthError(
-        error instanceof Error ? error.message : "MiniClaw 连接失败",
+        error instanceof Error ? error.message : "One Take 产品后端连接失败",
       );
     }
   }, []);
@@ -79,7 +79,7 @@ function AgentDockContent({ project }: { project: Project | null }) {
     <section className="inspector-card agent-dock">
       <div className="agent-dock-header">
         <div>
-          <span>MiniClaw 助手</span>
+          <span>One Take 助手</span>
           <small>{project ? project.product_name : "先选择项目"}</small>
         </div>
         <button
@@ -94,7 +94,7 @@ function AgentDockContent({ project }: { project: Project | null }) {
 
       {!expanded && (
         <p className="agent-dock-hint">
-          每个 One Take 项目使用独立的 MiniClaw 工作区。
+          每个 One Take 项目使用独立的产品工作区。
         </p>
       )}
 
@@ -108,7 +108,7 @@ function AgentDockContent({ project }: { project: Project | null }) {
       {expanded && project && authView === "checking" && (
         <div className="agent-empty compact">
           <span className="spinner small" />
-          正在连接 MiniClaw…
+          正在连接 One Take 产品后端…
         </div>
       )}
 
@@ -122,7 +122,7 @@ function AgentDockContent({ project }: { project: Project | null }) {
 
       {expanded && project && authView === "error" && (
         <div className="agent-empty compact">
-          <strong>MiniClaw 不可用</strong>
+          <strong>One Take 产品后端不可用</strong>
           <p>{authError}</p>
           <button type="button" onClick={() => void checkAuth()}>
             重试

@@ -165,7 +165,7 @@ npm start
 
 开发模式可以按用途选择启动方式。
 
-只运行 MiniClaw Backend，供 One Take 前端调用：
+只运行 One Take 产品后端（内部由 MiniClaw Backend Runtime 提供）：
 
 ```bash
 npm run dev:backend
@@ -278,13 +278,13 @@ http://host.docker.internal:8010/mcp
 
 ### One Take 产品模式
 
-One Take Web 是唯一产品前端。MiniClaw 只运行 Backend，通过 MCP 调用 One Take，并向 One Take Agent 面板提供认证、会话、Memory 和调度能力。
+One Take Web 是唯一产品前端。One Take 产品后端（基于 MiniClaw Runtime）只运行 Backend，通过 MCP 调用 One Take，并向 One Take Agent 面板提供认证、会话、Memory 和调度能力。
 
 MiniClaw 自带 Web Client 和 `/onetake` 页面仅保留为开发调试与历史回退，不作为正式用户入口。
 
 ### Web 目录
 
-- `web/`：One Take 产品前端，正式构建产物由 MiniClaw Backend 提供。
+- `web/`：One Take 产品前端，正式构建产物由 One Take 产品后端提供。
 - `web-miniclaw/`：MiniClaw 开发调试前端，默认端口 `5174`。
 - One Take 原仓库保留为回退镜像，P6-05 未删除其 `apps/web/`。
 ## 执行与安全边界
