@@ -40,6 +40,12 @@ describe('One Take read-only page', () => {
           { status: 200, headers: { 'content-type': 'application/json' } },
         );
       }
+      if (url.includes('/api/onetake/capabilities')) {
+        return new Response(
+          JSON.stringify({ data: { write_enabled: true, paid_enabled: false } }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
       if (url.includes('/api/onetake/provider-status')) {
         return new Response(
           JSON.stringify({

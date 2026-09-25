@@ -240,6 +240,7 @@ npm run desktop:package
 | `WEB_PORT` | Makefile 启动 Backend 使用的端口 | `3000` |
 | `ONETAKE_MCP_URL` | One Take MCP HTTP 地址 | `http://127.0.0.1:8010/mcp` |
 | `ONETAKE_MCP_TOKEN` | One Take MCP Bearer Token | 无 |
+| `ONETAKE_MCP_APPROVAL_TOKEN` | One Take 人工审批 Token，仅后端使用 | 无 |
 
 不要把 API Key、Session Cookie 或其他凭证写入命令行历史、截图或提交到仓库。远程部署时使用 HTTPS/WSS，并为反向代理、Cookie 和访问控制配置独立的安全边界。
 
@@ -260,6 +261,8 @@ http://host.docker.internal:8010/mcp
 ```
 
 默认 token 仅用于本地开发，共享或远程部署前必须更换。
+
+写工具由 One Take MCP 侧的 `ONETAKE_MCP_WRITE_ENABLED` 控制；真实配音和视频生成还需要 `ONETAKE_MCP_PAID_ENABLED=true`，并由本页面人工确认。
 
 MiniClaw 的“商品视频”页面路径为 `/onetake`，后端只读代理为 `/api/onetake/*`。
 ## 执行与安全边界

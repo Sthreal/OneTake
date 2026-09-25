@@ -5,12 +5,15 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { Button } from '@/components/ui/button';
 import { SkeletonCardList } from '@/components/common/Skeletons';
 import {
+  getOneTakeCapabilities,
   getOneTakeEstimate,
   getOneTakePipeline,
   getOneTakeProject,
   getOneTakeProjects,
   getOneTakeProviderStatus,
   getOneTakeVideo,
+  requestOneTakeVideo,
+  type OneTakeCapabilities,
   type OneTakeEstimate,
   type OneTakePipeline,
   type OneTakeProject,
@@ -19,9 +22,11 @@ import {
 } from '@/api/onetake';
 
 function errorText(error: unknown): string {
-  return error instanceof Error && error.message
-    ? error.message
-    : 'One Take 服务不可用';
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return 'One Take 服务不可用';
 }
 
 function formatDate(value?: string): string {
@@ -41,6 +46,9 @@ function StatusPill({ value }: { value?: string }) {
 export function OneTakePage() {
   const [projects, setProjects] = useState<OneTakeProject[]>([]);
   const [providers, setProviders] = useState<OneTakeProvider[]>([]);
+  const [capabilities, setCapabilities] = useState<OneTakeCapabilities | null>(
+    null,
+  );
   const [selectedId, setSelectedId] = useState('');
   const [project, setProject] = useState<OneTakeProject | null>(null);
   const [pipeline, setPipeline] = useState<OneTakePipeline | null>(null);
@@ -54,12 +62,15 @@ export function OneTakePage() {
     setLoading(true);
     setError(null);
     try {
-      const [nextProjects, nextProviders] = await Promise.all([
-        getOneTakeProjects(),
-        getOneTakeProviderStatus(),
-      ]);
+      const [nextProjects, nextProviders, nextCapabilities] =
+        await Promise.all([
+          getOneTakeProjects(),
+          getOneTakeProviderStatus(),
+          getOneTakeCapabilities(),
+        ]);
       setProjects(nextProjects);
       setProviders(nextProviders);
+      setCapabilities(nextCapabilities);
       setSelectedId((current) => current || nextProjects[0]?.project_id || '');
     } catch (err) {
       setError(errorText(err));
@@ -103,6 +114,18 @@ export function OneTakePage() {
   }, [loadProject, selectedId]);
 
   const plan = video?.plan;
+
+  const handleRequestVideo = async () => {
+    if (!project || !plan?.plan_id) return;
+    if (!window.confirm('确认真实生成视频？该操作可能产生费用。')) return;
+    setError(null);
+    try {
+      await requestOneTakeVideo(project.project_id, plan.plan_id);
+      await loadProject(project.project_id);
+    } catch (err) {
+      setError(errorText(err));
+    }
+  };
 
   return (
     <div className="min-h-full px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
@@ -177,6 +200,12 @@ export function OneTakePage() {
                   </div>
                   {project.product_note && (
                     <p className="mt-3 text-sm text-muted-foreground">{project.product_note}</p>
+                  )}
+                  {capabilities?.paid_enabled && plan?.plan_id && plan.status !== 'completed' && (
+                    <Button className="mt-4" size="sm" onClick={() => void handleRequestVideo()}>
+                      <Video className="mr-2 h-4 w-4" />
+                      确认真实生成
+                    </Button>
                   )}
                 </div>
 

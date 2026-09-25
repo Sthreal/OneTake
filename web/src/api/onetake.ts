@@ -35,6 +35,12 @@ export interface OneTakeEstimate {
   estimated_minutes?: number;
 }
 
+export interface OneTakeCapabilities {
+  write_enabled?: boolean;
+  paid_enabled?: boolean;
+  asset_import_enabled?: boolean;
+}
+
 export interface OneTakeProvider {
   capability?: string;
   effective_mode?: string;
@@ -81,6 +87,20 @@ export async function getOneTakeEstimate(projectId: string, planId: string) {
 export async function getOneTakeProviderStatus() {
   const response = await api.get<{ data: OneTakeProvider[] }>(
     '/api/onetake/provider-status',
+  );
+  return response.data;
+}
+export async function getOneTakeCapabilities() {
+  const response = await api.get<{ data: OneTakeCapabilities }>(
+    '/api/onetake/capabilities',
+  );
+  return response.data;
+}
+
+export async function requestOneTakeVideo(projectId: string, planId: string) {
+  const response = await api.post<{ data: OneTakeVideoState }>(
+    `/api/onetake/projects/${encodeURIComponent(projectId)}/request-video`,
+    { plan_id: planId },
   );
   return response.data;
 }
