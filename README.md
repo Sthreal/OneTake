@@ -1,49 +1,133 @@
-# One Take MVP
+# One Take
 
-One Take 商品 AI 视频生成 MVP 的工程仓库。
+One Take 是面向电商商品场景的 AI 视频生成平台。它把商品素材处理、商品识别、文案生成、配音、字幕、视频方案、Agent 协作和成片渲染组织在一条可追踪的生产流水线中。
 
-## 当前阶段
+本仓库是 One Take 的唯一发布仓库。Agent Runtime、Memory、Workspace 和 Scheduler 等能力以内部平台的形式包含在 `platform/one-take-backend/`，不再作为独立产品仓库发布。
 
-当前为 **M3 P7-03：前端源码冻结与开发拓扑验收**。
+## 仓库结构
 
-已具备：
+```text
+OneTake/
+├─ apps/
+│  ├─ api/                         # One Take 核心 FastAPI 服务
+│  ├─ worker/                      # RQ Worker 与媒体处理任务
+│  ├─ mcp/                         # One Take 受控 MCP Bridge
+│  └─ web/                         # 已冻结的旧版 Web，仅用于回退
+├─ platform/
+│  └─ one-take-backend/            # One Take 产品后端与 Agent Runtime
+│     ├─ src/                      # Agent、Workspace、Memory、Scheduler、渠道
+│     ├─ container/                # Agent Runner 与容器运行层
+│     ├─ web/                      # 当前产品 Web 宿主
+│     ├─ integrations/             # One Take 集成能力
+│     └─ tests/                    # 产品后端与 Agent 测试
+├─ docs/                           # 架构、方案档案和验收报告
+├─ infra/                          # 数据库与基础设施配置
+├─ scripts/                        # 开发和验收脚本
+└─ docker-compose.yml              # One Take 核心服务编排
+```
 
-- React + TypeScript 响应式工作台
-- FastAPI API、RQ Worker、PostgreSQL、Redis、MinIO
-- Project、Asset、Outbox、Recognition、Image Edit、Matting、Main Image、Script、Provider 模块
-- 项目创建、素材预签名、复核、列表和项目切换
-- Mock 商品识别与人工确认
-- Qwen-VL-Plus 商品识别 Adapter、严格候选 ID 校验和多图预处理
-- Qwen Image Edit、Photoroom 和阿里云 SegmentCommodity 去背 Adapter
-- Qwen-VL-Plus 文案视觉输入、严格 JSON 解析和事实数字校验
-- CosyVoice V2 配音、音色/语速/语言设置和音频试听
-- Wan S2V 有人视频 Adapter（默认 Mock；真实烟测待预算恢复）
-- 字幕时间轴、SRT 生成、字幕编辑和编辑后重新配音
-- 有人/无人两种视频模式与 3 个无人模板
-- 视频方案、生成进度、成片预览与 MP4 下载
-- 1080×1920、18–25 秒、30 fps、H.264/AAC 和 30 MB 成片卡口
-- 内置 ffmpeg Mock 成片，不依赖系统 apt 或字体包
-- Composition Port 隔离本地 Mock 与 Shotstack Stage
-- Shotstack Ingest 直传素材、Render 异步轮询和成片回存 MinIO
-- Noto Sans SC 本地烧录中文字幕，避免云端字体缺失或不一致
-- 输出语音、输出字幕两个独立开关
-- 项目媒体立即删除 API、24 小时过期媒体清理和 maintenance 队列
-- Mock P0 全流程验收脚本 `scripts/mock_e2e.py`
-- Provider 配置预检、图片响应校验、透明 PNG 校验和失败隔离
-- 主图处理 Pipeline：图像编辑 → 智能去背 → Pillow 标准化 → 人工确认
-- 文案处理 Pipeline：事实校验 → Qwen-VL-Plus Port → 结构化文案 → 编辑确认
-- 按能力独立配置 Provider 模式
-- `MOCK_PROVIDERS` 全局安全锁，锁定后所有能力强制 Mock
-- `GET /api/v1/providers/status` 查看配置状态，不返回密钥
-- 苹果风三栏工作台、四段流程进度和最近项目恢复
-- 只读 MCP Bridge，向 One Take 产品后端暴露项目、Provider、Pipeline、视频和费用预估查询
-- 受控写工具默认关闭，付费生成必须通过人工审批 ID
-- One Take 产品后端（基于 MiniClaw Runtime）仅提供 Agent 后端能力，不作为产品前端
-- 每个 One Take 项目绑定一个独立产品工作区，首次展开 Agent 面板时创建
+## 产品组成
 
-默认启用 Mock Provider，不调用任何付费 AI 接口。真实 Qwen Recognition、Qwen Image Edit、Photoroom、阿里云 SegmentCommodity、Qwen-VL-Plus Script Adapter 和 Wan S2V Adapter 已接入代码，但必须显式关闭 Mock 安全锁、指定对应能力并配置凭据后才会启用；真实自动测试不会产生 API 费用。
+### One Take Core
 
-## Provider 配置
+- FastAPI API、RQ Worker、PostgreSQL、Redis、MinIO。
+- 素材上传、商品识别、图片编辑、去背、文案、配音、字幕和视频方案。
+- Wan S2V、Qwen、Photoroom、阿里云和 Shotstack 等 Provider Adapter。
+- 1080×1920、18–25 秒、30 fps、H.264/AAC 成片规格卡口。
+- Mock 全流程验收，默认不调用付费 AI 接口。
+
+### One Take Agent Platform
+
+- 基于修复和扩展后的 MiniClaw Runtime。
+- 每个 One Take 项目绑定一个独立 Workspace。
+- 提供项目级 Agent 会话、Memory、Scheduler、MCP、Skills 和后台任务。
+- 作为 `platform/one-take-backend/` 的内部能力层工作，不作为第二个产品前端。
+- 对外名称统一为“One Take 产品后端”；内部目录和环境变量暂时保留 MiniClaw 命名，降低升级成本。
+
+## 架构
+
+```text
+One Take Web
+    │
+    ├─ /api/*              → One Take Core API
+    ├─ /miniclaw-api/*     → One Take 产品后端
+    └─ /miniclaw-ws/*      → One Take 产品后端事件流
+
+One Take Core API
+    ├─ PostgreSQL          项目、素材、Pipeline、Outbox
+    ├─ Redis / RQ          Worker 队列与异步任务
+    ├─ MinIO               媒体对象存储
+    ├─ Provider Adapters   AI、渲染、配音和字幕能力
+    └─ MCP Bridge          受控的只读与人工审批写工具
+```
+
+## 快速启动
+
+### 1. 启动 One Take Core
+
+```powershell
+Copy-Item .env.example .env
+docker compose up -d --build api worker mcp
+```
+
+### 2. 启动 One Take 产品后端
+
+另开一个 PowerShell：
+
+```powershell
+cd platform/one-take-backend
+npm install
+$env:ONETAKE_MCP_URL = "http://127.0.0.1:8010/mcp"
+$env:ONETAKE_MCP_TOKEN = "<与 One Take MCP 配置一致>"
+$env:ONETAKE_API_URL = "http://127.0.0.1:8000"
+npm run dev:backend
+```
+
+### 3. 启动产品 Web
+
+再开一个 PowerShell：
+
+```powershell
+cd platform/one-take-backend
+npm --prefix web install
+npm --prefix web run dev
+```
+
+默认地址：
+
+- Web：http://localhost:5173
+- API：http://localhost:8000/docs
+- Provider 状态：http://localhost:8000/api/v1/providers/status
+- MCP：http://localhost:8010/mcp
+- MinIO Console：http://localhost:9001
+
+## 测试
+
+One Take Core：
+
+```powershell
+docker compose exec -T api pytest -q
+```
+
+One Take 产品后端：
+
+```powershell
+cd platform/one-take-backend
+npm run typecheck
+npm test -- --run
+```
+
+产品 Web：
+
+```powershell
+cd platform/one-take-backend
+npm --prefix web run test:run
+npm --prefix web run build
+```
+
+## Provider 模式
+
+默认启用 Mock，不产生付费调用。真实 Provider 必须在 `.env` 中显式关闭安全锁并配置凭据。密钥不得提交到 Git。
 
 ```env
 MOCK_PROVIDERS=true
@@ -52,115 +136,27 @@ IMAGE_EDIT_PROVIDER=mock
 MATTING_PROVIDER=mock
 SCRIPT_PROVIDER=mock
 AVATAR_VIDEO_PROVIDER=mock
-WAN_S2V_MODEL=
-WAN_S2V_RESOLUTION=720P
-WAN_S2V_MAX_SECONDS=30
-WAN_S2V_PRICE_PER_SECOND=
-WAN_S2V_AVATAR_PATH=
-ONETAKE_MCP_TOKEN=change-me
-ONETAKE_MCP_REQUEST_TIMEOUT_SECONDS=10
-PROJECT_TTL_HOURS=24
-MEDIA_CLEANUP_INTERVAL_SECONDS=3600
 ```
 
-启用真实图像链路示例：
+真实 Provider 失败不会自动回退 Mock，避免把 Mock 结果误认为真实结果。
 
-```env
-MOCK_PROVIDERS=false
-RECOGNITION_PROVIDER=real
-IMAGE_EDIT_PROVIDER=real
-MATTING_PROVIDER=aliyun
-SCRIPT_PROVIDER=real
-SCRIPT_MODEL=qwen-vl-plus
-DASHSCOPE_API_KEY=your_key
-ALIBABA_CLOUD_ACCESS_KEY_ID=your_access_key_id
-ALIBABA_CLOUD_ACCESS_KEY_SECRET=your_access_key_secret
-ALIBABA_CLOUD_REGION_ID=cn-shanghai
-ALIYUN_IMAGESEG_ENDPOINT=imageseg.cn-shanghai.aliyuncs.com
-```
+## 回退与升级
 
-有人模式真实 Provider 需要同时配置 `DASHSCOPE_API_KEY`、`WAN_S2V_MODEL` 和 `WAN_S2V_AVATAR_PATH`；仓库不内置真人人像素材。
+- One Take 原前端保留在 `apps/web/`，仅用于回退。
+- One Take 产品后端通过 Git Subtree 方式并入本仓库，GitHub 上只显示一个项目。
+- 合并前回退标签：`onetake-pre-monorepo-merge`。
+- 产品后端回退标签：`miniclaw-pre-monorepo-merge`。
+- 后续同步内部平台上游时，使用 `git subtree pull --prefix=platform/one-take-backend <remote> <ref>`，解决冲突后必须同时运行 Core、产品后端和 Web 测试。
 
-真实 Provider 失败不会自动回退 Mock，避免将 Mock 结果误认为真实结果。
-Shotstack 使用 Stage 时成片带水印，仅用于开发和联调；Production 阶段再切换 `SHOTSTACK_ENV=v1`。
-
-## 启动
-
-```powershell
-Copy-Item .env.example .env
-docker compose up -d --build api worker mcp
-```
-
-### 启动 One Take 产品后端
-
-One Take Web 是唯一产品前端，原 MiniClaw Web 已从项目中删除。需要 Agent、Memory、Scheduler 或 MCP 能力时，另开 PowerShell：
-
-```powershell
-cd "D:\download new\ai_coding\miniclaw-onetake"
-$env:ONETAKE_MCP_URL = "http://127.0.0.1:8010/mcp"
-$env:ONETAKE_MCP_TOKEN = "<与 One Take MCP 配置一致>"
-$env:ONETAKE_API_URL = "http://127.0.0.1:8000"
-npm run dev:backend
-
-One Take 产品前端由 MiniClaw 仓库的 `web/` 提供。另开终端：
-
-```powershell
-cd "D:\download new\ai_coding\miniclaw-onetake"
-npm run dev:web
-```
-```
-
-不要读取或修改 One Take 仓库中的 `.env`；Token 直接使用本机已有值。
-
-One Take Web 通过 /miniclaw-api 和 /miniclaw-ws 同源代理访问 One Take 产品后端，浏览器不需要也不能直接访问 3000 端口。
-
-设置 VITE_MINICLAW_ENABLED=false 可完全关闭 One Take 内的 Agent 面板、HTTP 请求和 WebSocket 连接。
-
-访问：
-
-- Web: http://localhost:5173
-- API: http://localhost:8000/docs
-- Provider 状态: http://localhost:8000/api/v1/providers/status
-- MCP: http://localhost:8010/mcp
-- MinIO Console: http://localhost:9001
-
-## 测试
-
-后端：
-
-```powershell
-docker compose exec -T api pytest -q
-```
-
-前端：
-
-```powershell
-cd apps/web
-npm run test:run
-npm run build
-```
-
-## 页面流程
-
-```text
-填写商品名称
-→ 创建项目
-→ 上传并复核素材
-→ 开始识别
-→ 用户确认候选商品
-→ 生成并确认主图
-→ 补充事实并生成、编辑、确认文案
-→ 生成、试听并确认配音
-→ 编辑并确认字幕
-→ 选择视频模式与无人模板
-→ Mock 生成、预览并下载 MP4
-→ Pipeline 进入 completed
-```
-
-## 架构与方案
+## 文档
 
 - [架构设计](docs/架构设计.md)
 - [方案档案](docs/方案档案.md)
+- [仓库结构与开发说明](docs/仓库结构与开发说明.md)
 - [MVP 验收报告](docs/MVP验收报告.md)
 - [真实 S2V 启用手册](docs/真实S2V启用手册.md)
 - [MCP Bridge](apps/mcp/README.md)
+
+## 许可证
+
+One Take 产品代码沿用仓库中的许可证。`platform/one-take-backend/` 保留其原始 MIT License 和版权声明。

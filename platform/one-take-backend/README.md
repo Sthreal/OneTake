@@ -1,3 +1,6 @@
+> 本目录是 One Take 的内部产品后端，沿用 MiniClaw 作为内部代号。
+> 产品定位、统一启动方式和仓库结构请以根仓库的 [README](../../README.md) 为准。
+
 # Miniclaw
 
 <p align="center">
