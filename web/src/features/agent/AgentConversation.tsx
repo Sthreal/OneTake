@@ -36,20 +36,24 @@ export function AgentConversation({
       setThinkingStartedAt(null);
       return;
     }
+
     const lastUserMessage = [...session.messages]
       .reverse()
       .find((message) => !message.is_from_me);
     const startedAt = lastUserMessage
       ? Date.parse(lastUserMessage.timestamp)
       : Date.now();
+
+    setNow(Date.now());
     setThinkingStartedAt((current) => current ?? (startedAt || Date.now()));
   }, [session.messages, showThinking]);
 
   useEffect(() => {
-    if (session.runStatus !== "running") return;
+    if (!showThinking) return;
+    setNow(Date.now());
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
-  }, [session.runStatus]);
+  }, [showThinking]);
 
   const thinkingSeconds = thinkingStartedAt
     ? Math.max(0, Math.floor((now - thinkingStartedAt) / 1000))
