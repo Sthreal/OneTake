@@ -126,6 +126,8 @@ export function useAgentSession(
   const [messages, setMessages] = useState<MiniClawMessage[]>([]);
   const pendingUserMessageIdRef = useRef<string | null>(null);
 
+  const awaitingReply = messages.at(-1)?.is_from_me === false;
+
   const loadMessages = useCallback(async (jid: string) => {
     const page = await listMiniClawMessages(jid);
     const chronological = sortMessages([...page.messages].reverse());
@@ -178,12 +180,14 @@ export function useAgentSession(
   }, [load]);
 
   useEffect(() => {
-    if (!enabled || !workspaceJid || runStatus !== "running") return;
+    if (!enabled || !workspaceJid || (!awaitingReply && runStatus !== "running")) {
+      return;
+    }
     const timer = setInterval(() => {
       void loadMessages(workspaceJid).catch(() => undefined);
     }, 3000);
     return () => clearInterval(timer);
-  }, [enabled, loadMessages, runStatus, workspaceJid]);
+  }, [awaitingReply, enabled, loadMessages, runStatus, workspaceJid]);
 
   useEffect(() => {
     if (!enabled || !workspaceJid) return;

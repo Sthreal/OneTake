@@ -23,6 +23,8 @@ export function AgentConversation({
   const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const listRef = useRef<HTMLDivElement>(null);
+  const waitingForReply = session.messages.at(-1)?.is_from_me === false;
+  const showThinking = session.runStatus === "running" || waitingForReply;
 
   useEffect(() => {
     const list = listRef.current;
@@ -30,12 +32,18 @@ export function AgentConversation({
   }, [session.messages, session.runStatus]);
 
   useEffect(() => {
-    if (session.runStatus === "running") {
-      setThinkingStartedAt((current) => current ?? Date.now());
+    if (!showThinking) {
+      setThinkingStartedAt(null);
       return;
     }
-    setThinkingStartedAt(null);
-  }, [session.runStatus]);
+    const lastUserMessage = [...session.messages]
+      .reverse()
+      .find((message) => !message.is_from_me);
+    const startedAt = lastUserMessage
+      ? Date.parse(lastUserMessage.timestamp)
+      : Date.now();
+    setThinkingStartedAt((current) => current ?? (startedAt || Date.now()));
+  }, [session.messages, showThinking]);
 
   useEffect(() => {
     if (session.runStatus !== "running") return;
@@ -50,7 +58,7 @@ export function AgentConversation({
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     const content = draft.trim();
-    if (!content || session.runStatus === "running") return;
+    if (!content || showThinking) return;
     setDraft("");
     try {
       await session.sendMessage(content);
@@ -87,7 +95,7 @@ export function AgentConversation({
         <span>{project.product_name}</span>
       </div>
 
-      {session.runStatus === "running" && (
+      {showThinking && (
         <div className="agent-thinking-card" role="status" aria-live="polite">
           <span className="spinner small" />
           <div>
@@ -137,11 +145,11 @@ export function AgentConversation({
           onChange={(event) => setDraft(event.target.value)}
           placeholder="给当前项目的 Agent 发消息…"
           rows={3}
-          disabled={session.runStatus === "running"}
+          disabled={showThinking}
         />
         <button
           type="submit"
-          disabled={!draft.trim() || session.runStatus === "running"}
+          disabled={!draft.trim() || showThinking}
         >
           发送
         </button>
