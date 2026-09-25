@@ -20,12 +20,32 @@ export function AgentConversation({
   session: ReturnType<typeof useAgentSession>;
 }) {
   const [draft, setDraft] = useState("");
+  const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const list = listRef.current;
     if (list) list.scrollTop = list.scrollHeight;
   }, [session.messages, session.runStatus]);
+
+  useEffect(() => {
+    if (session.runStatus === "running") {
+      setThinkingStartedAt((current) => current ?? Date.now());
+      return;
+    }
+    setThinkingStartedAt(null);
+  }, [session.runStatus]);
+
+  useEffect(() => {
+    if (session.runStatus !== "running") return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [session.runStatus]);
+
+  const thinkingSeconds = thinkingStartedAt
+    ? Math.max(0, Math.floor((now - thinkingStartedAt) / 1000))
+    : 0;
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -93,9 +113,15 @@ export function AgentConversation({
           </div>
         )}
         {session.runStatus === "running" && (
-          <div className="agent-thinking">
+          <div className="agent-thinking-card" role="status" aria-live="polite">
             <span className="spinner small" />
-            Agent 正在处理…
+            <div>
+              <strong>One Take 助手正在思考…</strong>
+              <p>
+                已等待 {thinkingSeconds} 秒。生成完整方案通常需要十几秒到一分钟，
+                请不要重复发送。
+              </p>
+            </div>
           </div>
         )}
       </div>

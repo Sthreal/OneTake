@@ -195,5 +195,8 @@ describe("AgentDock", () => {
         "分析这个商品的卖点",
       );
     });
+    expect(
+      await screen.findByText("One Take 助手正在思考…"),
+    ).toBeInTheDocument();
   });
 });

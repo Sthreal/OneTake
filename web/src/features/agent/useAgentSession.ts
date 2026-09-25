@@ -127,7 +127,10 @@ export function useAgentSession(
 
   const loadMessages = useCallback(async (jid: string) => {
     const page = await listMiniClawMessages(jid);
-    setMessages(sortMessages([...page.messages].reverse()));
+    const chronological = sortMessages([...page.messages].reverse());
+    setMessages(chronological);
+    const newest = chronological.at(-1);
+    if (newest?.is_from_me) setRunStatus("idle");
   }, []);
 
   const load = useCallback(async () => {
@@ -162,6 +165,14 @@ export function useAgentSession(
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!enabled || !workspaceJid || runStatus !== "running") return;
+    const timer = setInterval(() => {
+      void loadMessages(workspaceJid).catch(() => undefined);
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [enabled, loadMessages, runStatus, workspaceJid]);
 
   useEffect(() => {
     if (!enabled || !workspaceJid) return;
