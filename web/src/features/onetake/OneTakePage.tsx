@@ -4,6 +4,7 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Button } from '@/components/ui/button';
 import { SkeletonCardList } from '@/components/common/Skeletons';
+import { OneTakeEditor } from './OneTakeEditor';
 import {
   getOneTakeCapabilities,
   getOneTakeEstimate,
@@ -157,13 +158,7 @@ export function OneTakePage() {
           </div>
         )}
 
-        {showEditor && capabilities?.editor_url && (
-          <iframe
-            title="One Take 专业编辑器"
-            src={capabilities.editor_url}
-            className="h-[70vh] w-full rounded-2xl border border-border bg-card"
-          />
-        )}
+        {showEditor && selectedId && <OneTakeEditor projectId={selectedId} />}
 
         <div className="grid gap-5 lg:grid-cols-[20rem_minmax(0,1fr)]">
           <section className="rounded-2xl border border-border bg-card p-4">

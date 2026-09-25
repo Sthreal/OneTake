@@ -126,3 +126,5 @@ export const ONETAKE_MCP_APPROVAL_TOKEN =
   process.env.ONETAKE_MCP_APPROVAL_TOKEN || '';
 export const ONETAKE_EDITOR_URL =
   process.env.ONETAKE_EDITOR_URL || 'http://127.0.0.1:5173';
+export const ONETAKE_API_URL =
+  process.env.ONETAKE_API_URL || 'http://127.0.0.1:8000';

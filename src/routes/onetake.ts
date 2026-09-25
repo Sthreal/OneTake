@@ -7,6 +7,15 @@ import {
   authMiddleware,
 } from '../middleware/auth.js';
 import {
+  confirmOneTakeAudioSubtitle,
+  confirmOneTakeMainImage,
+  confirmOneTakeScript,
+  createOneTakeVideoPlan,
+  loadOneTakeEditorState,
+  updateOneTakeScript,
+  updateOneTakeSubtitle,
+} from '../onetake/editor-client.js';
+import {
   createOneTakeApproval,
   createOneTakeToolRunner,
   runOneTakeTool,
@@ -128,4 +137,85 @@ onetakeRoutes.post('/projects/:projectId/request-video', async (c) => {
   }
 });
 
+
+onetakeRoutes.get('/projects/:projectId/editor', async (c) => {
+  try {
+    return c.json({
+      data: await loadOneTakeEditorState(c.req.param('projectId')),
+    });
+  } catch (error) {
+    return c.json({ error: errorMessage(error) }, 502);
+  }
+});
+
+onetakeRoutes.post('/projects/:projectId/main-image/confirm', async (c) => {
+  try {
+    return c.json({
+      data: await confirmOneTakeMainImage(c.req.param('projectId')),
+    });
+  } catch (error) {
+    return c.json({ error: errorMessage(error) }, 502);
+  }
+});
+
+onetakeRoutes.patch('/projects/:projectId/script', async (c) => {
+  try {
+    const payload = await c.req.json();
+    return c.json({
+      data: await updateOneTakeScript(c.req.param('projectId'), payload),
+    });
+  } catch (error) {
+    return c.json({ error: errorMessage(error) }, 502);
+  }
+});
+
+onetakeRoutes.post('/projects/:projectId/script/confirm', async (c) => {
+  try {
+    return c.json({
+      data: await confirmOneTakeScript(c.req.param('projectId')),
+    });
+  } catch (error) {
+    return c.json({ error: errorMessage(error) }, 502);
+  }
+});
+
+onetakeRoutes.patch('/projects/:projectId/subtitle', async (c) => {
+  try {
+    const payload = await c.req.json();
+    return c.json({
+      data: await updateOneTakeSubtitle(
+        c.req.param('projectId'),
+        Array.isArray(payload.segments) ? payload.segments : [],
+      ),
+    });
+  } catch (error) {
+    return c.json({ error: errorMessage(error) }, 502);
+  }
+});
+
+onetakeRoutes.post('/projects/:projectId/audio-subtitle/confirm', async (c) => {
+  try {
+    return c.json({
+      data: await confirmOneTakeAudioSubtitle(c.req.param('projectId')),
+    });
+  } catch (error) {
+    return c.json({ error: errorMessage(error) }, 502);
+  }
+});
+
+onetakeRoutes.post('/projects/:projectId/video-plan', async (c) => {
+  try {
+    const payload = await c.req.json();
+    const mode = payload.mode === 'product' ? 'product' : 'avatar';
+    return c.json({
+      data: await createOneTakeVideoPlan(
+        c.req.param('projectId'),
+        mode,
+        payload.template_id,
+      ),
+    });
+  } catch (error) {
+    return c.json({ error: errorMessage(error) }, 502);
+  }
+});
 export default onetakeRoutes;

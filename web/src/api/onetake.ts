@@ -105,3 +105,65 @@ export async function requestOneTakeVideo(projectId: string, planId: string) {
   );
   return response.data;
 }
+export interface OneTakeEditorState {
+  mainImage: Record<string, any>;
+  script: Record<string, any>;
+  subtitle: Record<string, any>;
+  video: Record<string, any>;
+}
+
+export async function loadOneTakeEditorState(projectId: string) {
+  const response = await api.get<{ data: OneTakeEditorState }>(
+    `/api/onetake/projects/${encodeURIComponent(projectId)}/editor`,
+  );
+  return response.data;
+}
+
+export async function confirmOneTakeMainImage(projectId: string) {
+  return api.post(
+    `/api/onetake/projects/${encodeURIComponent(projectId)}/main-image/confirm`,
+  );
+}
+
+export async function updateOneTakeScript(
+  projectId: string,
+  payload: Record<string, unknown>,
+) {
+  return api.patch(
+    `/api/onetake/projects/${encodeURIComponent(projectId)}/script`,
+    payload,
+  );
+}
+
+export async function confirmOneTakeScript(projectId: string) {
+  return api.post(
+    `/api/onetake/projects/${encodeURIComponent(projectId)}/script/confirm`,
+  );
+}
+
+export async function updateOneTakeSubtitle(
+  projectId: string,
+  segments: Array<{ index: number; text: string }>,
+) {
+  return api.patch(
+    `/api/onetake/projects/${encodeURIComponent(projectId)}/subtitle`,
+    { segments },
+  );
+}
+
+export async function confirmOneTakeAudioSubtitle(projectId: string) {
+  return api.post(
+    `/api/onetake/projects/${encodeURIComponent(projectId)}/audio-subtitle/confirm`,
+  );
+}
+
+export async function createOneTakeVideoPlan(
+  projectId: string,
+  mode: 'avatar' | 'product',
+  templateId?: string,
+) {
+  return api.post(
+    `/api/onetake/projects/${encodeURIComponent(projectId)}/video-plan`,
+    { mode, template_id: templateId },
+  );
+}
