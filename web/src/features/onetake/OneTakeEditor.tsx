@@ -8,6 +8,7 @@ import {
   confirmOneTakeScript,
   createOneTakeVideoPlan,
   loadOneTakeEditorState,
+  requestOneTakeVoice,
   updateOneTakeScript,
   updateOneTakeSubtitle,
   type OneTakeEditorState,
@@ -192,6 +193,16 @@ export function OneTakeEditor({ projectId }: { projectId: string }) {
             >
               <Save className="mr-2 h-4 w-4" />
               保存字幕
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                if (window.confirm('确认真实生成配音？该操作可能产生费用。')) {
+                  void run(() => requestOneTakeVoice(projectId));
+                }
+              }}
+            >
+              确认真实配音
             </Button>
             <Button size="sm" onClick={() => void run(() => confirmOneTakeAudioSubtitle(projectId))}>
               确认配音与字幕

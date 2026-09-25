@@ -167,3 +167,12 @@ export async function createOneTakeVideoPlan(
     { mode, template_id: templateId },
   );
 }
+export async function requestOneTakeVoice(
+  projectId: string,
+  voiceId = 'longxiaochun_v2',
+) {
+  return api.post(
+    `/api/onetake/projects/${encodeURIComponent(projectId)}/request-voice`,
+    { voice_id: voiceId, language: 'zh', speed: 1, subtitle_enabled: true },
+  );
+}

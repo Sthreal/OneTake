@@ -218,4 +218,28 @@ onetakeRoutes.post('/projects/:projectId/video-plan', async (c) => {
     return c.json({ error: errorMessage(error) }, 502);
   }
 });
+
+onetakeRoutes.post('/projects/:projectId/request-voice', async (c) => {
+  const payload = await c.req.json().catch(() => ({}));
+  const projectId = c.req.param('projectId');
+  const voiceId = String(payload.voice_id || 'longxiaochun_v2');
+  try {
+    const approval = await createOneTakeApproval({
+      action: 'voice',
+      projectId,
+      summary: `生成项目 ${projectId} 的真实配音`,
+    });
+    const data = await runOneTakeTool('onetake_request_voice', {
+      project_id: projectId,
+      approval_id: approval.approval_id,
+      voice_id: voiceId,
+      language: String(payload.language || 'zh'),
+      speed: Number(payload.speed || 1),
+      subtitle_enabled: payload.subtitle_enabled !== false,
+    });
+    return c.json({ data });
+  } catch (error) {
+    return c.json({ error: errorMessage(error) }, 502);
+  }
+});
 export default onetakeRoutes;
