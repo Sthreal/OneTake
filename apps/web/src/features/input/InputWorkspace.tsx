@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { FlowProgress } from "./FlowProgress";
+import { AgentDock } from "../agent/AgentDock";
 import { ProjectRail } from "./ProjectRail";
 import { ContentPlanPanel } from "../content-plan/ContentPlanPanel";
 import { ContentQualityPanel } from "../content-quality/ContentQualityPanel";
@@ -411,6 +412,8 @@ export function InputWorkspace() {
         </main>
 
         <aside className="inspector">
+          <AgentDock project={project} />
+
           <section className="inspector-card project-summary">
             <div className="inspector-heading"><span>当前项目</span><span className="live-dot" /></div>
             <strong>{project?.product_name ?? "尚未选择"}</strong>

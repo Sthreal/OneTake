@@ -282,6 +282,9 @@ services:
     environment:
       VITE_API_BASE_URL: /api
       VITE_API_PROXY_TARGET: http://api:8000
+      VITE_MINICLAW_ENABLED: ${VITE_MINICLAW_ENABLED:-true}
+      VITE_MINICLAW_API_PROXY_TARGET: ${DOCKER_MINICLAW_API_PROXY_TARGET:-http://host.docker.internal:3000}
+      VITE_MINICLAW_WS_PROXY_TARGET: ${DOCKER_MINICLAW_WS_PROXY_TARGET:-ws://host.docker.internal:3000}
     ports:
       - "5173:5173"
     depends_on:
