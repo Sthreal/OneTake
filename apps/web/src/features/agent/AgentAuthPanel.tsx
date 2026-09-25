@@ -45,8 +45,8 @@ export function AgentAuthPanel({
     <form className="agent-auth-form" onSubmit={(event) => void submit(event)}>
       <p>
         {mode === "setup"
-          ? "首次使用，请初始化 MiniClaw 管理员账号。"
-          : "登录 MiniClaw 后即可使用当前项目的 Agent。"}
+          ? "首次使用，请初始化 One Take 产品后端管理员账号。"
+          : "登录 One Take 产品后端后即可使用当前项目的 Agent。"}
       </p>
       <label>
         <span>用户名</span>

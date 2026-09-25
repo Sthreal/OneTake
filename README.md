@@ -36,10 +36,10 @@ One Take 商品 AI 视频生成 MVP 的工程仓库。
 - `MOCK_PROVIDERS` 全局安全锁，锁定后所有能力强制 Mock
 - `GET /api/v1/providers/status` 查看配置状态，不返回密钥
 - 苹果风三栏工作台、四段流程进度和最近项目恢复
-- 只读 MCP Bridge，向 MiniClaw 暴露项目、Provider、Pipeline、视频和费用预估查询
+- 只读 MCP Bridge，向 One Take 产品后端暴露项目、Provider、Pipeline、视频和费用预估查询
 - 受控写工具默认关闭，付费生成必须通过人工审批 ID
-- MiniClaw 仅作为 Agent 后端运行，不作为 One Take 的产品前端
-- 每个 One Take 项目绑定一个独立 MiniClaw 工作区，首次展开 Agent 面板时创建
+- One Take 产品后端（基于 MiniClaw Runtime）仅提供 Agent 后端能力，不作为产品前端
+- 每个 One Take 项目绑定一个独立产品工作区，首次展开 Agent 面板时创建
 
 默认启用 Mock Provider，不调用任何付费 AI 接口。真实 Qwen Recognition、Qwen Image Edit、Photoroom、阿里云 SegmentCommodity、Qwen-VL-Plus Script Adapter 和 Wan S2V Adapter 已接入代码，但必须显式关闭 Mock 安全锁、指定对应能力并配置凭据后才会启用；真实自动测试不会产生 API 费用。
 
@@ -91,9 +91,9 @@ Copy-Item .env.example .env
 docker compose up -d --build
 ```
 
-### 启动 MiniClaw 后端
+### 启动 One Take 产品后端
 
-One Take Web 是唯一产品前端，MiniClaw 自带 Web 不启动。需要 Agent、Memory、Scheduler 或 MCP 能力时，另开 PowerShell：
+One Take Web 是唯一产品前端，原 MiniClaw Web 不启动。需要 Agent、Memory、Scheduler 或 MCP 能力时，另开 PowerShell：
 
 ```powershell
 cd "D:\download new\ai_coding\miniclaw-onetake"
@@ -105,7 +105,7 @@ npm run dev:backend
 
 不要读取或修改 One Take 仓库中的 `.env`；Token 直接使用本机已有值。
 
-One Take Web 通过 /miniclaw-api 和 /miniclaw-ws 同源代理访问 MiniClaw Backend，浏览器不需要也不能直接访问 3000 端口。
+One Take Web 通过 /miniclaw-api 和 /miniclaw-ws 同源代理访问 One Take 产品后端，浏览器不需要也不能直接访问 3000 端口。
 
 设置 VITE_MINICLAW_ENABLED=false 可完全关闭 One Take 内的 Agent 面板、HTTP 请求和 WebSocket 连接。
 
