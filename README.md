@@ -4,7 +4,7 @@ One Take 商品 AI 视频生成 MVP 的工程仓库。
 
 ## 当前阶段
 
-当前为 **M2-00 P1：只读 MCP Bridge**。
+当前为 **M2-00 P3：受控写工具与人工审批**。
 
 已具备：
 
@@ -37,6 +37,7 @@ One Take 商品 AI 视频生成 MVP 的工程仓库。
 - `GET /api/v1/providers/status` 查看配置状态，不返回密钥
 - 苹果风三栏工作台、四段流程进度和最近项目恢复
 - 只读 MCP Bridge，向 MiniClaw 暴露项目、Provider、Pipeline、视频和费用预估查询
+- 受控写工具默认关闭，付费生成必须通过人工审批 ID
 
 默认启用 Mock Provider，不调用任何付费 AI 接口。真实 Qwen Recognition、Qwen Image Edit、Photoroom、阿里云 SegmentCommodity、Qwen-VL-Plus Script Adapter 和 Wan S2V Adapter 已接入代码，但必须显式关闭 Mock 安全锁、指定对应能力并配置凭据后才会启用；真实自动测试不会产生 API 费用。
 

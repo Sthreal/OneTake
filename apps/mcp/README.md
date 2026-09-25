@@ -19,6 +19,10 @@
 ONETAKE_API_BASE_URL=http://api:8000
 ONETAKE_MCP_TOKEN=change-me
 ONETAKE_MCP_REQUEST_TIMEOUT_SECONDS=10
+ONETAKE_MCP_WRITE_ENABLED=false
+ONETAKE_MCP_PAID_ENABLED=false
+ONETAKE_MCP_APPROVAL_TOKEN=
+ONETAKE_MCP_ASSET_HOSTS=
 ```
 
 `ONETAKE_MCP_TOKEN` 必须配置，客户端通过 `Authorization: Bearer <ONETAKE_MCP_TOKEN>` 访问 `/mcp`。
@@ -49,3 +53,9 @@ docker compose rm -f mcp
 ```
 
 停止 MCP 不影响 One Take API、Worker 和 MinIO。
+## Write Mode
+
+- Write tools are hidden unless `ONETAKE_MCP_WRITE_ENABLED=true`.
+- Paid voice/video tools are hidden unless `ONETAKE_MCP_PAID_ENABLED=true`.
+- Paid tools require a one-time `approval_id` created through `/internal/approvals`.
+- `/internal/approvals` requires `ONETAKE_MCP_APPROVAL_TOKEN`; this token must not be exposed to the Agent.
