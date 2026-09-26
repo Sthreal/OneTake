@@ -249,6 +249,10 @@ AVATAR_VIDEO_PROVIDER=mock
 
 欢迎提交 Issue、想法、Adapter、模板和文档改进。
 
+- [提交 Bug 报告](https://github.com/Sthreal/OneTake/issues/new?template=bug_report.yml)
+- [提交功能建议](https://github.com/Sthreal/OneTake/issues/new?template=feature_request.yml)
+- [查看全部 Issues](https://github.com/Sthreal/OneTake/issues)
+
 - 一个改动保持一个明确范围。
 - 先写可复现问题，再提交修复。
 - 不提交 `.env`、密钥、用户素材和生成数据。

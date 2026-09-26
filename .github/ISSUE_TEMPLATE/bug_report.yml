@@ -1,0 +1,101 @@
+name: Bug 报告
+description: 报告可复现的功能问题或异常行为
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。请先搜索已有 Issues，避免重复报告。
+        请不要提交密钥、`.env`、用户素材或隐私数据。
+  - type: textarea
+    id: summary
+    attributes:
+      label: 问题描述
+      description: 一句话说明发生了什么。
+      placeholder: 例如：生成视频后点击下载没有任何反应。
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤
+      description: 请提供最小、稳定、可重复的步骤。
+      placeholder: |
+        1. 打开 ...
+        2. 点击 ...
+        3. 输入 ...
+        4. 看到 ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望结果
+      description: 你认为正常情况下应该是什么样。
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际结果
+      description: 实际看到什么，可以附截图或视频。
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: 影响模块
+      multiple: true
+      options:
+        - 项目与素材
+        - 商品识别
+        - 主图处理
+        - 文案与质检
+        - 配音与字幕
+        - 视频方案与成片
+        - One Take 助手 / Agent
+        - Docker / 本地部署
+        - 文档
+        - 其他
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 版本或 Commit
+      description: 请填写 Git Commit、镜像标签或页面版本参数。
+      placeholder: 例如：e5019b3 或 ?v=...
+    validations:
+      required: false
+  - type: dropdown
+    id: environment
+    attributes:
+      label: 运行环境
+      options:
+        - Windows + Docker Desktop
+        - Linux + Docker
+        - macOS + Docker
+        - 仅前端开发模式
+        - 其他
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志与错误信息
+      description: 请粘贴已脱敏日志、浏览器 Console 或 API 响应。
+      render: shell
+      placeholder: 删除密钥、Cookie、Token 和用户数据后再粘贴。
+    validations:
+      required: false
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我已搜索现有 Issues，尽量确认这不是重复问题。
+          required: true
+        - label: 我没有提交 `.env`、API Key、Cookie、Token 或用户隐私数据。
+          required: true

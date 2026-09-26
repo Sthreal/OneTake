@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: One Take 文档
+    url: https://github.com/Sthreal/OneTake/tree/main/docs
+    about: 查看架构、部署、方案档案和操作手册。
+  - name: 安全漏洞报告
+    url: https://github.com/Sthreal/OneTake/security/advisories/new
+    about: 请不要在公开 Issue 中提交安全漏洞或密钥泄露。
