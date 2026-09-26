@@ -1,0 +1,92 @@
+<svg width="1600" height="760" viewBox="0 0 1600 760" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>One Take production pipeline</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#09101d"/>
+      <stop offset="1" stop-color="#141d31"/>
+    </linearGradient>
+    <linearGradient id="line" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#ffbd62"/>
+      <stop offset="0.5" stop-color="#ff756a"/>
+      <stop offset="1" stop-color="#a18cff"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#000000" flood-opacity="0.34"/>
+    </filter>
+  </defs>
+  <rect width="1600" height="760" rx="38" fill="url(#bg)"/>
+  <g opacity="0.16" stroke="#ffffff" stroke-width="1">
+    <path d="M0 112h1600M0 224h1600M0 336h1600M0 448h1600M0 560h1600M0 672h1600"/>
+    <path d="M112 0v760M224 0v760M336 0v760M448 0v760M560 0v760M672 0v760M784 0v760M896 0v760M1008 0v760M1120 0v760M1232 0v760M1344 0v760M1456 0v760"/>
+  </g>
+  <text x="72" y="88" fill="#ffffff" font-family="Inter, Segoe UI, sans-serif" font-size="38" font-weight="800">One Take Production Pipeline</text>
+  <text x="74" y="128" fill="#91a3c2" font-family="Noto Sans SC, Microsoft YaHei, sans-serif" font-size="19">素材进入，方案生成，人工确认，成片输出。每一步都有状态、版本和回退点。</text>
+
+  <path d="M160 356H1440" stroke="#26344f" stroke-width="10" stroke-linecap="round"/>
+  <path d="M160 356H1440" stroke="url(#line)" stroke-width="4" stroke-linecap="round" stroke-dasharray="10 16"/>
+
+  <g transform="translate(95 220)" filter="url(#shadow)">
+    <rect width="190" height="272" rx="28" fill="#111b2d" stroke="#ffffff" stroke-opacity="0.1"/>
+    <circle cx="95" cy="70" r="36" fill="#ffbd62" fill-opacity="0.16" stroke="#ffbd62" stroke-width="2"/>
+    <rect x="66" y="54" width="58" height="34" rx="8" fill="#ffbd62" fill-opacity="0.72"/>
+    <text x="95" y="145" text-anchor="middle" fill="#ffffff" font-family="Noto Sans SC, Microsoft YaHei, sans-serif" font-size="21" font-weight="700">商品素材</text>
+    <text x="95" y="178" text-anchor="middle" fill="#8fa3c7" font-family="Noto Sans SC, Microsoft YaHei, sans-serif" font-size="15">图片 · 视频 · 说明</text>
+    <text x="95" y="225" text-anchor="middle" fill="#ffcf83" font-family="Inter, Segoe UI, sans-serif" font-size="13" font-weight="700">INPUT</text>
+  </g>
+
+  <g transform="translate(330 220)" filter="url(#shadow)">
+    <rect width="190" height="272" rx="28" fill="#111b2d" stroke="#ffffff" stroke-opacity="0.1"/>
+    <circle cx="95" cy="70" r="36" fill="#f89d73" fill-opacity="0.16" stroke="#f89d73" stroke-width="2"/>
+    <path d="M76 68h38M76 78h28M88 48v42" stroke="#f7b08d" stroke-width="4" stroke-linecap="round"/>
+    <text x="95" y="145" text-anchor="middle" fill="#ffffff" font-family="Noto Sans SC, Microsoft YaHei, sans-serif" font-size="21" font-weight="700">理解与策划</text>
+    <text x="95" y="178" text-anchor="middle" fill="#8fa3c7" font-family="Noto Sans SC, Microsoft YaHei, sans-serif" font-size="15">卖点识别 · 脚本</text>
+    <text x="95" y="225" text-anchor="middle" fill="#f7b08d" font-family="Inter, Segoe UI, sans-serif" font-size="13" font-weight="700">AGENT</text>
+  </g>
+
+  <g transform="translate(565 220)" filter="url(#shadow)">
+    <rect width="190" height="272" rx="28" fill="#111b2d" stroke="#ffffff" stroke-opacity="0.1"/>
+    <circle cx="95" cy="70" r="36" fill="#ff756a" fill-opacity="0.16" stroke="#ff756a" stroke-width="2"/>
+    <rect x="70" y="50" width="50" height="40" rx="10" fill="#ff756a" fill-opacity="0.58"/>
+    <path d="M82 70h26M95 56v28" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+    <text x="95" y="145" text-anchor="middle" fill="#ffffff" font-family="Noto Sans SC, Microsoft YaHei, sans-serif" font-size="21" font-weight="700">分镜与素材</text>
+    <text x="95" y="178" text-anchor="middle" fill="#8fa3c7" font-family="Noto Sans SC, Microsoft YaHei, sans-serif" font-size="15">镜头 · 场景 · 商品图层</text>
+    <text x="95" y="225" text-anchor="middle" fill="#ff9f97" font-family="Inter, Segoe UI, sans-serif" font-size="13" font-weight="700">PLAN</text>
+  </g>
+
+  <g transform="translate(800 220)" filter="url(#shadow)">
+    <rect width="190" height="272" rx="28" fill="#111b2d" stroke="#ffffff" stroke-opacity="0.1"/>
+    <circle cx="95" cy="70" r="36" fill="#a18cff" fill-opacity="0.16" stroke="#a18cff" stroke-width="2"/>
+    <path d="M79 62v20M88 52v40M97 60v22M106 48v46" stroke="#b9aaff" stroke-width="4" stroke-linecap="round"/>
+    <text x="95" y="145" text-anchor="middle" fill="#ffffff" font-family="Noto Sans SC, Microsoft YaHei, sans-serif" font-size="21" font-weight="700">配音与字幕</text>
+    <text x="95" y="178" text-anchor="middle" fill="#8fa3c7" font-family="Noto Sans SC, Microsoft YaHei, sans-serif" font-size="15">声音克隆 · 自动分段</text>
+    <text x="95" y="225" text-anchor="middle" fill="#c3b8ff" font-family="Inter, Segoe UI, sans-serif" font-size="13" font-weight="700">VOICE</text>
+  </g>
+
+  <g transform="translate(1035 220)" filter="url(#shadow)">
+    <rect width="190" height="272" rx="28" fill="#111b2d" stroke="#ffffff" stroke-opacity="0.1"/>
+    <circle cx="95" cy="70" r="36" fill="#52d6b4" fill-opacity="0.16" stroke="#52d6b4" stroke-width="2"/>
+    <path d="M64 63l27-16 27 16v19L91 98 64 82V63z" fill="#52d6b4" fill-opacity="0.62"/>
+    <text x="95" y="145" text-anchor="middle" fill="#ffffff" font-family="Noto Sans SC, Microsoft YaHei, sans-serif" font-size="21" font-weight="700">渲染成片</text>
+    <text x="95" y="178" text-anchor="middle" fill="#8fa3c7" font-family="Noto Sans SC, Microsoft YaHei, sans-serif" font-size="15">合成 · 渲染 · 质检</text>
+    <text x="95" y="225" text-anchor="middle" fill="#8ef0d2" font-family="Inter, Segoe UI, sans-serif" font-size="13" font-weight="700">RENDER</text>
+  </g>
+
+  <g transform="translate(1270 220)" filter="url(#shadow)">
+    <rect width="190" height="272" rx="28" fill="#111b2d" stroke="#ffffff" stroke-opacity="0.1"/>
+    <circle cx="95" cy="70" r="36" fill="#78b7ff" fill-opacity="0.16" stroke="#78b7ff" stroke-width="2"/>
+    <path d="M75 55h40v34H75z" fill="#78b7ff" fill-opacity="0.62"/>
+    <path d="m92 70 9-7v16l-9-7z" fill="#fff"/>
+    <text x="95" y="145" text-anchor="middle" fill="#ffffff" font-family="Noto Sans SC, Microsoft YaHei, sans-serif" font-size="21" font-weight="700">发布与复用</text>
+    <text x="95" y="178" text-anchor="middle" fill="#8fa3c7" font-family="Noto Sans SC, Microsoft YaHei, sans-serif" font-size="15">预览 · 下载 · 版本</text>
+    <text x="95" y="225" text-anchor="middle" fill="#9dccff" font-family="Inter, Segoe UI, sans-serif" font-size="13" font-weight="700">OUTPUT</text>
+  </g>
+
+  <g transform="translate(72 596)">
+    <rect width="1456" height="96" rx="24" fill="#0d1627" stroke="#ffffff" stroke-opacity="0.09"/>
+    <text x="30" y="39" fill="#6f83a7" font-family="Inter, Segoe UI, sans-serif" font-size="14" font-weight="700" letter-spacing="1.2">HUMAN-IN-THE-LOOP</text>
+    <text x="30" y="69" fill="#d8e3f5" font-family="Noto Sans SC, Microsoft YaHei, sans-serif" font-size="18">关键节点保留人工确认，付费生成有费用预估，失败不自动伪装成成功。</text>
+    <rect x="1172" y="26" width="250" height="44" rx="22" fill="#17243a" stroke="#52d6b4" stroke-opacity="0.4"/>
+    <circle cx="1200" cy="48" r="6" fill="#52d6b4"/>
+    <text x="1218" y="54" fill="#b9f4e5" font-family="Noto Sans SC, Microsoft YaHei, sans-serif" font-size="16" font-weight="700">可追踪 · 可回退 · 可审计</text>
+  </g>
+</svg>

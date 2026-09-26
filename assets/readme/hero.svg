@@ -1,0 +1,124 @@
+<svg width="1600" height="900" viewBox="0 0 1600 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>One Take - AI product video studio</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#05070d"/>
+      <stop offset="0.55" stop-color="#0d1627"/>
+      <stop offset="1" stop-color="#17233a"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#ffb347"/>
+      <stop offset="0.5" stop-color="#ff6b5f"/>
+      <stop offset="1" stop-color="#9b7bff"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#ffffff" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.045"/>
+    </linearGradient>
+    <linearGradient id="phone" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#212a40"/>
+      <stop offset="1" stop-color="#090d16"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="26" stdDeviation="28" flood-color="#000000" flood-opacity="0.48"/>
+    </filter>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="18" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <pattern id="grid" width="44" height="44" patternUnits="userSpaceOnUse">
+      <path d="M44 0H0V44" stroke="#ffffff" stroke-opacity="0.055" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1600" height="900" rx="44" fill="url(#bg)"/>
+  <rect width="1600" height="900" rx="44" fill="url(#grid)"/>
+  <circle cx="1290" cy="180" r="330" fill="#8b5cf6" fill-opacity="0.13" filter="url(#glow)"/>
+  <circle cx="1290" cy="180" r="220" fill="#ff7a59" fill-opacity="0.12" filter="url(#glow)"/>
+  <circle cx="240" cy="760" r="260" fill="#18c2a7" fill-opacity="0.08" filter="url(#glow)"/>
+
+  <g transform="translate(92 82)">
+    <rect x="0" y="0" width="356" height="42" rx="21" fill="url(#glass)" stroke="#ffffff" stroke-opacity="0.12"/>
+    <circle cx="22" cy="21" r="5" fill="#6ee7b7"/>
+    <text x="39" y="27" fill="#d8e3f5" font-family="Inter, Segoe UI, sans-serif" font-size="16" font-weight="700" letter-spacing="1.2">SELF-HOSTED · AGENTIC VIDEO STUDIO</text>
+  </g>
+
+  <text x="92" y="248" fill="#ffffff" font-family="Inter, Segoe UI, sans-serif" font-size="92" font-weight="800" letter-spacing="-4">One Take</text>
+  <text x="96" y="314" fill="#dce8ff" font-family="Noto Sans SC, Microsoft YaHei, sans-serif" font-size="34" font-weight="700">把商品素材，变成能直接发布的短视频。</text>
+  <text x="96" y="360" fill="#93a4c3" font-family="Inter, Segoe UI, sans-serif" font-size="20">From product assets to scripted, voiced and subtitled videos — in one agentic workflow.</text>
+
+  <g transform="translate(96 414)">
+    <rect width="474" height="58" rx="18" fill="#111a2b" stroke="#ffffff" stroke-opacity="0.11"/>
+    <text x="22" y="37" fill="#ffd28a" font-family="Inter, Segoe UI, sans-serif" font-size="18" font-weight="700">Understand</text>
+    <text x="143" y="37" fill="#c7d5f0" font-family="Inter, Segoe UI, sans-serif" font-size="17">商品卖点识别</text>
+    <rect x="292" y="15" width="1" height="28" fill="#ffffff" fill-opacity="0.12"/>
+    <text x="315" y="37" fill="#8ef0d2" font-family="Inter, Segoe UI, sans-serif" font-size="17">Agent 编排</text>
+  </g>
+  <g transform="translate(594 414)">
+    <rect width="430" height="58" rx="18" fill="#111a2b" stroke="#ffffff" stroke-opacity="0.11"/>
+    <text x="22" y="37" fill="#b8b0ff" font-family="Inter, Segoe UI, sans-serif" font-size="18" font-weight="700">1080×1920</text>
+    <text x="150" y="37" fill="#c7d5f0" font-family="Noto Sans SC, Microsoft YaHei, sans-serif" font-size="17">成片规格直出</text>
+  </g>
+
+  <g transform="translate(96 520)">
+    <rect width="900" height="236" rx="30" fill="#0b1220" fill-opacity="0.8" stroke="#ffffff" stroke-opacity="0.1"/>
+    <text x="30" y="45" fill="#6f83a7" font-family="Inter, Segoe UI, sans-serif" font-size="15" font-weight="700" letter-spacing="1.5">ONE TAKE PIPELINE</text>
+    <g transform="translate(32 82)">
+      <rect width="150" height="112" rx="20" fill="#151f34"/>
+      <path d="M35 44h80v45H35z" fill="#273752" rx="8"/>
+      <path d="M46 56h58v6H46zm0 14h42v6H46z" fill="#7c8fb4"/>
+      <text x="75" y="111" text-anchor="middle" fill="#dce8ff" font-family="Noto Sans SC, Microsoft YaHei, sans-serif" font-size="16">商品素材</text>
+    </g>
+    <path d="M198 138h48" stroke="#ffb347" stroke-width="4" stroke-linecap="round"/>
+    <path d="m240 130 9 8-9 8" stroke="#ffb347" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <g transform="translate(264 82)">
+      <rect width="150" height="112" rx="20" fill="#151f34"/>
+      <circle cx="75" cy="44" r="25" fill="#ffcf83" fill-opacity="0.18" stroke="#ffcf83" stroke-width="3"/>
+      <path d="M64 44h22M75 33v22" stroke="#ffcf83" stroke-width="4" stroke-linecap="round"/>
+      <text x="75" y="104" text-anchor="middle" fill="#dce8ff" font-family="Noto Sans SC, Microsoft YaHei, sans-serif" font-size="16">卖点与脚本</text>
+    </g>
+    <path d="M430 138h48" stroke="#ff8f83" stroke-width="4" stroke-linecap="round"/>
+    <path d="m472 130 9 8-9 8" stroke="#ff8f83" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <g transform="translate(496 82)">
+      <rect width="150" height="112" rx="20" fill="#151f34"/>
+      <rect x="38" y="31" width="74" height="48" rx="12" fill="#ff8f83" fill-opacity="0.2" stroke="#ff8f83" stroke-width="3"/>
+      <path d="M58 49h34M58 62h22" stroke="#ffb9b1" stroke-width="4" stroke-linecap="round"/>
+      <text x="75" y="104" text-anchor="middle" fill="#dce8ff" font-family="Noto Sans SC, Microsoft YaHei, sans-serif" font-size="16">配音与字幕</text>
+    </g>
+    <path d="M662 138h48" stroke="#a89bff" stroke-width="4" stroke-linecap="round"/>
+    <path d="m704 130 9 8-9 8" stroke="#a89bff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <g transform="translate(728 82)">
+      <rect width="140" height="112" rx="20" fill="#151f34"/>
+      <rect x="39" y="24" width="62" height="66" rx="12" fill="#a89bff" fill-opacity="0.18" stroke="#a89bff" stroke-width="3"/>
+      <path d="m58 52 18-10v28L58 60z" fill="#d7d2ff"/>
+      <text x="70" y="111" text-anchor="middle" fill="#dce8ff" font-family="Noto Sans SC, Microsoft YaHei, sans-serif" font-size="16">成片输出</text>
+    </g>
+  </g>
+
+  <g transform="translate(1120 100)" filter="url(#shadow)">
+    <rect x="0" y="0" width="352" height="690" rx="52" fill="url(#phone)" stroke="#ffffff" stroke-opacity="0.18" stroke-width="2"/>
+    <rect x="18" y="18" width="316" height="654" rx="38" fill="#0c1423"/>
+    <rect x="132" y="32" width="88" height="9" rx="4.5" fill="#2e3b55"/>
+    <rect x="36" y="70" width="280" height="410" rx="28" fill="url(#accent)"/>
+    <circle cx="176" cy="208" r="75" fill="#ffffff" fill-opacity="0.18" stroke="#ffffff" stroke-opacity="0.3" stroke-width="2"/>
+    <path d="M119 208c28-40 86-55 118-1 24 40 8 82-30 96-40 15-88-8-97-43-5-20 1-36 9-52z" fill="#ffffff" fill-opacity="0.18"/>
+    <path d="M155 182c22-14 54-10 67 12-20 10-50 8-67-12z" fill="#fff5d7" fill-opacity="0.9"/>
+    <rect x="62" y="337" width="228" height="112" rx="20" fill="#0b1220" fill-opacity="0.76"/>
+    <text x="82" y="374" fill="#ffffff" font-family="Noto Sans SC, Microsoft YaHei, sans-serif" font-size="18" font-weight="700">鲜榨口感，真实果香</text>
+    <text x="82" y="407" fill="#ffe4ae" font-family="Noto Sans SC, Microsoft YaHei, sans-serif" font-size="15">从原料到餐桌，每一口都看得见。</text>
+    <rect x="82" y="425" width="128" height="4" rx="2" fill="#ffffff" fill-opacity="0.22"/>
+    <rect x="82" y="425" width="78" height="4" rx="2" fill="#ffcf83"/>
+    <rect x="36" y="510" width="280" height="126" rx="24" fill="#151f34" stroke="#ffffff" stroke-opacity="0.08"/>
+    <text x="58" y="548" fill="#8fa3c7" font-family="Inter, Segoe UI, sans-serif" font-size="14" font-weight="700">VIDEO SPEC</text>
+    <text x="58" y="583" fill="#ffffff" font-family="Inter, Segoe UI, sans-serif" font-size="21" font-weight="700">1080 × 1920 · 30 fps</text>
+    <text x="58" y="612" fill="#8ef0d2" font-family="Noto Sans SC, Microsoft YaHei, sans-serif" font-size="16">H.264 / AAC · 字幕已烧录</text>
+  </g>
+
+  <g transform="translate(92 804)">
+    <text x="0" y="0" fill="#8191ad" font-family="Inter, Segoe UI, sans-serif" font-size="16" font-weight="700" letter-spacing="1">FASTAPI</text>
+    <text x="110" y="0" fill="#8191ad" font-family="Inter, Segoe UI, sans-serif" font-size="16" font-weight="700" letter-spacing="1">REACT</text>
+    <text x="205" y="0" fill="#8191ad" font-family="Inter, Segoe UI, sans-serif" font-size="16" font-weight="700" letter-spacing="1">WAN S2V</text>
+    <text x="328" y="0" fill="#8191ad" font-family="Inter, Segoe UI, sans-serif" font-size="16" font-weight="700" letter-spacing="1">QWEN</text>
+    <text x="416" y="0" fill="#8191ad" font-family="Inter, Segoe UI, sans-serif" font-size="16" font-weight="700" letter-spacing="1">MCP</text>
+    <text x="480" y="0" fill="#8191ad" font-family="Inter, Segoe UI, sans-serif" font-size="16" font-weight="700" letter-spacing="1">SHOTSTACK</text>
+  </g>
+</svg>
