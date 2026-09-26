@@ -62,6 +62,38 @@ One Take 把这些问题收进一个工作台：
 | 费用与安全 | 不小心触发付费调用 | `MOCK_PROVIDERS` 安全锁、费用预估、人工审批和失败不自动伪装成功 |
 | 成片卡口 | 输出规格不稳定 | 1080×1920、18–25 秒、30 fps、H.264/AAC、30 MB 上限 |
 
+## 🖥️ 产品界面
+
+### 一个项目贯穿完整生产流程
+
+<p align="center">
+  <img src="assets/readme/screenshots/01-workspace.png" alt="One Take 完整工作台" width="100%" />
+</p>
+
+左侧管理项目，中间完成素材、内容、配音、字幕和视频生产，右侧显示产品工作区与 Agent 能力。
+
+| 素材与商品识别 | 主图与内容策划 |
+|---|---|
+| <img src="assets/readme/screenshots/02-assets-recognition.png" alt="素材与商品识别" width="100%" /> | <img src="assets/readme/screenshots/03-main-image-content.png" alt="主图与内容策划" width="100%" /> |
+| 商品图上传、校验、识别候选和人工确认。 | 主图处理、事实确认、脚本编辑和内容版本管理。 |
+
+| 配音与字幕 | 视频方案与成片 |
+|---|---|
+| <img src="assets/readme/screenshots/04-voice-subtitle.png" alt="配音与字幕" width="100%" /> | <img src="assets/readme/screenshots/05-video-output.png" alt="视频方案与成片" width="100%" /> |
+| 音色、语速、音频试听、字幕分段和时间轴编辑。 | 视频模式、模板、生成进度、成片预览和 MP4 下载。 |
+
+## 🎬 成片展示
+
+<p align="center">
+  <img src="assets/readme/screenshots/output-showcase.png" alt="One Take 成片示例" width="100%" />
+</p>
+
+## 🎞️ 工作流演示
+
+<p align="center">
+  <img src="assets/readme/demo.gif" alt="One Take 工作流演示" width="100%" />
+</p>
+
 ## 🚀 Quick Start
 
 ### 1. 启动 One Take Core
