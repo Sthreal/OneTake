@@ -8,7 +8,11 @@ from onetake_api.integrations.media.video_utils import SegmentAnchor
 from onetake_api.integrations.product_scene.style_profiles import get_style_profile
 from onetake_api.integrations.wan_i2v.adapter import WanI2VAdapter
 from onetake_api.modules.content_plan.domain import ContentScene
-from onetake_api.modules.content_plan.prompt_schema import build_background_negative_prompt, build_background_prompt
+from onetake_api.modules.content_plan.prompt_schema import (
+    build_background_negative_prompt,
+    build_background_prompt,
+    camera_move_phrase,
+)
 from onetake_api.modules.video_plan.domain import VideoPlan
 from onetake_api.modules.video_plan.segment_frame import SegmentTailFrameExtractor
 from onetake_api.modules.video_plan.segment_repository import VideoSegmentCandidateRepository
@@ -46,9 +50,12 @@ def generate_seed() -> int:
 def assemble_segment_prompt(scene: ContentScene, plan: VideoPlan) -> str:
     style = get_style_profile(plan.template_id)
     base = build_background_prompt(scene, style)
+    camera = camera_move_phrase(scene.camera_move)
     action = (scene.subject_action or "").strip()
     if action and action not in base:
         base = f"{base} 主体动作：{action}。"
+    if camera and camera not in base:
+        base = f"{base} 运镜：{camera}。"
     return base
 
 
@@ -128,4 +135,6 @@ def _default_adapter(plan: VideoPlan) -> WanI2VAdapter:
         resolution=settings.wan_i2v_resolution,
         max_seconds=settings.wan_i2v_max_seconds,
         upload_image=lambda content: uploader.upload_image(content, "wan-segment-anchor.png"),
+        expected_width=plan.width,
+        expected_height=plan.height,
     )

@@ -79,3 +79,48 @@ def test_pad_image_to_9_16_preserves_full_image() -> None:
     with Image.open(BytesIO(output)) as image:
         assert image.size == (720, 1280)
         assert image.getpixel((360, 640)) == (255, 0, 0)
+
+
+def test_wan_i2v_adapter_enforces_expected_dimensions(monkeypatch) -> None:
+    import onetake_api.integrations.media.video_utils as vu
+
+    monkeypatch.setattr(vu, "inspect_video_duration", lambda _content: 5.0)
+    adapter = WanI2VAdapter(
+        api_key='key', model='wan2.6-i2v', resolution='1080P', max_seconds=5,
+        upload_image=lambda content: 'https://cdn.example/product.png',
+        prepare_image=lambda _content: b'prepared-image', video_synthesis=FakeVideoSynthesis,
+        inspect_dimensions=lambda _content: (1080, 1920), client=_client(),
+        expected_width=1080, expected_height=1920,
+    )
+    video, _ = adapter.generate(image_bytes=b'image', prompt='p', duration_seconds=5)
+    assert video == b'generated-video'
+
+
+def test_wan_i2v_adapter_rejects_wrong_output_dimensions() -> None:
+    from onetake_api.integrations.wan_i2v.adapter import VideoContractError
+
+    adapter = WanI2VAdapter(
+        api_key='key', model='wan2.6-i2v', resolution='1080P', max_seconds=5,
+        upload_image=lambda content: 'https://cdn.example/product.png',
+        prepare_image=lambda _content: b'prepared-image', video_synthesis=FakeVideoSynthesis,
+        inspect_dimensions=lambda _content: (720, 1280), client=_client(),
+        expected_width=1080, expected_height=1920,
+    )
+    with pytest.raises(VideoContractError, match='输出尺寸'):
+        adapter.generate(image_bytes=b'image', prompt='p', duration_seconds=5)
+
+
+def test_wan_i2v_adapter_rejects_duration_drift(monkeypatch) -> None:
+    from onetake_api.integrations.wan_i2v.adapter import VideoContractError
+    import onetake_api.integrations.media.video_utils as vu
+
+    monkeypatch.setattr(vu, 'inspect_video_duration', lambda _content: 3.0)
+    adapter = WanI2VAdapter(
+        api_key='key', model='wan2.6-i2v', resolution='1080P', max_seconds=5,
+        upload_image=lambda content: 'https://cdn.example/product.png',
+        prepare_image=lambda _content: b'prepared-image', video_synthesis=FakeVideoSynthesis,
+        inspect_dimensions=lambda _content: (1080, 1920), client=_client(),
+        expected_width=1080, expected_height=1920, duration_tolerance_seconds=0.2,
+    )
+    with pytest.raises(VideoContractError, match='时长'):
+        adapter.generate(image_bytes=b'image', prompt='p', duration_seconds=5)

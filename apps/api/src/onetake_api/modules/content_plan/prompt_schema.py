@@ -27,11 +27,33 @@ AUDIO_CUES = {
     "cta": "收尾提示音",
 }
 CAMERA_MOVES = {
-    "slow_push_in": "缓慢推近",
-    "push_in": "稳定推近",
-    "tracking": "轻微跟随",
-    "static": "固定镜头",
+    "slow_push_in": "镜头缓慢推近，主体逐渐放大",
+    "push_in": "镜头稳定推近",
+    "fast_push_in": "镜头快速推近，强调节奏",
+    "slow_pull_out": "镜头缓慢拉远，交代环境",
+    "pull_out": "镜头稳定拉远",
+    "slow_pan_left": "镜头缓慢左摇",
+    "slow_pan_right": "镜头缓慢右摇",
+    "pan_left": "镜头向左平移",
+    "pan_right": "镜头向右平移",
+    "tilt_up": "镜头缓慢上摇",
+    "tilt_down": "镜头缓慢下摇",
+    "handheld_follow": "手持跟拍，轻微自然晃动",
+    "tracking": "镜头轻微跟随主体",
+    "orbit": "镜头环绕主体缓慢移动",
+    "static": "固定镜头，画面稳定",
 }
+DEFAULT_CAMERA_MOVE = "static"
+
+
+def camera_move_phrase(move: str | None) -> str:
+    """把分镜的运镜标识解析为统一提示词；未知值回退到固定镜头并保留原始标识。"""
+    key = (move or "").strip()
+    if key in CAMERA_MOVES:
+        return CAMERA_MOVES[key]
+    if key and key != DEFAULT_CAMERA_MOVE:
+        return f"{CAMERA_MOVES[DEFAULT_CAMERA_MOVE]}（未知运镜 {key} 已回退）"
+    return CAMERA_MOVES[DEFAULT_CAMERA_MOVE]
 
 
 @dataclass(frozen=True)
@@ -62,7 +84,7 @@ def from_scene(scene: ContentScene, style_profile: StyleProfile | None = None) -
         duration_seconds=max(0.0, scene.end_seconds - scene.start_seconds),
         subject_action=scene.subject_action,
         environment=ENVIRONMENTS.get(goal, ENVIRONMENTS["product_reveal"]),
-        camera=CAMERA_MOVES.get(scene.camera_move, scene.camera_move or "稳定镜头"),
+        camera=camera_move_phrase(scene.camera_move),
         lighting=LIGHTING.get(goal, LIGHTING["product_reveal"]),
         product_mode=scene.product_mode,
         transition=scene.transition,

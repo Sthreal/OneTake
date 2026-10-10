@@ -61,3 +61,12 @@ def add_contact_shadow(image_bytes: bytes, *, blur_radius: int = 18, opacity: in
         output = BytesIO()
         shadow.save(output, format="PNG", optimize=True)
         return output.getvalue()
+
+
+def image_dimensions(image_bytes: bytes) -> tuple[int, int]:
+    from io import BytesIO
+
+    from PIL import Image
+
+    with Image.open(BytesIO(image_bytes)) as image:
+        return image.size

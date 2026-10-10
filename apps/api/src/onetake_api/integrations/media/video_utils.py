@@ -156,3 +156,24 @@ def inspect_video_dimensions(video_bytes: bytes) -> tuple[int, int]:
         if size_match is None:
             raise VideoProcessingError("视频分辨率缺失")
         return int(size_match.group(1)), int(size_match.group(2))
+
+
+def inspect_video_duration(video_bytes: bytes) -> float:
+    """返回视频时长（秒）。"""
+    if not video_bytes:
+        raise VideoProcessingError("视频为空")
+    with tempfile.TemporaryDirectory() as temp_dir:
+        input_path = Path(temp_dir) / "video.mp4"
+        input_path.write_bytes(video_bytes)
+        try:
+            completed = subprocess.run(
+                [get_ffmpeg_exe(), "-hide_banner", "-i", str(input_path), "-f", "null", "-"],
+                check=True, capture_output=True, text=True,
+            )
+        except (subprocess.CalledProcessError, OSError) as exc:
+            raise VideoProcessingError("视频时长读取失败") from exc
+        match = re.search(r"Duration: (\d+):(\d{2}):(\d{2}\.\d+)", completed.stderr)
+        if match is None:
+            raise VideoProcessingError("视频时长缺失")
+        hours, minutes, seconds = match.groups()
+        return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
