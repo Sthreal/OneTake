@@ -200,10 +200,11 @@ def list_video_segments(project_id: str, plan_id: str | None = None, session: Se
     return _segment_response(project_id, resolved_plan_id, segments)
 
 
-@router.post("/video/segments/{segment_id}/candidates", status_code=status.HTTP_501_NOT_IMPLEMENTED)
-def generate_segment_candidate(project_id: str, segment_id: str) -> dict:
-    # 单段生成与尾帧续写在切片 3 实现
-    return {"detail": "segment candidate generation is implemented in slice 3"}
+@router.post("/video/segments/{segment_id}/candidates", response_model=SegmentListResponse, status_code=status.HTTP_201_CREATED)
+def generate_segment_candidate(project_id: str, segment_id: str, payload: dict | None = None, session: Session = Depends(get_session)) -> SegmentListResponse:
+    seed = payload.get("seed") if isinstance(payload, dict) else None
+    segments = VideoSegmentPublicService().generate_candidate(session, project_id=project_id, segment_id=segment_id, seed=seed)
+    return _segment_response(project_id, segments[0].plan_id if segments else None, segments)
 
 
 @router.post("/video/segments/{segment_id}/accept", response_model=SegmentListResponse)
