@@ -18,7 +18,16 @@ from onetake_api.modules.video_plan.segment_generation import (
 )
 from onetake_api.modules.content_plan.public import ContentPlanPublicService
 from onetake_api.modules.project.public import ProjectPublicService
-from onetake_api.modules.video_plan.domain import PRODUCT_SCENE_TEMPLATES, VideoPlan
+from onetake_api.modules.video_plan.domain import (
+    BATCH_DONE,
+    BATCH_FAILED,
+    BATCH_IDLE,
+    BATCH_INTERRUPTED,
+    BATCH_RUNNING,
+    BATCH_STOPPED,
+    PRODUCT_SCENE_TEMPLATES,
+    VideoPlan,
+)
 from onetake_api.modules.video_plan.repository import VideoPlanRepository
 from onetake_api.modules.video_plan.segment_domain import (
     CANDIDATE_ACCEPTED,
@@ -130,6 +139,118 @@ class VideoSegmentApplicationService:
         if existing:
             return existing
         return self._materialize(session, project_id, plan)
+
+
+    # ---- batch orchestration --------------------------------------------
+    def start_batch(self, session: Session, *, project_id: str, job_id: str | None = None) -> VideoPlan:
+        plan = self._resolve_plan(session, project_id=project_id, plan_id=None)
+        running = replace(plan, batch_status=BATCH_RUNNING, batch_stop_requested=False, updated_at=self._clock.now())
+        self._plans.update(session, running)
+        session.commit()
+        return self.continue_batch(session, project_id=project_id, job_id=job_id)
+
+    def stop_batch(self, session: Session, *, project_id: str) -> VideoPlan:
+        plan = self._resolve_plan(session, project_id=project_id, plan_id=None)
+        stopped = replace(plan, batch_stop_requested=True, updated_at=self._clock.now())
+        self._plans.update(session, stopped)
+        session.commit()
+        return stopped
+
+    def continue_batch(self, session: Session, *, project_id: str, job_id: str | None = None) -> VideoPlan:
+        plan = self._resolve_plan(session, project_id=project_id, plan_id=None)
+        content_plan = self._require_content_plan(session, project_id, plan)
+        if content_plan is None:
+            raise SegmentPlanNotConfirmedError("当前视频方案不支持分段生成")
+        segments = self._segments.list_for_plan(session, plan.id)
+        if not segments:
+            segments = self._materialize(session, project_id, plan)
+        batch_plan = replace(plan, batch_status=BATCH_RUNNING, updated_at=self._clock.now())
+        self._plans.update(session, batch_plan)
+        session.commit()
+        stopped = False
+        try:
+            for segment in segments:
+                current = self._plans.get(session, plan.id)
+                if current is not None and current.batch_stop_requested:
+                    stopped = True
+                    break
+                latest = self._segments.get(session, segment.id)
+                if latest is None or latest.accepted_candidate_id:
+                    continue
+                self.generate_candidate(session, project_id=project_id, segment_id=segment.id)
+                refreshed = self._segments.get(session, segment.id)
+                if refreshed is None or not refreshed.candidates:
+                    raise SegmentGenerationError("批量生成未产出候选")
+                self.accept_candidate(session, project_id=project_id, candidate_id=refreshed.candidates[-1].id)
+        except DomainError as exc:
+            failed = replace(self._plans.get(session, plan.id) or plan, batch_status=BATCH_FAILED, batch_stop_requested=False, updated_at=self._clock.now())
+            self._plans.update(session, failed)
+            session.commit()
+            raise exc
+        segments = self._segments.list_for_plan(session, plan.id)
+        accepted_order = [seg.order_index for seg in segments if seg.accepted_candidate_id]
+        if stopped:
+            result = replace(plan, batch_status=BATCH_STOPPED, batch_stop_requested=False, updated_at=self._clock.now())
+            self._plans.update(session, result)
+            session.commit()
+            return result
+        if len(accepted_order) != len(segments):
+            result = replace(plan, batch_status=BATCH_INTERRUPTED, batch_stop_requested=False, updated_at=self._clock.now())
+            self._plans.update(session, result)
+            session.commit()
+            return result
+        composed = self._compose_batch_final(session, project_id=project_id, plan=plan, segments=segments)
+        return composed
+
+    def _compose_batch_final(self, session: Session, *, project_id: str, plan: VideoPlan, segments: list[VideoSegment]) -> VideoPlan:
+        from onetake_api.integrations.media.image_utils import add_contact_shadow
+        from onetake_api.integrations.media.video_utils import concatenate_videos
+        from onetake_api.integrations.mock_video.renderer import validate_final_video
+        from onetake_api.modules.composition.port import CompositionRequest
+        from onetake_api.modules.composition.service import get_composition_provider
+        from onetake_api.modules.output.domain import OutputArtifact
+        from onetake_api.modules.output.repository import OutputRepository
+        from onetake_api.modules.video_plan.domain import COMPLETED, RENDERING
+
+        clips = []
+        for segment in sorted(segments, key=lambda item: item.order_index):
+            accepted = next((c for c in segment.candidates if c.id == segment.accepted_candidate_id), None)
+            if accepted is None or not accepted.video_object_key:
+                raise SegmentConflictError("存在未接受的分段，无法拼接")
+            clips.append(b"".join(self.storage.read_object(object_key=accepted.video_object_key)))
+        base_video = concatenate_videos(clips=clips, duration_seconds=plan.duration_seconds, fps=plan.fps)
+        base_key = f"projects/{project_id}/video/{plan.id}/base.mp4"
+        self.storage.put_bytes(object_key=base_key, content=base_video, mime_type="video/mp4")
+        rendering = replace(plan, status=RENDERING, base_video_object_key=base_key, updated_at=self._clock.now())
+        self._plans.update(session, rendering)
+        session.commit()
+
+        audio_bytes = b"".join(self.storage.read_object(object_key=plan.voice_object_key)) if plan.voice_enabled and plan.voice_object_key else None
+        srt_bytes = b"".join(self.storage.read_object(object_key=plan.subtitle_object_key)) if plan.subtitle_enabled and plan.subtitle_object_key else None
+        main_image = b"".join(self.storage.read_object(object_key=plan.main_image_object_key))
+        composition = get_composition_provider()
+        final_video = composition.compose(CompositionRequest(
+            base_video_bytes=base_video, audio_bytes=audio_bytes, srt_bytes=srt_bytes,
+            product_image_bytes=add_contact_shadow(main_image), overlay_product=plan.mode == "avatar",
+            duration_seconds=plan.duration_seconds, width=plan.width, height=plan.height, fps=plan.fps,
+            motion_effect=None, product_layers=None,
+        ))
+        metadata = validate_final_video(final_video, expected_width=plan.width, expected_height=plan.height, expected_fps=plan.fps, expected_audio=audio_bytes is not None)
+        final_key = f"projects/{project_id}/output/{plan.id}/final.mp4"
+        self.storage.put_bytes(object_key=final_key, content=final_video, mime_type="video/mp4")
+        from onetake_api.platform.ids import new_id as _new_id
+        from datetime import timedelta
+        now = self._clock.now()
+        OutputRepository().add(session, OutputArtifact(
+            _new_id("out"), project_id, "video", final_key, "video/mp4", len(final_video), plan.duration_seconds,
+            now, now + timedelta(seconds=24 * 60 * 60), metadata.width, metadata.height, metadata.fps,
+            metadata.video_codec, metadata.audio_codec,
+        ))
+        completed = replace(plan, status=COMPLETED, final_object_key=final_key, batch_status=BATCH_DONE,
+                            batch_stop_requested=False, error_code=None, updated_at=now, completed_at=now)
+        self._plans.update(session, completed)
+        session.commit()
+        return completed
 
     # ---- candidate lifecycle --------------------------------------------
     def generate_candidate(self, session: Session, *, project_id: str, segment_id: str, seed: int | None = None):

@@ -8,6 +8,12 @@ RENDERING = "rendering"
 COMPLETED = "completed"
 FAILED = "failed"
 PRODUCT_SCENE_TEMPLATES = frozenset({"clean", "dynamic", "lifestyle"})
+BATCH_IDLE = "idle"
+BATCH_RUNNING = "running"
+BATCH_STOPPED = "stopped"
+BATCH_DONE = "done"
+BATCH_FAILED = "failed"
+BATCH_INTERRUPTED = "interrupted"
 
 
 @dataclass(frozen=True)
@@ -34,3 +40,5 @@ class VideoPlan:
     updated_at: datetime
     completed_at: datetime | None
     confirmed_at: datetime | None
+    batch_status: str = BATCH_IDLE
+    batch_stop_requested: bool = False

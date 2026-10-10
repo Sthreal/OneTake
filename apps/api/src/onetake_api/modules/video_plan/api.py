@@ -43,6 +43,8 @@ class VideoPlanData(BaseModel):
     created_at: datetime
     updated_at: datetime
     completed_at: datetime | None
+    batch_status: str
+    batch_stop_requested: bool
 
 
 class VideoData(BaseModel):
@@ -86,7 +88,7 @@ def _data(plan: VideoPlan | None, video_url: str | None) -> VideoData:
         status=plan.status, duration_seconds=plan.duration_seconds, width=plan.width, height=plan.height,
         fps=plan.fps, voice_enabled=plan.voice_enabled, subtitle_enabled=plan.subtitle_enabled,
         provider=plan.provider, error_code=plan.error_code, video_url=video_url, created_at=plan.created_at,
-        updated_at=plan.updated_at, completed_at=plan.completed_at,
+        updated_at=plan.updated_at, completed_at=plan.completed_at, batch_status=plan.batch_status, batch_stop_requested=plan.batch_stop_requested,
     ) if plan else None)
 
 
@@ -220,3 +222,15 @@ def accept_segment_candidate(project_id: str, segment_id: str, payload: dict, se
 def reject_video_segment(project_id: str, segment_id: str, session: Session = Depends(get_session)) -> SegmentListResponse:
     segments = VideoSegmentPublicService().reject_segment(session, project_id=project_id, segment_id=segment_id)
     return _segment_response(project_id, segments[0].plan_id if segments else None, segments)
+
+
+@router.post("/video/batch", response_model=VideoResponse, status_code=status.HTTP_202_ACCEPTED)
+def start_video_batch(project_id: str, session: Session = Depends(get_session)) -> VideoResponse:
+    plan = VideoSegmentPublicService().start_batch(session, project_id=project_id)
+    return _response(VideoView(plan=plan, video_url=None))
+
+
+@router.post("/video/batch/stop", response_model=VideoResponse)
+def stop_video_batch(project_id: str, session: Session = Depends(get_session)) -> VideoResponse:
+    plan = VideoSegmentPublicService().stop_batch(session, project_id=project_id)
+    return _response(VideoView(plan=plan, video_url=None))

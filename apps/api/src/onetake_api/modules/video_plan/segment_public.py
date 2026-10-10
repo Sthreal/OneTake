@@ -14,6 +14,15 @@ class VideoSegmentPublicService:
     def generate_candidate(self, session: Session, *, project_id: str, segment_id: str, seed: int | None = None) -> list[VideoSegment]:
         return self._service.generate_candidate(session, project_id=project_id, segment_id=segment_id, seed=seed)
 
+    def start_batch(self, session: Session, *, project_id: str, job_id: str | None = None):
+        return self._service.start_batch(session, project_id=project_id, job_id=job_id)
+
+    def stop_batch(self, session: Session, *, project_id: str):
+        return self._service.stop_batch(session, project_id=project_id)
+
+    def continue_batch(self, session: Session, *, project_id: str, job_id: str | None = None):
+        return self._service.continue_batch(session, project_id=project_id, job_id=job_id)
+
     def accept_candidate(self, session: Session, *, project_id: str, candidate_id: str) -> list[VideoSegment]:
         return self._service.accept_candidate(session, project_id=project_id, candidate_id=candidate_id)
 

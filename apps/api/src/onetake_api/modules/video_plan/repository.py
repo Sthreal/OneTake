@@ -35,6 +35,8 @@ class VideoPlanModel(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    batch_status: Mapped[str] = mapped_column(String(20), nullable=False, default="idle")
+    batch_stop_requested: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
 
 def _to_domain(model: VideoPlanModel) -> VideoPlan:
@@ -46,7 +48,7 @@ def _to_domain(model: VideoPlanModel) -> VideoPlan:
         subtitle_object_key=model.subtitle_object_key, base_video_object_key=model.base_video_object_key,
         final_object_key=model.final_object_key, provider=model.provider, error_code=model.error_code,
         created_at=model.created_at, updated_at=model.updated_at, completed_at=model.completed_at,
-        confirmed_at=model.confirmed_at,
+        confirmed_at=model.confirmed_at, batch_status=model.batch_status, batch_stop_requested=model.batch_stop_requested,
     )
 
 
@@ -73,3 +75,5 @@ class VideoPlanRepository:
         model.updated_at = plan.updated_at
         model.completed_at = plan.completed_at
         model.confirmed_at = plan.confirmed_at
+        model.batch_status = plan.batch_status
+        model.batch_stop_requested = plan.batch_stop_requested
