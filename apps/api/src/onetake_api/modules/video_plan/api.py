@@ -166,16 +166,25 @@ class SegmentListResponse(BaseModel):
     request_id: str
 
 
+def _candidate_url(object_key: str | None) -> str | None:
+    if not object_key:
+        return None
+    try:
+        from onetake_api.integrations.object_storage.dependencies import get_object_storage
+        return get_object_storage().create_get_url(object_key=object_key, expires_seconds=3600).url
+    except Exception:
+        return None
+
+
 def _candidate_data(candidate: VideoSegmentCandidate) -> SegmentCandidateData:
     return SegmentCandidateData(
         candidate_id=candidate.id, segment_id=candidate.segment_id, order_index=candidate.order_index,
         status=candidate.status, provider=candidate.provider, anchor_source=candidate.anchor_source,
-        video_url=candidate.video_object_key, tail_frame_url=candidate.tail_frame_object_key,
-        head_frame_url=candidate.head_frame_object_key, anchor_candidate_id=candidate.anchor_candidate_id,
+        video_url=_candidate_url(candidate.video_object_key), tail_frame_url=_candidate_url(candidate.tail_frame_object_key),
+        head_frame_url=_candidate_url(candidate.head_frame_object_key), anchor_candidate_id=candidate.anchor_candidate_id,
         duration_seconds=candidate.duration_seconds, width=candidate.width, height=candidate.height,
         fps=candidate.fps, error_code=candidate.error_code, created_at=candidate.created_at,
     )
-
 
 def _segment_data(segment: VideoSegment) -> SegmentData:
     accepted = next((item for item in segment.candidates if item.id == segment.accepted_candidate_id), None)
