@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, replace
-from datetime import datetime
+from datetime import datetime, timedelta
 from io import BytesIO
 
 from PIL import Image, UnidentifiedImageError
@@ -72,8 +72,7 @@ class AssetApplicationService:
         if project.expires_at <= now:
             raise AssetValidationError("项目已过期")
 
-        if self._repository.count_by_project(session, project_id) >= MAX_ASSETS_PER_PROJECT:
-            raise AssetValidationError("同一项目最多上传 5 张图片")
+        self._release_expired_pending(session, project_id=project_id, now=now, storage=storage)
 
         filename = command.original_filename.strip()
         if not filename:
@@ -87,12 +86,28 @@ class AssetApplicationService:
             width=command.width,
             height=command.height,
         )
+        mime_type = normalize_mime_type(command.mime_type)
         client_sha = normalize_sha256(command.sha256) if command.sha256 else None
-        if client_sha and self._repository.find_by_sha256(session, project_id, client_sha):
-            raise AssetDuplicateError("该图片已存在于当前项目")
+        registered = (
+            self._repository.find_by_sha256(session, project_id, client_sha)
+            if client_sha
+            else None
+        )
+        if registered is not None:
+            # 预签名成功后上传或复核失败的素材，客户端重试时会带着同一个 sha256 回来。
+            # 复用原登记并重新签发上传地址，既能续传，也不会额外占用项目配额。
+            if not self._can_resume_pending(
+                registered,
+                mime_type=mime_type,
+                size_bytes=command.size_bytes,
+            ):
+                raise AssetDuplicateError("该图片已存在于当前项目")
+            return self._issue_put_url(registered, storage=storage)
+
+        if self._repository.count_by_project(session, project_id) >= MAX_ASSETS_PER_PROJECT:
+            raise AssetValidationError("同一项目最多上传 5 张图片")
 
         asset_id = new_id("ast")
-        mime_type = normalize_mime_type(command.mime_type)
         extension = extension_for_mime_type(mime_type)
         object_key = f"projects/{project_id}/assets/{asset_id}/original.{extension}"
         asset = create_pending_asset(
@@ -113,9 +128,21 @@ class AssetApplicationService:
         except IntegrityError as exc:
             raise AssetDuplicateError("该图片已存在于当前项目") from exc
 
+        return self._issue_put_url(asset, storage=storage)
+
+    @staticmethod
+    def _can_resume_pending(asset: Asset, *, mime_type: str, size_bytes: int) -> bool:
+        return (
+            asset.status == ASSET_STATUS_PENDING
+            and asset.mime_type == mime_type
+            and asset.size_bytes == size_bytes
+        )
+
+    @staticmethod
+    def _issue_put_url(asset: Asset, *, storage: ObjectStoragePublicService) -> PresignUploadResult:
         upload = storage.create_put_url(
-            object_key=object_key,
-            mime_type=mime_type,
+            object_key=asset.object_key,
+            mime_type=asset.mime_type,
             expires_seconds=PRESIGN_EXPIRES_SECONDS,
         )
         return PresignUploadResult(
@@ -124,6 +151,24 @@ class AssetApplicationService:
             expires_at=upload.expires_at,
             required_headers=upload.headers,
         )
+
+    def _release_expired_pending(
+        self,
+        session: Session,
+        *,
+        project_id: str,
+        now: datetime,
+        storage: ObjectStoragePublicService,
+    ) -> None:
+        """回收过了预签名有效期仍未完成的登记，释放被占用的项目配额。"""
+        for asset in self._repository.list_by_project(session, project_id):
+            if asset.status != ASSET_STATUS_PENDING:
+                continue
+            if asset.created_at + timedelta(seconds=PRESIGN_EXPIRES_SECONDS) > now:
+                continue
+            storage.delete_object(object_key=asset.object_key)
+            self._repository.delete(session, asset.id)
+
     def complete_upload(
         self,
         session: Session,

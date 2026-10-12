@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from io import BytesIO
 
@@ -8,7 +9,12 @@ from PIL import Image
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from onetake_api.modules.asset.adapters.sqlalchemy_repository import AssetModel
+from onetake_api.modules.asset.adapters.sqlalchemy_repository import (
+    AssetModel,
+    SqlAlchemyAssetRepository,
+)
+from onetake_api.modules.asset.application.service import PRESIGN_EXPIRES_SECONDS
+from onetake_api.modules.asset.domain.model import create_pending_asset
 from onetake_api.modules.outbox.adapters.sqlalchemy_repository import OutboxEventModel
 
 
@@ -208,3 +214,114 @@ def test_asset_list_is_project_scoped(client, db_session: Session) -> None:
 
     assert len(client.get(f"/api/v1/projects/{first_project}/assets").json()["data"]) == 1
     assert client.get(f"/api/v1/projects/{second_project}/assets").json()["data"] == []
+
+
+def test_presign_is_idempotent_while_pending(client) -> None:
+    """预签名成功后 PUT 失败：客户端带着同一个 sha256 重试，应复用原登记而不是报重复。"""
+    project_id = _create_project(client)
+    content = _png_bytes(color=(9, 40, 90))
+    metadata = _metadata(content)
+
+    first = client.post(f"/api/v1/projects/{project_id}/assets/presign", json=metadata)
+    assert first.status_code == 201
+    first_payload = first.json()["data"]
+
+    # 模拟 PUT 到 MinIO 失败后的重试
+    retry = client.post(f"/api/v1/projects/{project_id}/assets/presign", json=metadata)
+    assert retry.status_code == 201
+    retry_payload = retry.json()["data"]
+    assert retry_payload["asset_id"] == first_payload["asset_id"]
+    assert retry_payload["object_key"] == first_payload["object_key"]
+    assert len(client.get(f"/api/v1/projects/{project_id}/assets").json()["data"]) == 1
+
+    upload = httpx.put(
+        retry_payload["upload_url"],
+        content=content,
+        headers={"Content-Type": "image/png"},
+        timeout=10,
+    )
+    assert upload.status_code == 200
+    complete = client.post(
+        f"/api/v1/projects/{project_id}/assets/{retry_payload['asset_id']}/complete",
+        json=metadata,
+    )
+    assert complete.status_code == 200
+    assert complete.json()["data"]["status"] == "ready"
+
+
+def test_retry_at_quota_reuses_the_pending_slot(client) -> None:
+    """配额用满时，失败素材的重试仍应落在自己那一格上，而不是被配额挡回去。"""
+    project_id = _create_project(client)
+    for index in range(4):
+        content = _png_bytes(color=(index + 1, 80, 160))
+        payload = _presign_and_upload(client, project_id, content)
+        complete = client.post(
+            f"/api/v1/projects/{project_id}/assets/{payload['asset_id']}/complete",
+            json=_metadata(content),
+        )
+        assert complete.status_code == 200
+
+    pending_content = _png_bytes(color=(200, 30, 30))
+    pending_metadata = _metadata(pending_content)
+    presign = client.post(
+        f"/api/v1/projects/{project_id}/assets/presign",
+        json=pending_metadata,
+    )
+    assert presign.status_code == 201
+    asset_id = presign.json()["data"]["asset_id"]
+
+    # 此时项目里已有 5 条登记，重试必须命中复用分支而不是配额校验
+    retry = client.post(
+        f"/api/v1/projects/{project_id}/assets/presign",
+        json=pending_metadata,
+    )
+    assert retry.status_code == 201
+    assert retry.json()["data"]["asset_id"] == asset_id
+
+    upload = httpx.put(
+        retry.json()["data"]["upload_url"],
+        content=pending_content,
+        headers={"Content-Type": "image/png"},
+        timeout=10,
+    )
+    assert upload.status_code == 200
+    complete = client.post(
+        f"/api/v1/projects/{project_id}/assets/{asset_id}/complete",
+        json=pending_metadata,
+    )
+    assert complete.status_code == 200
+    assert len(client.get(f"/api/v1/projects/{project_id}/assets").json()["data"]) == 5
+
+
+def test_expired_pending_asset_releases_quota(client, db_session: Session) -> None:
+    """过了预签名有效期仍未完成的登记会被回收，不再长期占着项目配额。"""
+    project_id = _create_project(client)
+    repository = SqlAlchemyAssetRepository()
+    stale_at = datetime.now(UTC) - timedelta(seconds=PRESIGN_EXPIRES_SECONDS + 60)
+    for index in range(5):
+        repository.add(
+            db_session,
+            create_pending_asset(
+                asset_id=f"ast_stale_{index}",
+                project_id=project_id,
+                object_key=f"projects/{project_id}/assets/ast_stale_{index}/original.png",
+                original_filename=f"stale-{index}.png",
+                mime_type="image/png",
+                size_bytes=1024 + index,
+                width=600,
+                height=600,
+                sha256=f"{index:064d}",
+                now=stale_at,
+            ),
+        )
+    db_session.flush()
+    assert len(client.get(f"/api/v1/projects/{project_id}/assets").json()["data"]) == 5
+
+    content = _png_bytes(color=(11, 22, 33))
+    response = client.post(
+        f"/api/v1/projects/{project_id}/assets/presign",
+        json=_metadata(content),
+    )
+    assert response.status_code == 201
+    remaining = client.get(f"/api/v1/projects/{project_id}/assets").json()["data"]
+    assert [item["asset_id"] for item in remaining] == [response.json()["data"]["asset_id"]]

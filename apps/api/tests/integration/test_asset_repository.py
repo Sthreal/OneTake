@@ -34,3 +34,9 @@ def test_asset_repository_lifecycle(db_session: Session) -> None:
     assert repository.count_by_project(db_session, project.id) == 1
     assert [item.id for item in repository.list_by_project(db_session, project.id)] == [asset.id]
     assert repository.find_by_sha256(db_session, project.id, "a" * 64) is not None
+
+    repository.delete(db_session, asset.id)
+    db_session.flush()
+    assert repository.count_by_project(db_session, project.id) == 0
+    assert repository.list_by_project(db_session, project.id) == []
+    assert repository.find_by_sha256(db_session, project.id, "a" * 64) is None
