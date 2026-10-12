@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { completeAsset, listAssets, presignAsset } from "../../shared/api/assetApi";
-import type { ImageMetadata, ServerAsset, UploadItem } from "./types";
+import type { ImageMetadata, ServerAsset, UploadItem, UploadStatus } from "./types";
 import { inspectImageFile, MAX_ASSETS_PER_PROJECT } from "./validation";
 
 const MAX_CONCURRENT_UPLOADS = 2;
@@ -33,6 +33,17 @@ function uploadFileWithProgress(
     request.onabort = () => reject(new Error("图片上传已取消"));
     request.send(file);
   });
+}
+
+/**
+ * 上传失败时记录停在哪一步。重试时只有 complete 阶段失败可以直接复用已有
+ * assetId 重新复核，其余情况都要重新签发上传地址——服务端对同一 sha256 的
+ * pending 素材是幂等的，重新签发会返回同一个 assetId，不会新增素材或占用配额。
+ */
+function failedStageFor(status: UploadStatus): NonNullable<UploadItem["errorStage"]> {
+  if (status === "uploading") return "upload";
+  if (status === "completing") return "complete";
+  return "presign";
 }
 
 function fromServerAsset(asset: ServerAsset): UploadItem {
@@ -175,7 +186,12 @@ export function useAssetUploads(projectId: string | null) {
         let objectKey = item.objectKey;
 
         if (!assetId || item.errorStage !== "complete") {
-          updateItem(item.localId, (current) => ({ ...current, status: "presigning", error: undefined }));
+          updateItem(item.localId, (current) => ({
+            ...current,
+            status: "presigning",
+            error: undefined,
+            errorStage: undefined,
+          }));
           const presigned = await presignAsset(projectId, metadata);
           assetId = presigned.asset_id;
           objectKey = presigned.object_key;
@@ -185,6 +201,7 @@ export function useAssetUploads(projectId: string | null) {
             progress: 1,
             assetId,
             objectKey,
+            errorStage: undefined,
           }));
           await uploadFileWithProgress(
             item.file,
@@ -194,7 +211,12 @@ export function useAssetUploads(projectId: string | null) {
           );
         }
 
-        updateItem(item.localId, (current) => ({ ...current, status: "completing", progress: 100 }));
+        updateItem(item.localId, (current) => ({
+          ...current,
+          status: "completing",
+          progress: 100,
+          errorStage: undefined,
+        }));
         const completed = await completeAsset(projectId, assetId as string, metadata);
         updateItem(item.localId, (current) => ({
           ...current,
@@ -208,8 +230,15 @@ export function useAssetUploads(projectId: string | null) {
         }));
       } catch (error) {
         const message = error instanceof Error ? error.message : "上传失败";
-        const stage = item.assetId ? "complete" : item.errorStage ?? "presign";
-        updateItem(item.localId, (current) => ({ ...current, status: "failed", error: message, errorStage: stage }));
+        // 失败阶段要看最新的 current：item 是本次上传开始时的快照，
+        // 预签名成功后 assetId 已经写回 state，快照里仍然是空值，
+        // 直接读 item.assetId 会把 PUT 失败误判成 presign 失败。
+        updateItem(item.localId, (current) => ({
+          ...current,
+          status: "failed",
+          error: message,
+          errorStage: failedStageFor(current.status),
+        }));
       }
     },
     [projectId, updateItem],
