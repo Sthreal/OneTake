@@ -57,30 +57,37 @@ One Take 把这些问题收进一个工作台：
 | 图片处理 | 商品图风格不统一、背景杂乱 | 图像编辑、智能去背、主图标准化和人工复核 |
 | 内容策划 | 不会写脚本、分镜没有结构 | 结构化内容方案、分镜、Prompt Schema 和 Style Profile |
 | 配音字幕 | 声音和字幕各做一遍，格式容易错 | CosyVoice 配音、SRT 时间轴、中文字幕烧录和编辑确认 |
-| 视频生成 | 模型、模板和合成链路难维护 | Adapter 隔离真实/Mock Provider，Shotstack 与本地合成可切换 |
+| 视频生成 | 模型、模板和合成链路难维护 | Adapter 隔离真实/Mock Provider；分段生成候选、尾帧续写、一键生成全片与断点续跑 |
 | Agent 协作 | 每次对话都缺少项目上下文 | 每个项目独立 Workspace，支持 Memory、Scheduler、MCP 和受控写工具 |
 | 费用与安全 | 不小心触发付费调用 | `MOCK_PROVIDERS` 安全锁、费用预估、人工审批和失败不自动伪装成功 |
 | 成片卡口 | 输出规格不稳定 | 1080×1920、18–25 秒、30 fps、H.264/AAC、30 MB 上限 |
 
 ## 🖥️ 产品界面
 
-### 一个项目贯穿完整生产流程
+### 五阶段工作台，一个项目贯穿完整生产流程
 
 <p align="center">
-  <img src="assets/readme/screenshots/01-workspace.png" alt="One Take 完整工作台" width="100%" />
+  <img src="assets/readme/screenshots/01-workspace.png" alt="One Take 五阶段工作台" width="100%" />
 </p>
 
-左侧管理项目，中间完成素材、内容、配音、字幕和视频生产，右侧显示产品工作区与 Agent 能力。
+顶栏是项目切换与自动保存状态；下面是五个生产阶段，工作台按当前进度自动推进——已完成的阶段打勾，还没解锁的阶段锁定，你只需专注当前这一步。
 
-| 素材与商品识别 | 主图与内容策划 |
-|---|---|
-| <img src="assets/readme/screenshots/02-assets-recognition.png" alt="素材与商品识别" width="100%" /> | <img src="assets/readme/screenshots/03-main-image-content.png" alt="主图与内容策划" width="100%" /> |
-| 商品图上传、校验、识别候选和人工确认。 | 主图处理、事实确认、脚本编辑和内容版本管理。 |
+```text
+01 项目与素材  →  02 商品识别  →  03 主图与文案  →  04 声音字幕与分镜  →  05 视频与成片
+商品信息与图片     确认商品主体     处理主图和口播      配音、字幕和镜头       生成预览与下载
+```
 
-| 配音与字幕 | 视频方案与成片 |
+左侧是项目栏，中间是当前阶段的工作区，右侧是「阶段检查清单 + 待处理 + Agent 面板」：清单用 `3 / 5` 这样的进度提示本阶段还差哪几件事，Agent 可以直接在当前阶段帮你推进。
+
+| 商品识别 | 主图与文案 |
 |---|---|
-| <img src="assets/readme/screenshots/04-voice-subtitle.png" alt="配音与字幕" width="100%" /> | <img src="assets/readme/screenshots/05-video-output.png" alt="视频方案与成片" width="100%" /> |
-| 音色、语速、音频试听、字幕分段和时间轴编辑。 | 视频模式、模板、生成进度、成片预览和 MP4 下载。 |
+| <img src="assets/readme/screenshots/02-assets-recognition.png" alt="商品识别阶段" width="100%" /> | <img src="assets/readme/screenshots/03-main-image-content.png" alt="主图与文案阶段" width="100%" /> |
+| 商品图上传、校验、识别候选和人工确认商品主体。 | 主图处理、口播文案和内容质检，三个子步骤各自独立确认。 |
+
+| 声音字幕与分镜 | 视频与成片 |
+|---|---|
+| <img src="assets/readme/screenshots/04-voice-subtitle.png" alt="声音字幕与分镜阶段" width="100%" /> | <img src="assets/readme/screenshots/05-video-output.png" alt="视频与成片阶段" width="100%" /> |
+| 音色、语速、音频试听、字幕分段和时间轴编辑。 | 逐段生成候选、尾帧续写、一键生成全片与断点续跑，最后预览与下载。 |
 
 ## 🎬 成片展示
 
@@ -231,6 +238,8 @@ AVATAR_VIDEO_PROVIDER=mock
 - [x] 真实 Provider Adapter
 - [x] 项目级 Agent Workspace
 - [x] 单一产品 Web 与 GitHub 单仓库发布
+- [x] 五阶段工作台（阶段自动推进、完成打勾、未解锁锁定）
+- [x] 分段候选、尾帧续写与批量断点续跑
 - [ ] 更稳定的真实链路质量评分
 - [ ] 多模板批量生成
 - [ ] 更完整的作品展示与模板市场
