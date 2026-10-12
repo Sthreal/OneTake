@@ -372,7 +372,14 @@ export function InputWorkspace() {
                   isStarting={video.isStarting}
                   error={video.error}
                   estimate={video.estimate}
+                  segments={video.segments}
+                  segmentBusy={video.segmentBusy}
                   onGenerate={(mode, templateId) => void video.generate(mode, templateId)}
+                  onGenerateSegment={(segmentId) => void video.generateSegment(segmentId)}
+                  onAcceptSegment={(segmentId, candidateId) => void video.acceptSegment(segmentId, candidateId)}
+                  onRejectSegment={(segmentId) => void video.rejectSegment(segmentId)}
+                  onStartBatch={() => void video.startBatch()}
+                  onStopBatch={() => void video.stopBatch()}
                   onConfirmEstimate={() => void video.confirmGenerate()}
                   onCancelEstimate={video.cancelGenerate}
                 />

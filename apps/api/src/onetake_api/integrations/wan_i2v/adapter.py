@@ -15,6 +15,12 @@ class WanI2VError(DomainError):
     retryable = True
 
 
+class VideoContractError(DomainError):
+    code = "VIDEO_CONTRACT_VIOLATION"
+    http_status = 502
+    retryable = True
+
+
 class WanI2VAdapter:
     provider_name = "wan-i2v"
 
@@ -30,6 +36,9 @@ class WanI2VAdapter:
         prepare_image: Callable[[bytes], bytes] = pad_image_to_9_16,
         inspect_dimensions: Callable[[bytes], tuple[int, int]] = inspect_video_dimensions,
         client: httpx.Client | None = None,
+        expected_width: int | None = None,
+        expected_height: int | None = None,
+        duration_tolerance_seconds: float = 0.2,
     ) -> None:
         self._api_key = api_key
         self.model = model
@@ -38,6 +47,9 @@ class WanI2VAdapter:
         self._upload_image = upload_image
         self._prepare_image = prepare_image
         self._inspect_dimensions = inspect_dimensions
+        self._expected_width = expected_width
+        self._expected_height = expected_height
+        self._duration_tolerance = max(0.0, float(duration_tolerance_seconds))
         self._client = client or httpx.Client(timeout=120)
         if video_synthesis is None:
             from dashscope import VideoSynthesis
@@ -94,7 +106,18 @@ class WanI2VAdapter:
         if not download.content:
             raise WanI2VError("WAN_I2V 返回空视频")
         width, height = self._inspect_dimensions(download.content)
-        ratio_error = abs(width / height - 9 / 16) if height else 1
-        if ratio_error > 0.02:
-            raise WanI2VError(f"WAN_I2V 输出比例错误：{width}x{height}")
+        if self._expected_width and self._expected_height:
+            if (width, height) != (self._expected_width, self._expected_height):
+                raise VideoContractError(f"WAN_I2V 输出尺寸 {width}x{height} 与预期 {self._expected_width}x{self._expected_height} 不一致")
+            self._validate_duration(download.content, duration)
+        else:
+            ratio_error = abs(width / height - 9 / 16) if height else 1
+            if ratio_error > 0.02:
+                raise WanI2VError(f"WAN_I2V 输出比例错误：{width}x{height}")
         return download.content, task_id
+
+    def _validate_duration(self, video_bytes: bytes, expected_seconds: int) -> None:
+        from onetake_api.integrations.media.video_utils import inspect_video_duration
+        actual = inspect_video_duration(video_bytes)
+        if abs(actual - expected_seconds) > self._duration_tolerance:
+            raise VideoContractError(f"WAN_I2V 输出时长 {actual:.2f}s 与预期 {expected_seconds}s 不一致")

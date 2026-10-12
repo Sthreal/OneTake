@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 
+import { SegmentTimeline } from "./SegmentTimeline";
+
 import type {
   OutputArtifact,
   ProductTemplateId,
   VideoMode,
   VideoEstimate,
   VideoPlanStatus,
+  VideoSegmentState,
   VideoState,
 } from "./types";
 
@@ -18,7 +21,14 @@ interface VideoPanelProps {
   isStarting: boolean;
   error: string | null;
   estimate: VideoEstimate | null;
+  segments: VideoSegmentState;
+  segmentBusy: boolean;
   onGenerate: (mode: VideoMode, templateId: ProductTemplateId | null) => void;
+  onGenerateSegment: (segmentId: string) => void;
+  onAcceptSegment: (segmentId: string, candidateId: string) => void;
+  onRejectSegment: (segmentId: string) => void;
+  onStartBatch: () => void;
+  onStopBatch: () => void;
   onConfirmEstimate: () => void;
   onCancelEstimate: () => void;
 }
@@ -62,7 +72,14 @@ export function VideoPanel({
   isStarting,
   error,
   estimate,
+  segments,
+  segmentBusy,
   onGenerate,
+  onGenerateSegment,
+  onAcceptSegment,
+  onRejectSegment,
+  onStartBatch,
+  onStopBatch,
   onConfirmEstimate,
   onCancelEstimate,
 }: VideoPanelProps) {
@@ -138,6 +155,19 @@ export function VideoPanel({
             </button>
           ))}
         </div>
+      ) : null}
+
+      {mode === "product" && plan ? (
+        <SegmentTimeline
+          segments={segments}
+          busy={segmentBusy}
+          batchStatus={plan.batch_status ?? "idle"}
+          onGenerate={onGenerateSegment}
+          onAccept={onAcceptSegment}
+          onReject={onRejectSegment}
+          onStartBatch={onStartBatch}
+          onStopBatch={onStopBatch}
+        />
       ) : null}
 
       <div className="video-output-summary">

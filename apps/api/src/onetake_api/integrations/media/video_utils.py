@@ -3,17 +3,112 @@ from __future__ import annotations
 import re
 import subprocess
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 from imageio_ffmpeg import get_ffmpeg_exe
 
 from onetake_api.platform.errors import DomainError
 
+ANCHOR_SOURCE_SCENE_KEYFRAME = "scene_keyframe"
+ANCHOR_SOURCE_PREVIOUS_TAIL = "previous_tail"
+ANCHOR_SOURCE_MANUAL = "manual"
+ANCHOR_SOURCES = frozenset({ANCHOR_SOURCE_SCENE_KEYFRAME, ANCHOR_SOURCE_PREVIOUS_TAIL, ANCHOR_SOURCE_MANUAL})
+DEFAULT_TAIL_OFFSET_FRAMES = 2
+
 
 class VideoProcessingError(DomainError):
     code = "VIDEO_PROCESSING_ERROR"
     http_status = 502
     retryable = True
+
+
+class VideoContinuityError(DomainError):
+    code = "PREVIOUS_SEGMENT_NOT_ACCEPTED"
+    http_status = 409
+    retryable = False
+
+
+@dataclass(frozen=True)
+class SegmentAnchor:
+    frame_bytes: bytes
+    source: str
+    source_candidate_id: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.frame_bytes:
+            raise VideoProcessingError("分段锚点帧为空")
+        if self.source not in ANCHOR_SOURCES:
+            raise VideoProcessingError(f"未知锚点来源：{self.source}")
+
+
+def _extract_frame_png(video_bytes: bytes, *, frame_index: int | None, offset_frames: int | None, label: str) -> bytes:
+    if not video_bytes:
+        raise VideoProcessingError("视频为空")
+    if frame_index is not None and frame_index < 0:
+        raise VideoProcessingError("帧索引必须是非负整数")
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        input_path = root / "clip.mp4"
+        output_path = root / "frame.png"
+        input_path.write_bytes(video_bytes)
+        if frame_index is None:
+            select_expr = f"reverse,select='eq(n\\,{max(0, int(offset_frames or 0))})',setpts=N/FRAME_RATE/TB"
+        else:
+            select_expr = f"select='eq(n\\,{frame_index})',setpts=N/FRAME_RATE/TB"
+        command = [
+            get_ffmpeg_exe(), "-y", "-i", str(input_path),
+            "-vf", select_expr, "-vsync", "vfr", "-frames:v", "1", str(output_path),
+        ]
+        try:
+            subprocess.run(command, check=True, capture_output=True, text=True)
+        except (subprocess.CalledProcessError, OSError) as exc:
+            raise VideoProcessingError(f"{label}抽帧失败") from exc
+        if not output_path.is_file() or output_path.stat().st_size == 0:
+            raise VideoProcessingError(f"{label}抽帧结果为空")
+        return output_path.read_bytes()
+
+
+def extract_frame(video_bytes: bytes, *, frame_index: int) -> bytes:
+    """按绝对帧号抽一帧，返回 PNG 字节。"""
+    return _extract_frame_png(video_bytes, frame_index=frame_index, offset_frames=None, label="视频")
+
+
+def extract_head_frame(video_bytes: bytes) -> bytes:
+    return extract_frame(video_bytes, frame_index=0)
+
+
+def extract_tail_frame(video_bytes: bytes, *, offset_frames: int = DEFAULT_TAIL_OFFSET_FRAMES) -> bytes:
+    """抽取尾帧，返回 PNG 字节。offset_frames=0 取最后一帧，1 取倒数第二，以此类推。"""
+    return _extract_frame_png(video_bytes, frame_index=None, offset_frames=offset_frames, label="视频尾")
+
+
+def resolve_segment_anchor(
+    segment_index: int,
+    *,
+    scene_keyframe: bytes | None = None,
+    previous_tail_frame: bytes | None = None,
+    previous_candidate_id: str | None = None,
+    previous_accepted: bool = False,
+    continuity_enabled: bool = True,
+    override: bytes | None = None,
+) -> SegmentAnchor:
+    """决定一段视频的起手首帧。第一段用分镜关键帧；续段默认用上一段已接受候选的尾帧。"""
+    if override:
+        return SegmentAnchor(frame_bytes=override, source=ANCHOR_SOURCE_MANUAL)
+    if segment_index <= 0:
+        if not scene_keyframe:
+            raise VideoProcessingError("第一段缺少分镜关键帧")
+        return SegmentAnchor(frame_bytes=scene_keyframe, source=ANCHOR_SOURCE_SCENE_KEYFRAME)
+    if not continuity_enabled:
+        if not scene_keyframe:
+            raise VideoProcessingError("续段缺少分镜关键帧")
+        return SegmentAnchor(frame_bytes=scene_keyframe, source=ANCHOR_SOURCE_SCENE_KEYFRAME)
+    if not previous_accepted:
+        raise VideoContinuityError("上一段尚未接受候选，无法续写")
+    if not previous_tail_frame:
+        raise VideoContinuityError("上一段缺少尾帧锚点，无法续写")
+    return SegmentAnchor(frame_bytes=previous_tail_frame, source=ANCHOR_SOURCE_PREVIOUS_TAIL, source_candidate_id=previous_candidate_id)
 
 
 def concatenate_videos(*, clips: list[bytes], duration_seconds: float, fps: int) -> bytes:
@@ -61,3 +156,24 @@ def inspect_video_dimensions(video_bytes: bytes) -> tuple[int, int]:
         if size_match is None:
             raise VideoProcessingError("视频分辨率缺失")
         return int(size_match.group(1)), int(size_match.group(2))
+
+
+def inspect_video_duration(video_bytes: bytes) -> float:
+    """返回视频时长（秒）。"""
+    if not video_bytes:
+        raise VideoProcessingError("视频为空")
+    with tempfile.TemporaryDirectory() as temp_dir:
+        input_path = Path(temp_dir) / "video.mp4"
+        input_path.write_bytes(video_bytes)
+        try:
+            completed = subprocess.run(
+                [get_ffmpeg_exe(), "-hide_banner", "-i", str(input_path), "-f", "null", "-"],
+                check=True, capture_output=True, text=True,
+            )
+        except (subprocess.CalledProcessError, OSError) as exc:
+            raise VideoProcessingError("视频时长读取失败") from exc
+        match = re.search(r"Duration: (\d+):(\d{2}):(\d{2}\.\d+)", completed.stderr)
+        if match is None:
+            raise VideoProcessingError("视频时长缺失")
+        hours, minutes, seconds = match.groups()
+        return int(hours) * 3600 + int(minutes) * 60 + float(seconds)

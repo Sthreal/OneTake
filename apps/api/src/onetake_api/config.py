@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     video_estimate_confirmation_threshold: float = 5.0
     video_estimate_minutes_per_clip: float = 1.0
     video_estimate_overhead_minutes: float = 0.5
+    video_continuity_enabled: bool = True
+    video_tail_offset_frames: int = 2
+    video_max_candidates_per_segment: int = 8
     creative_planner_model: str = "qwen-plus"
     creative_planner_endpoint: str = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation"
     content_qa_model: str = "qwen-vl-plus"
