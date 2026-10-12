@@ -97,17 +97,17 @@ describe("VideoPanel", () => {
       plan_id: "vid_test",
       segments: [
         {
-          segment_id: "seg_0", plan_id: "vid_test", order_index: 0, scene_id: "scene_0",
+          segment_id: "seg_0", plan_id: "vid_test", order_index: 1, scene_id: "scene_0",
           start_seconds: 0, end_seconds: 5, duration_seconds: 5, status: "planned",
           accepted_candidate_id: null, last_error: null, anchor_source: null, candidates: [],
         },
         {
-          segment_id: "seg_1", plan_id: "vid_test", order_index: 1, scene_id: "scene_1",
+          segment_id: "seg_1", plan_id: "vid_test", order_index: 2, scene_id: "scene_1",
           start_seconds: 5, end_seconds: 10, duration_seconds: 5, status: "accepted",
           accepted_candidate_id: "cand_1", last_error: null, anchor_source: "previous_tail",
           candidates: [
             {
-              candidate_id: "cand_1", segment_id: "seg_1", order_index: 1, status: "accepted",
+              candidate_id: "cand_1", segment_id: "seg_1", order_index: 2, status: "accepted",
               provider: "wan-i2v", anchor_source: "previous_tail", video_url: "http://localhost/seg1.mp4",
               tail_frame_url: null, head_frame_url: null, anchor_candidate_id: "cand_0",
               duration_seconds: 5, width: 1080, height: 1920, fps: 30, error_code: null,
@@ -120,6 +120,9 @@ describe("VideoPanel", () => {
     const props = renderPanel({ state: { plan }, segments });
     expect(screen.getByText("分段生成")).toBeInTheDocument();
     expect(screen.getByText("1/2 段已采用")).toBeInTheDocument();
+    // 回归点：order_index 是 1 基，第一段必须显示「第 1 段」（修复前会因为 +1 显示成「第 2 段」）
+    expect(screen.getByText("第 1 段")).toBeInTheDocument();
+    expect(screen.getByText("第 2 段")).toBeInTheDocument();
     expect(screen.getByText("已使用上一段尾帧续写")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "一键续跑全片" }));
     expect(props.onStartBatch).toHaveBeenCalledOnce();
