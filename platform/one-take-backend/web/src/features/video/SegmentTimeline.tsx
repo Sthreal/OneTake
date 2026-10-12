@@ -83,10 +83,12 @@ export function SegmentTimeline({
           const preview = accepted ?? latest;
           return (
             <li className={cls("segment-item", segment.status)} key={segment.segment_id}>
-              <div className="segment-index">{segment.order_index + 1}</div>
+              {/* order_index 来自内容方案的 scene.order，真实数据是 1 基（generator.py 写 order = index + 1），
+                  这里再加 1 会让第 1 段显示成「第 2 段」。 */}
+              <div className="segment-index">{segment.order_index}</div>
               <div className="segment-body">
                 <div className="segment-head">
-                  <strong>第 {segment.order_index + 1} 段</strong>
+                  <strong>第 {segment.order_index} 段</strong>
                   <span className={cls("segment-status", segment.status)}>{SEGMENT_STATUS_TEXT[segment.status]}</span>
                   <small>{segment.duration_seconds.toFixed(1)}s · {segment.candidates.length} 个候选</small>
                 </div>
