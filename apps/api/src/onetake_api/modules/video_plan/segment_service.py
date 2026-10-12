@@ -327,8 +327,13 @@ class VideoSegmentApplicationService:
                     previous_candidate_id = accepted.id
                     previous_accepted = True
                     previous_tail = b"".join(self.storage.read_object(object_key=accepted.tail_frame_object_key))
+        # order_index 来自内容方案的 scene.order，真实生成器写的是 1 基（generator.py 里 order=index + 1），
+        # 而 resolve_segment_anchor 用 segment_index <= 0 表示第一段（0 基约定）。
+        # 因此「是不是第一段」只能由有没有上一段来决定；直接传 order_index 会让 1 基数据下的
+        # 第 1 段走进续段分支，抛 PREVIOUS_SEGMENT_NOT_ACCEPTED。
         return resolve_segment_anchor(
-            segment.order_index, scene_keyframe=keyframe, previous_tail_frame=previous_tail,
+            0 if previous is None else segment.order_index,
+            scene_keyframe=keyframe, previous_tail_frame=previous_tail,
             previous_candidate_id=previous_candidate_id, previous_accepted=previous_accepted,
             continuity_enabled=continuity_enabled,
         )

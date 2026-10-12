@@ -61,6 +61,8 @@ export function getStageState(
   currentStage: WorkspaceStageId,
 ) {
   if (stageId === activeStage) return "active" as const;
-  if (stageId < currentStage) return "done" as const;
+  // 已经到达过的阶段都保持可点。注意当前阶段也要算 done：只回看更早的阶段时，
+  // stageId === currentStage 会落进原来的 locked 分支，导航项被禁用，用户点不回当前阶段。
+  if (stageId <= currentStage) return "done" as const;
   return "locked" as const;
 }

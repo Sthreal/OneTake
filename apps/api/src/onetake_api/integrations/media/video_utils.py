@@ -93,7 +93,10 @@ def resolve_segment_anchor(
     continuity_enabled: bool = True,
     override: bytes | None = None,
 ) -> SegmentAnchor:
-    """决定一段视频的起手首帧。第一段用分镜关键帧；续段默认用上一段已接受候选的尾帧。"""
+    """决定一段视频的起手首帧。segment_index 是 0 基序号：<= 0 视为第一段（用分镜关键帧），
+
+    其余按续段处理，默认用上一段已接受候选的尾帧。
+    """
     if override:
         return SegmentAnchor(frame_bytes=override, source=ANCHOR_SOURCE_MANUAL)
     if segment_index <= 0:
