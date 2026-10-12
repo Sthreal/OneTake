@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import { Icon } from "../../shared/ui/Icon";
+
 import { SegmentTimeline } from "./SegmentTimeline";
 
 import type {
@@ -125,7 +127,7 @@ export function VideoPanel({
           aria-pressed={mode === "avatar"}
           onClick={() => setMode("avatar")}
         >
-          <span className="video-mode-icon">人</span>
+          <span className="video-mode-icon"><Icon name="agent" size={19} /></span>
           <span><strong>有人讲解</strong><small>固定数字人口播，商品图保持清晰</small></span>
         </button>
         <button
@@ -134,7 +136,7 @@ export function VideoPanel({
           aria-pressed={mode === "product"}
           onClick={() => setMode("product")}
         >
-          <span className="video-mode-icon">物</span>
+          <span className="video-mode-icon"><Icon name="image" size={19} /></span>
           <span><strong>无人商品</strong><small>商品图动效与模板场景组合</small></span>
         </button>
       </div>
@@ -149,7 +151,6 @@ export function VideoPanel({
               key={template.id}
               onClick={() => setTemplateId(template.id)}
             >
-              <span className="template-preview" aria-hidden="true"><i /><b /></span>
               <strong>{template.name}</strong>
               <small>{template.detail}</small>
             </button>
@@ -259,3 +260,5 @@ export function VideoPanel({
     </section>
   );
 }
+
+
