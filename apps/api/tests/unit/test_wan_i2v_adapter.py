@@ -124,3 +124,100 @@ def test_wan_i2v_adapter_rejects_duration_drift(monkeypatch) -> None:
     )
     with pytest.raises(VideoContractError, match='时长'):
         adapter.generate(image_bytes=b'image', prompt='p', duration_seconds=5)
+
+
+def test_resolution_output_size_maps_provider_tiers() -> None:
+    from onetake_api.integrations.wan_i2v.adapter import resolution_output_size
+
+    assert resolution_output_size('720P') == (720, 1280)
+    assert resolution_output_size('1080P') == (1080, 1920)
+    assert resolution_output_size('480P') is None
+
+
+def test_wan_i2v_adapter_accepts_tier_size_when_plan_is_larger(monkeypatch) -> None:
+    """适配器只接受它所请求档位的输出尺寸。
+
+    段级链路现在按方案尺寸选档位（1080x1920 → 1080P），这里单独验证 720P 档位的判定逻辑，
+    避免以后有人把 expected 又写回成"和档位无关的固定值"。
+    """
+    import onetake_api.integrations.media.video_utils as vu
+    from onetake_api.integrations.wan_i2v.adapter import resolution_output_size
+
+    monkeypatch.setattr(vu, 'inspect_video_duration', lambda _content: 5.0)
+    tier_width, tier_height = resolution_output_size('720P') or (0, 0)
+    adapter = WanI2VAdapter(
+        api_key='key', model='wan2.6-i2v', resolution='720P', max_seconds=5,
+        upload_image=lambda content: 'https://cdn.example/product.png',
+        prepare_image=lambda _content: b'prepared-image', video_synthesis=FakeVideoSynthesis,
+        inspect_dimensions=lambda _content: (720, 1280), client=_client(),
+        expected_width=tier_width, expected_height=tier_height,
+    )
+
+    video, _ = adapter.generate(image_bytes=b'image', prompt='p', duration_seconds=5)
+    assert video == b'generated-video'
+
+
+def test_resolution_for_plan_matches_final_spec() -> None:
+    from types import SimpleNamespace
+
+    from onetake_api.modules.video_plan.segment_generation import resolution_for_plan
+
+    assert resolution_for_plan(SimpleNamespace(width=1080, height=1920)) == '1080P'
+    assert resolution_for_plan(SimpleNamespace(width=1920, height=1080)) == '1080P'
+    assert resolution_for_plan(SimpleNamespace(width=720, height=1280)) == '720P'
+
+
+def test_segment_adapter_derives_resolution_from_plan(monkeypatch) -> None:
+    """回归：段级产物的档位必须按方案尺寸反推，不能直接用全局 WAN_I2V_RESOLUTION。
+
+    修复前全局默认 720P，Provider 只返回 720x1280，而拼接（concatenate_videos）与
+    最终校验（validate_final_video）都按 1080x1920 断言，整条段级链路必然失败。
+    """
+    from types import SimpleNamespace
+
+    from onetake_api.config import get_settings
+    from onetake_api.modules.video_plan.segment_generation import _default_adapter
+
+    plan = SimpleNamespace(width=1080, height=1920)
+    try:
+        # 关掉 Mock 安全锁才会构造真实适配器；Mock 打开时走本地渲染（另有测试覆盖）
+        monkeypatch.setenv('MOCK_PROVIDERS', 'false')
+        monkeypatch.setenv('WAN_I2V_RESOLUTION', '720P')   # 全局配置故意设成 720P
+        get_settings.cache_clear()
+
+        adapter = _default_adapter(plan)
+        assert adapter.resolution == '1080P'               # 按方案尺寸反推，而不是全局的 720P
+        assert (adapter._expected_width, adapter._expected_height) == (1080, 1920)
+    finally:
+        get_settings.cache_clear()
+
+
+def test_segment_adapter_respects_mock_providers_lock(monkeypatch) -> None:
+    """回归：MOCK_PROVIDERS 打开时段级路径必须本地渲染，不能构造真实 Wan I2V 适配器。
+
+    修复前 _default_adapter 无条件构造 WanI2VAdapter，绕过 Mock 安全锁直接产生付费调用
+    （没有余额时直接 502 Arrearage）。
+    """
+    from types import SimpleNamespace
+
+    from onetake_api.config import get_settings
+    from onetake_api.modules.video_plan.segment_generation import MockSegmentAdapter, _default_adapter
+
+    plan = SimpleNamespace(width=1080, height=1920, fps=24)
+    try:
+        monkeypatch.setenv('MOCK_PROVIDERS', 'true')
+        monkeypatch.setenv('WAN_I2V_RESOLUTION', '720P')
+        get_settings.cache_clear()
+
+        adapter = _default_adapter(plan)
+        assert isinstance(adapter, MockSegmentAdapter)
+        assert not isinstance(adapter, WanI2VAdapter)
+
+        source = BytesIO()
+        Image.new('RGB', (360, 640), (200, 60, 60)).save(source, format='PNG')
+        video, task_id = adapter.generate(image_bytes=source.getvalue(), prompt='p', duration_seconds=1)
+        assert video
+        assert task_id == 'mock-segment'
+    finally:
+        get_settings.cache_clear()
+

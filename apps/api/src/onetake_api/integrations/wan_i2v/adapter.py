@@ -21,6 +21,19 @@ class VideoContractError(DomainError):
     retryable = True
 
 
+# WAN I2V 的 resolution 是「档位」，Provider 按档位返回固定尺寸（竖屏 9:16）。
+# 段级生成请求的是档位，所以契约校验必须以档位尺寸为基准，而不是成片方案尺寸。
+WAN_I2V_RESOLUTION_SIZES: dict[str, tuple[int, int]] = {
+    "720P": (720, 1280),
+    "1080P": (1080, 1920),
+}
+
+
+def resolution_output_size(resolution: str) -> tuple[int, int] | None:
+    """该分辨率档位对应的输出尺寸；未知档位返回 None，调用方回退成比例校验。"""
+    return WAN_I2V_RESOLUTION_SIZES.get(resolution)
+
+
 class WanI2VAdapter:
     provider_name = "wan-i2v"
 
