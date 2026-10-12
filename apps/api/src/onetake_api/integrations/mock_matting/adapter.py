@@ -31,8 +31,14 @@ class MockMattingAdapter:
         edge = Image.new("RGB", (width * 2 + height * 2, 1))
         edge.paste(rgb.crop((0, 0, width, 1)), (0, 0))
         edge.paste(rgb.crop((0, height - 1, width, height)), (width, 0))
-        edge.paste(rgb.crop((0, 0, 1, height)), (width * 2, 0))
-        edge.paste(rgb.crop((width - 1, 0, width, height)), (width * 2 + height, 0))
+        # 左右两条边是「竖条」(1xheight)，必须先转置成 1 像素高才能贴进这块 1 像素高的画布；
+        # 直接贴只能贴进第一个像素，剩下的画布保持初始黑色，会把「背景色」算成被黑色污染的均值，
+        # 结果是与任何像素的差异都 > 阈值 —— 所有像素都被判成商品，去背永远不生效。
+        edge.paste(rgb.crop((0, 0, 1, height)).transpose(Image.Transpose.ROTATE_90), (width * 2, 0))
+        edge.paste(
+            rgb.crop((width - 1, 0, width, height)).transpose(Image.Transpose.ROTATE_90),
+            (width * 2 + height, 0),
+        )
         background = tuple(int(value) for value in ImageStat.Stat(edge).mean[:3])
         difference = ImageChops.difference(rgb, Image.new("RGB", image.size, background)).convert("L")
         mask = difference.point(lambda value: 255 if value > 24 else 0)
