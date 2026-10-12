@@ -26,3 +26,13 @@ Thumbs.db
 # Legacy prototype
 mvp/
 *.tsbuildinfo
+
+# Local smoke artifacts
+apps/api/src/onetake_api/assets/smoke/
+
+# Local agent/tooling memory
+.workbuddy-ai/
+
+# Personal interview/resume notes (kept local, not published)
+docs/interview-onetake-defense-playbook.md
+docs/resume-onetake-*.md

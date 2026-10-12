@@ -120,3 +120,8 @@ class SqlAlchemyAssetRepository:
             statement = statement.where(AssetModel.id != exclude_asset_id)
         model = session.scalar(statement)
         return _to_domain(model) if model else None
+
+    def delete(self, session: Session, asset_id: str) -> None:
+        model = session.get(AssetModel, asset_id)
+        if model is not None:
+            session.delete(model)
