@@ -8,6 +8,7 @@ from io import BytesIO
 import httpx
 from PIL import Image, UnidentifiedImageError
 
+from onetake_api.modules.script.copy_rules import COPY_RULE_PROMPT
 from onetake_api.modules.script.domain import ScriptDraft, ScriptInput
 from onetake_api.platform.errors import DomainError
 
@@ -88,6 +89,7 @@ class QwenVlScriptAdapter:
             "全文去除标点后必须为 45–72 个中文字符，建议控制在 60 字左右（短版，保证配音 ≤15 秒）。"
             "selling_points 必须与已确认卖点逐条对应，数量必须与输入一致，不得增加未提供的卖点。"
             "不得添加未提供的品牌、成分、功效、价格或数量。"
+            f"{COPY_RULE_PROMPT}"
             "输出严格 JSON，字段只能是 hook、pain_point、selling_points、usage_scenario、cta；"
             "selling_points 必须是字符串数组。不要输出 Markdown。事实："
             + json.dumps(facts, ensure_ascii=False)
@@ -143,6 +145,9 @@ class QwenVlScriptAdapter:
             "你是中文口播文案审稿人。请审下面这份带货文案，按 4 个维度判定（每维给 passed 与一句理由）："
             "rhythm（节奏：句子长短与停顿是否适合口播）、spoken（口语化：是否像人说的话）、"
             "freshness（新鲜度：是否避免陈词滥调）、structure（结构完整性：钩子/痛点/卖点/场景/CTA 是否齐备）。"
+            f"{COPY_RULE_PROMPT}"
+            "若 hook 命中套话开场，freshness.passed 必须为 false；"
+            "若前 3 秒钩子停不住拇指，或缺少 usage_scenario 末尾轻提 / cta 行动号召，structure.passed 必须为 false。"
             "**只重写不合格的那几句**，合格的句子必须原样保留；不得新增事实、数字、价格、折扣、认证、功效或品牌；"
             f"selling_points 的条数必须与输入一致（{len(draft.selling_points)} 条）；"
             "改写后全文去掉标点仍须为 45-72 个中文字符（短版口径，与生成阶段一致）。"

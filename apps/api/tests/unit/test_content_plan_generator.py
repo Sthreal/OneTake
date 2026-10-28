@@ -15,7 +15,7 @@ def _segments() -> list[dict]:
 
 
 def test_rule_generator_builds_six_variants_and_keeps_timeline() -> None:
-    """批次 2：风格 3 → 6（原 3 档不变、位次不变），时间轴与 product_mode 口径不变。"""
+    """6 档风格与开场空镜铺垫保持不变；第 2 镜改为 3 秒内入画（切片 A）。"""
     variants = generate_rule_variants(segments=_segments())
     assert [variant.style for variant in variants] == STYLE_ORDER
     for variant in variants:

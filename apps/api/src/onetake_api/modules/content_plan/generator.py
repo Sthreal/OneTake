@@ -17,13 +17,18 @@ STYLES = {
     "pain_point": ("痛点种草", "先呈现问题所在的空间与状态，再让解决方式自然出现，避免夸张表演"),
     "product_pov": ("商品拟人第一人称", "以商品为主视角的镜头运动（贴近、环绕、起身），仿佛商品自己在看使用场景"),
 }
+# 第 2 镜必须在这一秒数结束前入画（切片 A）。开场镜仍可 absent 铺垫，所以它必须更短。
+PRODUCT_IN_FRAME_DEADLINE_SECONDS = 3.0
+# 短版（约 14 秒）也强制（P5A）：第 3 镜给出还没做完的下一步。只约束画面，不改写用户口播。
+USAGE_RETENTION_CUE = "中段留一个还没完成的下一步（盖子即将旋开或手停在半空），让人想继续看"
+
 BEATS = [
     {
         "purpose": "hook",
         "visual_goal": "pain_point",
         "shot_type": "lifestyle_scene",
         "start": 0.0,
-        "end": 3.0,
+        "end": 1.0,
         "subject_action": "办公室桌面和空杯环境，冷色光线，表达工作后的疲惫感，镜头缓慢推近",
         "camera_move": "slow_push_in",
         "product_mode": "absent",
@@ -33,18 +38,20 @@ BEATS = [
         "purpose": "selling_point",
         "visual_goal": "product_reveal",
         "shot_type": "product_reveal",
-        "start": 3.0,
-        "end": 6.0,
+        "start": 1.0,
+        "end": PRODUCT_IN_FRAME_DEADLINE_SECONDS,
         "subject_action": "背景灯光渐亮，展示台显形，空间自然变化，镜头缓慢推近",
         "camera_move": "push_in",
         "product_mode": "overlay",
         "transition": "fade",
     },
     {
+        # 开场两镜合计压进 3 秒后，多出来的时长放在使用镜（7 秒）。
+        # 分段生成会按单次上限拆开，总秒数仍是 14，不改运动提示词。
         "purpose": "usage_scenario",
         "visual_goal": "usage_scenario",
         "shot_type": "usage_scene",
-        "start": 6.0,
+        "start": 3.0,
         "end": 10.0,
         "subject_action": "展示无人物户外运动环境，树叶和光线轻微运动，镜头稳定推进",
         "camera_move": "tracking",
@@ -109,6 +116,8 @@ def generate_rule_variants(
                 # 并顺手给出该场景的英文检索词（供免 Key 素材用）。
                 subject_action = hook.instruction
                 stock_query = hook.stock_query if beat["visual_goal"] == "pain_point" else ""
+            if beat["purpose"] == "usage_scenario" and USAGE_RETENTION_CUE not in subject_action:
+                subject_action = f"{subject_action}。{USAGE_RETENTION_CUE}"
             prompt = (
                 f"场景目标：{beat['visual_goal']}。"
                 f"{subject_action}。镜头：{beat['camera_move']}。{style_prompt}。"
@@ -142,8 +151,18 @@ def generate_rule_variants(
                 transition=beat["transition"],
                 stock_query=stock_query,
             ))
+        if not second_shot_product_in_frame(scenes):
+            raise ValueError("第 2 镜必须在 3 秒内入画，且 product_mode 不能是 absent")
         variants.append(ContentVariant(f"var_{style}", name, style, scenes))
     return variants
+
+
+def second_shot_product_in_frame(scenes, *, deadline: float = PRODUCT_IN_FRAME_DEADLINE_SECONDS) -> bool:
+    """第 2 镜结束时间 ≤ deadline，且商品已经入画（不是 absent 铺垫）。"""
+    if len(scenes) < 2:
+        return False
+    shot = scenes[1]
+    return float(shot.end_seconds) <= deadline and shot.product_mode != "absent"
 
 
 def _allocate_segments(segments: list[dict]) -> list[list[dict]]:

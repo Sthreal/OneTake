@@ -48,8 +48,9 @@ def test_spoken_count_ignores_our_own_trailing_punctuation() -> None:
         hook="还在盲目护肤？试试精准分层护理",
         pain_point="普通美容仪能量无法深入皮肤各层",
         selling_points=("能量直达不同皮肤深度，实现皮肤的精准分层护理",),
-        usage_scenario="日常使用",
-        cta="半岛小超炮让你护肤更聪明",
+        # 场景末尾轻提 + 末句行动号召，才能过切片 A 的双 CTA；句号仍然会被补上。
+        usage_scenario="日常使用顺手看看",
+        cta="现在就来看看",
     )
     normalized = normalize_generated(draft, script_input)   # 修复前这里会抛 ScriptGenerationError
     assert 45 <= normalized.character_count <= 72

@@ -139,6 +139,12 @@ def normalize_generated(
     if not generated_numbers.issubset(_numeric_facts(script_input)):
         raise ScriptGenerationError("文案包含未提供的事实数字")
 
+    # 切片 A：套话 / 钩子 / 双 CTA。放在字数校验前，这样失败原因是规则本身，而不是被长度错误盖住。
+    # 延迟导入：copy_rules 需要用本模块的字数口径，顶层互引会成环。
+    from onetake_api.modules.script.copy_rules import enforce_copy_rules
+
+    enforce_copy_rules(hook=hook, usage_scenario=scenario, cta=cta)
+
     character_count = spoken_character_count(full_text)
     if not MIN_CHARACTERS <= character_count <= MAX_CHARACTERS:
         raise ScriptGenerationError(f"文案长度需为 {MIN_CHARACTERS}–{MAX_CHARACTERS} 个字符")

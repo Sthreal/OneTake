@@ -25,7 +25,8 @@ def test_dynamic_real_estimate_counts_wan_clips_and_missing_prices() -> None:
 
     estimate = estimate_video_generation(_plan(duration_seconds=18), settings)
 
-    assert estimate.wan_clip_count == 4
+    # 4 镜里使用镜是 7 秒，按 5 秒上限拆成两次，所以是 5 次调用、仍共 14 秒。
+    assert estimate.wan_clip_count == 5
     assert estimate.wan_generated_seconds == 14
     assert estimate.estimated_wan_cost == 2.1
     assert estimate.qwen_image_edit_calls == 0
@@ -132,7 +133,7 @@ def test_all_product_templates_use_real_scene_segmentation() -> None:
 
     for template_id in ("clean", "dynamic", "lifestyle"):
         estimate = estimate_video_generation(_plan(template_id=template_id, duration_seconds=18), settings)
-        assert estimate.wan_clip_count == 4
+        assert estimate.wan_clip_count == 5
         assert estimate.wan_generated_seconds == 14
         assert estimate.estimated_wan_cost == 2.1
 
@@ -169,10 +170,11 @@ def test_keyframe_cost_is_included_in_the_approved_amount() -> None:
 
 
 def test_segmented_estimate_attributes_kf2v_and_i2v_prices() -> None:
-    """预估按**真实归属**计价：除最后一镜外走 kf2v（单价另一档），最后一镜走 i2v。
+    """预估按**真实归属**计价：带尾帧的调用走 kf2v，没有尾帧的走 i2v。
 
+    拆开的镜只有最后一次能带尾帧，所以 7 秒使用镜的前半段记 i2v。
     改动前把所有秒数都按 i2v 单价算 —— 既高估（kf2v 更便宜），
-    又因此掩盖了"7 秒镜被钳成 5 秒"的缺陷（预估按切分算 5 次调用，生成器却只调 4 次）。
+    又因此掩盖了"超上限的镜被钳成 5 秒"的缺陷。
     """
     settings = Settings(
         mock_providers=False,
@@ -191,11 +193,12 @@ def test_segmented_estimate_attributes_kf2v_and_i2v_prices() -> None:
 
     estimate = estimate_video_generation(_plan(duration_seconds=20), settings)
 
-    # 短版 4 镜 3/3/4/4（14s）→ 调用计划：3(kf2v) + 3(kf2v) + 4(kf2v) + 4(i2v)
-    assert (estimate.kf2v_clips, estimate.i2v_clips) == (3, 1)
-    assert estimate.wan_clip_count == 4
+    # 短版 4 镜 1/2/7/4（14s）。7 秒镜拆成 4+3，只有这一镜的最后一次能用尾帧。
+    # 调用计划：1(kf2v) + 2(kf2v) + 4(i2v) + 3(kf2v) + 4(i2v)
+    assert (estimate.kf2v_clips, estimate.i2v_clips) == (3, 2)
+    assert estimate.wan_clip_count == 5
     assert estimate.wan_generated_seconds == 14
-    assert estimate.estimated_wan_cost == round(10 * 0.48 + 4 * 0.5, 2)  # 6.8
+    assert estimate.estimated_wan_cost == round(6 * 0.48 + 8 * 0.5, 2)
     assert estimate.estimated_known_cost == round(estimate.estimated_wan_cost + 4 * 0.5, 2)
     assert any("kf2v" in note for note in estimate.price_notes), estimate.price_notes
 
@@ -218,7 +221,7 @@ def test_segmented_estimate_falls_back_to_i2v_without_kf2v_config() -> None:
     estimate = estimate_video_generation(_plan(duration_seconds=20), settings)
 
     assert estimate.kf2v_clips == 0
-    assert estimate.i2v_clips == 4
+    assert estimate.i2v_clips == 5
     assert estimate.estimated_wan_cost == round(14 * 0.5, 2)
     assert "WAN_KF2V_PRICE_PER_SECOND" not in estimate.missing_price_config
 
@@ -243,8 +246,15 @@ def test_stock_enabled_subtracts_absent_shot_from_segmented_estimate() -> None:
     without_stock = estimate_video_generation(_plan(duration_seconds=18), Settings(**base))
     with_stock = estimate_video_generation(_plan(duration_seconds=18), Settings(**base, stock_enabled=True))
 
-    # hook 镜是 0-3s（BEATS 第一镜），因此少 3 秒的段级生成
-    assert with_stock.wan_generated_seconds == without_stock.wan_generated_seconds - 3
+    # 空镜仍是第一镜，扣掉的秒数等于这一镜的时长。
+    # 切片 A 把商品入画提前到第 2 镜结束（≤3s），铺垫镜因此短于原来的 3 秒。
+    from onetake_api.modules.content_plan.generator import BEATS
+
+    absent = BEATS[0]
+    assert absent["product_mode"] == "absent"
+    absent_seconds = int(round(absent["end"] - absent["start"]))
+    assert absent["end"] <= 3.0
+    assert with_stock.wan_generated_seconds == without_stock.wan_generated_seconds - absent_seconds
     assert with_stock.estimated_wan_cost < without_stock.estimated_wan_cost
     assert any("0 成本素材" in note for note in with_stock.price_notes), with_stock.price_notes
     # 关键帧那一步照常跑（本刀不省），所以关键帧费用不变 —— 这是**如实**的口径

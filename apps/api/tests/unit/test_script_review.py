@@ -158,12 +158,15 @@ def test_apply_review_falls_back_to_original_on_failure() -> None:
 
 
 def _valid_draft() -> ScriptDraft:
-    """合法稿：去掉标点后约 56 字（短版区间 45~72），且不含任何数字（事实里没有数字）。"""
+    """合法稿：去掉标点后落在 45~72，且不含任何数字（事实里没有数字）。
+
+    钩子带疑问、场景末尾轻提、cta 是行动号召，否则过不了切片 A 的文案硬规则。
+    """
     return ScriptDraft(
-        hook="下午三点又渴又困，想喝点提神的",
+        hook="还在为拔干发愁？下午三点又渴又困",
         pain_point="白水没味道，甜饮料又怕腻",
         selling_points=["显色饱满", "不拔干"],
-        usage_scenario="通勤和开会前都能用",
+        usage_scenario="通勤和开会前都能用，顺手看看",
         cta="点下方链接带走",
     )
 
