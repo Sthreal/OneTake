@@ -16,6 +16,14 @@ from onetake_api.modules.main_image.public import MainImagePublicService
 from onetake_api.modules.outbox.public import OutboxPublicService
 from onetake_api.modules.pipeline.public import PipelinePublicService
 from onetake_api.modules.project.public import ProjectPublicService
+from onetake_api.modules.script.angles import (
+    DEFAULT_ANGLES,
+    FACT_ANGLE,
+    FACT_ANGLE_INDEX,
+    FACT_BATCH_ID,
+    FACT_SELECTED,
+    is_selected_facts,
+)
 from onetake_api.modules.script.content import (
     NormalizedScript,
     ScriptGenerationError,
@@ -24,7 +32,6 @@ from onetake_api.modules.script.content import (
     normalize_input,
 )
 from onetake_api.modules.script.domain import (
-    ACTIVE_STATUSES,
     EDITABLE_STATUSES,
     STATUS_CONFIRMED,
     STATUS_FAILED,
@@ -63,6 +70,12 @@ class ScriptProviderConfigurationError(DomainError):
 @dataclass(frozen=True)
 class ScriptView:
     version: ScriptVersion | None
+    candidates: tuple[ScriptVersion, ...] = ()
+    selected_version_id: str | None = None
+
+
+# 三个角度各一次 provider 调用。单次超时 120 秒，再留余量。不在这里发 live 请求。
+_SCRIPT_JOB_TIMEOUT_SECONDS = 420
 
 
 def normalize_with_review_fallback(*, reviewed_draft, original_draft, script_input, review):
@@ -150,7 +163,30 @@ class ScriptApplicationService:
 
     def latest(self, session: Session, project_id: str) -> ScriptView:
         self._projects.get_project(session, project_id=project_id)
-        return ScriptView(self._repository.latest(session, project_id))
+        return self._present(session, project_id, self._repository.latest(session, project_id))
+
+    def _present(self, session: Session, project_id: str, version: ScriptVersion | None) -> ScriptView:
+        if version is None:
+            return ScriptView(version=None)
+        batch_id = (version.facts or {}).get(FACT_BATCH_ID)
+        if not batch_id:
+            return ScriptView(version=version, candidates=(version,), selected_version_id=version.id)
+        candidates = tuple(self._repository.list_batch(session, project_id, batch_id))
+        if not candidates:
+            selected_id = version.id if is_selected_facts(version.facts) else None
+            return ScriptView(version=version, candidates=(version,), selected_version_id=selected_id)
+        selected = next(
+            (item for item in candidates if (item.facts or {}).get(FACT_SELECTED)),
+            candidates[0],
+        )
+        return ScriptView(version=selected, candidates=candidates, selected_version_id=selected.id)
+
+    def _batch_of(self, session: Session, version: ScriptVersion) -> list[ScriptVersion]:
+        batch_id = (version.facts or {}).get(FACT_BATCH_ID)
+        if not batch_id:
+            return [version]
+        found = self._repository.list_batch(session, version.project_id, batch_id)
+        return found or [version]
 
     def request(
         self,
@@ -177,41 +213,53 @@ class ScriptApplicationService:
             usage_scenario=usage_scenario,
             offer=offer,
         )
-        latest = self._repository.latest(session, project_id)
-        if latest and latest.status in ACTIVE_STATUSES:
-            return ScriptView(latest)
+        if self._repository.has_active(session, project_id):
+            return self._present(session, project_id, self._repository.latest(session, project_id))
 
         adapter = _adapter()
         now = self._clock.now()
-        version = ScriptVersion(
-            id=new_id("scr"),
-            project_id=project_id,
-            version_number=self._repository.next_version_number(session, project_id),
-            status=STATUS_QUEUED,
-            provider=adapter.provider_name,
-            model=adapter.model,
-            source_object_key=main_image.version.transparent_object_key,
-            facts=_facts_dict(script_input),
-            hook="",
-            pain_point="",
-            selling_points=[],
-            usage_scenario="",
-            offer=script_input.offer,
-            cta="",
-            full_text="",
-            character_count=0,
-            estimated_duration_seconds=0,
-            error_code=None,
-            created_at=now,
-            updated_at=now,
-            completed_at=None,
-            confirmed_at=None,
-        )
-        self._repository.add(session, version)
+        batch_id = new_id("sbg")
+        base_facts = _facts_dict(script_input)
+        start_number = self._repository.next_version_number(session, project_id)
+        versions: list[ScriptVersion] = []
+        for index, angle in enumerate(DEFAULT_ANGLES):
+            version = ScriptVersion(
+                id=new_id("scr"),
+                project_id=project_id,
+                version_number=start_number + index,
+                status=STATUS_QUEUED,
+                provider=adapter.provider_name,
+                model=adapter.model,
+                source_object_key=main_image.version.transparent_object_key,
+                facts={
+                    **base_facts,
+                    FACT_ANGLE: angle,
+                    FACT_ANGLE_INDEX: index,
+                    FACT_BATCH_ID: batch_id,
+                    FACT_SELECTED: index == 0,
+                },
+                hook="",
+                pain_point="",
+                selling_points=[],
+                usage_scenario="",
+                offer=script_input.offer,
+                cta="",
+                full_text="",
+                character_count=0,
+                estimated_duration_seconds=0,
+                error_code=None,
+                created_at=now,
+                updated_at=now,
+                completed_at=None,
+                confirmed_at=None,
+            )
+            self._repository.add(session, version)
+            versions.append(version)
         session.flush()
+        primary = versions[0]
         pipeline = self._pipeline.mark_script_queued(session, project_id)
         input_hash = hashlib.sha256(
-            f"{main_image.version.id}:{version.id}:{version.facts}".encode()
+            f"{main_image.version.id}:{batch_id}:{primary.facts}".encode()
         ).hexdigest()
         job = self._jobs.create(
             session,
@@ -220,16 +268,21 @@ class ScriptApplicationService:
             job_type="script",
             provider=adapter.provider_name,
             input_hash=input_hash,
-            idempotency_key=f"script:{project_id}:{version.id}",
-            reference_id=version.id,
+            idempotency_key=f"script:{project_id}:{batch_id}",
+            reference_id=primary.id,
         )
         self._outbox.enqueue(
             session,
             event_name="ScriptRequested",
             aggregate_type="script",
-            aggregate_id=version.id,
+            aggregate_id=primary.id,
             occurred_at=now,
-            payload={"project_id": project_id, "version_id": version.id},
+            payload={
+                "project_id": project_id,
+                "version_id": primary.id,
+                "generation_batch_id": batch_id,
+                "candidate_version_ids": [item.id for item in versions],
+            },
         )
         session.commit()
         try:
@@ -237,15 +290,15 @@ class ScriptApplicationService:
                 "onetake_api.modules.script.worker_tasks.run_script_job",
                 job.id,
                 job_id=job.id,
-                job_timeout=180,
+                job_timeout=_SCRIPT_JOB_TIMEOUT_SECONDS,
             )
         except Exception as exc:
             job = self._jobs.get(session, job.id)
             if job:
                 self._jobs.mark_failed(session, job, "QUEUE_UNAVAILABLE")
-            self._mark_failed(session, version, "QUEUE_UNAVAILABLE")
+            self._mark_batch_failed(session, versions, "QUEUE_UNAVAILABLE")
             raise ScriptConflictError("文案任务提交失败") from exc
-        return ScriptView(version)
+        return self._present(session, project_id, primary)
 
     def update(
         self,
@@ -311,13 +364,58 @@ class ScriptApplicationService:
             payload={"project_id": project_id, "version_id": version.id},
         )
         session.commit()
-        return ScriptView(updated)
+        return self._present(session, project_id, updated)
+
+    def select(self, session: Session, *, project_id: str, version_id: str) -> ScriptView:
+        self._projects.get_project(session, project_id=project_id)
+        target = self._repository.get(session, version_id)
+        if target is None or target.project_id != project_id:
+            raise ScriptNotFoundError("文案版本不存在")
+        current = self._repository.latest(session, project_id)
+        if current is None:
+            raise ScriptNotFoundError("文案版本不存在")
+        batch_id = (current.facts or {}).get(FACT_BATCH_ID)
+        if not batch_id or (target.facts or {}).get(FACT_BATCH_ID) != batch_id:
+            raise ScriptConflictError("只能选用最近一次生成的文案角度")
+        candidates = self._repository.list_batch(session, project_id, batch_id)
+        if any(item.status == STATUS_CONFIRMED for item in candidates):
+            raise ScriptConflictError("文案已确认，不能再切换角度")
+        if target.status != STATUS_READY:
+            raise ScriptConflictError("该角度文案尚未准备好，不能选用")
+        if is_selected_facts(target.facts):
+            return self._present(session, project_id, target)
+        now = self._clock.now()
+        for item in candidates:
+            chosen = item.id == target.id
+            updated = replace(
+                item,
+                facts={**item.facts, FACT_SELECTED: chosen},
+                updated_at=now,
+            )
+            self._repository.update(session, updated)
+        self._outbox.enqueue(
+            session,
+            event_name="ScriptAngleSelected",
+            aggregate_type="script",
+            aggregate_id=target.id,
+            occurred_at=now,
+            payload={
+                "project_id": project_id,
+                "version_id": target.id,
+                "generation_batch_id": batch_id,
+                "angle": (target.facts or {}).get(FACT_ANGLE),
+            },
+        )
+        session.commit()
+        return self._present(session, project_id, self._repository.get(session, target.id))
 
     def confirm(self, session: Session, project_id: str) -> ScriptView:
         self._projects.get_project(session, project_id=project_id)
         version = self._repository.latest(session, project_id)
         if version is None:
             raise ScriptNotFoundError("文案版本不存在")
+        if not is_selected_facts(version.facts):
+            raise ScriptConflictError("只能确认当前选中的文案角度")
         if version.status != STATUS_READY:
             raise ScriptConflictError("文案尚未准备确认")
         now = self._clock.now()
@@ -330,10 +428,14 @@ class ScriptApplicationService:
             aggregate_type="script",
             aggregate_id=version.id,
             occurred_at=now,
-            payload={"project_id": project_id, "version_id": version.id},
+            payload={
+                "project_id": project_id,
+                "version_id": version.id,
+                "angle": (version.facts or {}).get(FACT_ANGLE),
+            },
         )
         session.commit()
-        return ScriptView(confirmed)
+        return self._present(session, project_id, confirmed)
 
     def process_job(self, session: Session, job_id: str) -> ScriptVersion:
         job = self._jobs.get(session, job_id)
@@ -343,91 +445,127 @@ class ScriptApplicationService:
         if version is None:
             raise ScriptNotFoundError("文案版本不存在")
 
+        now = self._clock.now()
+        batch = [
+            replace(item, status=STATUS_GENERATING, updated_at=now)
+            for item in self._batch_of(session, version)
+        ]
+        for item in batch:
+            self._repository.update(session, item)
         job = self._jobs.mark_running(session, job)
-        version = replace(version, status=STATUS_GENERATING, updated_at=self._clock.now())
-        self._repository.update(session, version)
         self._pipeline.mark_script_generating(session, version.project_id)
         session.commit()
 
         try:
-            image_bytes = b"".join(self.storage.read_object(object_key=version.source_object_key))
-            script_input = _input_from_version(version)
+            image_bytes = b"".join(self.storage.read_object(object_key=batch[0].source_object_key))
+            script_input = _input_from_version(batch[0])
             adapter = _adapter()
-            draft = adapter.generate(
-                image_bytes=image_bytes,
-                mime_type="image/png",
-                script_input=script_input,
-            )
-            # 批次 2b：可选审稿（多一次付费调用；默认关闭）。审稿失败只降级，不影响成稿。
             settings = get_settings()
-            generated_draft = draft   # 留一份"未审稿"版本，审稿改坏时回退用
-            draft, review = apply_script_review(
-                adapter, script_input=script_input, draft=draft,
-                enabled=bool(getattr(settings, "script_review_enabled", False)),
-            )
-            if review is not None:
-                logger.info(
-                    "文案审稿：未通过维度=%s，改写字段=%s",
-                    review.failed_dimensions, review.changed_fields,
+            review_enabled = bool(getattr(settings, "script_review_enabled", False))
+            ready: list[ScriptVersion] = []
+            for item in batch:
+                angle = (item.facts or {}).get(FACT_ANGLE)
+                draft = adapter.generate(
+                    image_bytes=image_bytes,
+                    mime_type="image/png",
+                    script_input=script_input,
+                    angle=angle if isinstance(angle, str) else None,
                 )
-            normalized, review = normalize_with_review_fallback(
-                reviewed_draft=draft, original_draft=generated_draft,
-                script_input=script_input, review=review,
-            )
-            now = self._clock.now()
-            version = replace(
-                version,
-                status=STATUS_READY,
-                hook=normalized.hook,
-                pain_point=normalized.pain_point,
-                selling_points=normalized.selling_points,
-                usage_scenario=normalized.usage_scenario,
-                offer=normalized.offer,
-                cta=normalized.cta,
-                full_text=normalized.full_text,
-                character_count=normalized.character_count,
-                estimated_duration_seconds=normalized.estimated_duration_seconds,
-                error_code=None,
-                updated_at=now,
-                completed_at=now,
-            )
-            self._repository.update(session, version)
+                # 批次 2b：可选审稿（多一次付费调用；默认关闭）。审稿失败只降级，不影响成稿。
+                # 切片 C 的闸门不在这里。三个角度共用这一开关，默认不打审稿。
+                generated_draft = draft
+                draft, review = apply_script_review(
+                    adapter, script_input=script_input, draft=draft, enabled=review_enabled,
+                )
+                if review is not None:
+                    logger.info(
+                        "文案审稿：未通过维度=%s，改写字段=%s",
+                        review.failed_dimensions, review.changed_fields,
+                    )
+                normalized, review = normalize_with_review_fallback(
+                    reviewed_draft=draft, original_draft=generated_draft,
+                    script_input=script_input, review=review,
+                )
+                finished_at = self._clock.now()
+                ready.append(replace(
+                    item,
+                    status=STATUS_READY,
+                    hook=normalized.hook,
+                    pain_point=normalized.pain_point,
+                    selling_points=normalized.selling_points,
+                    usage_scenario=normalized.usage_scenario,
+                    offer=normalized.offer,
+                    cta=normalized.cta,
+                    full_text=normalized.full_text,
+                    character_count=normalized.character_count,
+                    estimated_duration_seconds=normalized.estimated_duration_seconds,
+                    error_code=None,
+                    updated_at=finished_at,
+                    completed_at=finished_at,
+                ))
+            for item in ready:
+                self._repository.update(session, item)
             self._jobs.mark_succeeded(session, job)
             self._pipeline.mark_script_ready(session, version.project_id)
+            selected = next((item for item in ready if is_selected_facts(item.facts)), ready[0])
             self._outbox.enqueue(
                 session,
                 event_name="ScriptGenerated",
                 aggregate_type="script",
-                aggregate_id=version.id,
-                occurred_at=now,
+                aggregate_id=selected.id,
+                occurred_at=selected.completed_at or self._clock.now(),
                 payload={
-                    "project_id": version.project_id,
-                    "version_id": version.id,
-                    "character_count": normalized.character_count,
+                    "project_id": selected.project_id,
+                    "version_id": selected.id,
+                    "character_count": selected.character_count,
+                    "generation_batch_id": (selected.facts or {}).get(FACT_BATCH_ID),
+                    "candidate_version_ids": [item.id for item in ready],
                 },
             )
             session.commit()
-            return version
+            logger.info(
+                "文案多角度已生成 batch=%s angles=%s",
+                (selected.facts or {}).get(FACT_BATCH_ID),
+                [(item.facts or {}).get(FACT_ANGLE) for item in ready],
+            )
+            return selected
         except DomainError as exc:
             logger.warning("文案生成未通过校验：%s %s", exc.code, getattr(exc, "message", exc))
             self._jobs.mark_failed(session, job, exc.code)
-            return self._mark_failed(session, version, exc.code)
+            return self._mark_batch_failed(session, batch, exc.code)
         except Exception:
             self._jobs.mark_failed(session, job, "SCRIPT_PROVIDER_ERROR")
-            return self._mark_failed(session, version, "SCRIPT_PROVIDER_ERROR")
+            return self._mark_batch_failed(session, batch, "SCRIPT_PROVIDER_ERROR")
 
-    def _mark_failed(self, session: Session, version: ScriptVersion, error_code: str) -> ScriptVersion:
+    def _mark_batch_failed(self, session: Session, versions: list[ScriptVersion], error_code: str) -> ScriptVersion:
         now = self._clock.now()
-        failed = replace(version, status=STATUS_FAILED, error_code=error_code, updated_at=now, completed_at=now)
-        self._repository.update(session, failed)
-        self._pipeline.mark_script_failed(session, version.project_id)
+        failed: list[ScriptVersion] = []
+        for version in versions:
+            item = replace(
+                version,
+                status=STATUS_FAILED,
+                error_code=error_code,
+                updated_at=now,
+                completed_at=now,
+            )
+            self._repository.update(session, item)
+            failed.append(item)
+        project_id = versions[0].project_id
+        self._pipeline.mark_script_failed(session, project_id)
+        selected = next((item for item in failed if is_selected_facts(item.facts)), failed[0])
         self._outbox.enqueue(
             session,
             event_name="ScriptFailed",
             aggregate_type="script",
-            aggregate_id=version.id,
+            aggregate_id=selected.id,
             occurred_at=now,
-            payload={"project_id": version.project_id, "version_id": version.id, "error_code": error_code},
+            payload={
+                "project_id": project_id,
+                "version_id": selected.id,
+                "error_code": error_code,
+                "generation_batch_id": (selected.facts or {}).get(FACT_BATCH_ID),
+                "candidate_version_ids": [item.id for item in failed],
+            },
         )
         session.commit()
-        return failed
+        return selected

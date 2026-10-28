@@ -5,7 +5,8 @@ from datetime import datetime
 from sqlalchemy import JSON, DateTime, Float, Integer, String, UniqueConstraint, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
-from onetake_api.modules.script.domain import ScriptVersion
+from onetake_api.modules.script.angles import FACT_ANGLE_INDEX, FACT_BATCH_ID, FACT_SELECTED
+from onetake_api.modules.script.domain import ACTIVE_STATUSES, ScriptVersion
 from onetake_api.platform.database import Base
 
 
@@ -75,7 +76,32 @@ class ScriptRepository:
         model = session.get(ScriptVersionModel, version_id)
         return _to_domain(model) if model else None
 
-    def latest(self, session: Session, project_id: str) -> ScriptVersion | None:
+    def list_for_project(self, session: Session, project_id: str) -> list[ScriptVersion]:
+        models = session.scalars(
+            select(ScriptVersionModel)
+            .where(ScriptVersionModel.project_id == project_id)
+            .order_by(ScriptVersionModel.version_number.asc())
+        ).all()
+        return [_to_domain(model) for model in models]
+
+    def list_batch(self, session: Session, project_id: str, batch_id: str) -> list[ScriptVersion]:
+        matched = [
+            version
+            for version in self.list_for_project(session, project_id)
+            if (version.facts or {}).get(FACT_BATCH_ID) == batch_id
+        ]
+        return sorted(
+            matched,
+            key=lambda version: (
+                int((version.facts or {}).get(FACT_ANGLE_INDEX, version.version_number)),
+                version.version_number,
+            ),
+        )
+
+    def has_active(self, session: Session, project_id: str) -> bool:
+        return any(version.status in ACTIVE_STATUSES for version in self.list_for_project(session, project_id))
+
+    def highest(self, session: Session, project_id: str) -> ScriptVersion | None:
         model = session.scalar(
             select(ScriptVersionModel)
             .where(ScriptVersionModel.project_id == project_id)
@@ -83,15 +109,36 @@ class ScriptRepository:
         )
         return _to_domain(model) if model else None
 
+    def latest(self, session: Session, project_id: str) -> ScriptVersion | None:
+        """当前稿 = 最新一批里选中的那条；没有选中标记时退回角 0。
+
+        旧数据没有 `generation_batch_id`，仍按最大 version_number，和以前的 latest 一样。
+        """
+        versions = self.list_for_project(session, project_id)
+        if not versions:
+            return None
+        newest = versions[-1]
+        batch_id = (newest.facts or {}).get(FACT_BATCH_ID)
+        if not batch_id:
+            return newest
+        batch = [version for version in versions if (version.facts or {}).get(FACT_BATCH_ID) == batch_id]
+        selected = [version for version in batch if (version.facts or {}).get(FACT_SELECTED)]
+        if len(selected) == 1:
+            return selected[0]
+        if len(selected) > 1:
+            return min(selected, key=lambda version: int((version.facts or {}).get(FACT_ANGLE_INDEX, 0)))
+        return min(batch, key=lambda version: int((version.facts or {}).get(FACT_ANGLE_INDEX, 0)))
+
     def next_version_number(self, session: Session, project_id: str) -> int:
-        latest = self.latest(session, project_id)
-        return (latest.version_number + 1) if latest else 1
+        highest = self.highest(session, project_id)
+        return (highest.version_number + 1) if highest else 1
 
     def update(self, session: Session, version: ScriptVersion) -> None:
         model = session.get(ScriptVersionModel, version.id)
         if model is None:
             return
         model.status = version.status
+        model.facts = version.facts
         model.hook = version.hook
         model.pain_point = version.pain_point
         model.selling_points = list(version.selling_points)

@@ -13,4 +13,5 @@ class ScriptPort(Protocol):
         image_bytes: bytes,
         mime_type: str,
         script_input: ScriptInput,
+        angle: str | None = None,
     ) -> ScriptDraft: ...

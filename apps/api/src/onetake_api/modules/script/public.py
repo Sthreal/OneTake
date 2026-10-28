@@ -18,6 +18,9 @@ class ScriptPublicService:
     def update(self, session: Session, **kwargs) -> ScriptView:
         return self._service.update(session, **kwargs)
 
+    def select(self, session: Session, **kwargs) -> ScriptView:
+        return self._service.select(session, **kwargs)
+
     def confirm(self, session: Session, project_id: str) -> ScriptView:
         return self._service.confirm(session, project_id)
 

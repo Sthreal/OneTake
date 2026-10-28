@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from onetake_api.modules.script.angles import ANGLE_LABELS, FACT_ANGLE, FACT_BATCH_ID, is_selected_facts
 from onetake_api.modules.script.domain import ScriptVersion
 from onetake_api.modules.script.public import ScriptPublicService
 from onetake_api.modules.script.service import ScriptView
@@ -28,6 +29,10 @@ class EditScriptRequest(BaseModel):
     selling_points: list[str] | None = Field(default=None, min_length=1, max_length=5)
     usage_scenario: str | None = Field(default=None, min_length=1, max_length=300)
     cta: str | None = Field(default=None, min_length=1, max_length=240)
+
+
+class SelectScriptRequest(BaseModel):
+    version_id: str = Field(min_length=4, max_length=40)
 
 
 class ScriptFactsData(BaseModel):
@@ -61,10 +66,16 @@ class ScriptVersionData(BaseModel):
     updated_at: datetime
     completed_at: datetime | None
     confirmed_at: datetime | None
+    angle: str | None = None
+    angle_label: str | None = None
+    selected: bool = False
+    generation_batch_id: str | None = None
 
 
 class ScriptData(BaseModel):
     version: ScriptVersionData | None
+    candidates: list[ScriptVersionData] = Field(default_factory=list)
+    selected_version_id: str | None = None
 
 
 class ScriptResponse(BaseModel):
@@ -102,12 +113,30 @@ def _version_data(version: ScriptVersion) -> ScriptVersionData:
         updated_at=version.updated_at,
         completed_at=version.completed_at,
         confirmed_at=version.confirmed_at,
+        angle=_angle(version),
+        angle_label=ANGLE_LABELS.get(_angle(version) or ""),
+        selected=is_selected_facts(version.facts),
+        generation_batch_id=_batch_id(version),
     )
+
+
+def _angle(version: ScriptVersion) -> str | None:
+    value = (version.facts or {}).get(FACT_ANGLE)
+    return value if isinstance(value, str) else None
+
+
+def _batch_id(version: ScriptVersion) -> str | None:
+    value = (version.facts or {}).get(FACT_BATCH_ID)
+    return value if isinstance(value, str) else None
 
 
 def _response(view: ScriptView) -> ScriptResponse:
     return ScriptResponse(
-        data=ScriptData(version=_version_data(view.version) if view.version else None),
+        data=ScriptData(
+            version=_version_data(view.version) if view.version else None,
+            candidates=[_version_data(item) for item in view.candidates],
+            selected_version_id=view.selected_version_id,
+        ),
         request_id=get_request_id(),
     )
 
@@ -149,6 +178,16 @@ def edit_script(
         usage_scenario=payload.usage_scenario,
         cta=payload.cta,
     )
+    return _response(view)
+
+
+@router.post("/select", response_model=ScriptResponse)
+def select_script(
+    project_id: str,
+    payload: SelectScriptRequest,
+    session: Session = Depends(get_session),
+) -> ScriptResponse:
+    view = ScriptPublicService().select(session, project_id=project_id, version_id=payload.version_id)
     return _response(view)
 
 
