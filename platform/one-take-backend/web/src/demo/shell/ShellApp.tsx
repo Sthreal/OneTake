@@ -11,12 +11,10 @@ import type { Project } from "../../features/input/types";
 import type { ShellView, UrlView } from "../urlState";
 import {
   DEMO_CREDITS,
-  DEMO_FEE,
   GS_STEPS,
   IMAGE_AD_CELLS,
   IMAGE_AD_RATIOS,
   PREMADE_PRESENTER,
-  REVIEW_FILTERS,
   SELLING_POINTS,
   STUDIO_DURATIONS,
   STUDIO_RATIOS,
@@ -31,13 +29,12 @@ import {
   readGsDone,
   readStudioDraft,
   resolveSelectedProduct,
-  reviewScript,
-  visibleReviewCells,
   writeBrands,
   writeStudioDraft,
   type ImageAdRatio,
   type StudioDraft,
 } from "./model";
+import { ScriptReviewStep, useScriptGateGuard } from "./ScriptReviewStep";
 import "./shell.css";
 
 export function ShellApp({
@@ -61,7 +58,6 @@ export function ShellApp({
   const [imageCellId, setImageCellId] = useState<string>(IMAGE_AD_CELLS[0].id);
   const [imageRatio, setImageRatio] = useState<ImageAdRatio>("1:1");
   const [exportNote, setExportNote] = useState<string | null>(null);
-  const [reviewFilter, setReviewFilter] = useState<(typeof REVIEW_FILTERS)[number]>("全部");
   const [addingProduct, setAddingProduct] = useState(false);
   const [addingBrand, setAddingBrand] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -207,10 +203,8 @@ export function ShellApp({
             presenter={presenter}
             characters={characters}
             castOpen={castOpen}
-            reviewFilter={reviewFilter}
             onCastOpen={setCastOpen}
             onDraft={patchDraft}
-            onFilter={setReviewFilter}
             onNavigate={onNavigate}
           />
         ) : null}
@@ -725,10 +719,8 @@ function Studio({
   presenter,
   characters,
   castOpen,
-  reviewFilter,
   onCastOpen,
   onDraft,
-  onFilter,
   onNavigate,
 }: {
   view: ShellView;
@@ -740,10 +732,8 @@ function Studio({
   presenter: { id: string; name: string; role: string; initial: string };
   characters: Character[];
   castOpen: boolean;
-  reviewFilter: (typeof REVIEW_FILTERS)[number];
   onCastOpen: (open: boolean) => void;
   onDraft: (partial: Partial<StudioDraft>) => void;
-  onFilter: (filter: (typeof REVIEW_FILTERS)[number]) => void;
   onNavigate: (view: UrlView, projectId?: string | null) => void;
 }) {
   const stepIndex = STUDIO_STEPS.findIndex((step) => step.view === view);
@@ -797,10 +787,16 @@ function Studio({
         />
       ) : null}
       {view === "review" ? (
-        <Review product={product} presenter={presenter} draft={draft} filter={reviewFilter} onFilter={onFilter} onConfirm={advance} />
+        <ScriptReviewStep product={product} presenter={presenter} draft={draft} onAdvance={advance} />
       ) : null}
       {view === "generate" ? (
-        <Generate product={product} presenter={presenter} draft={draft} onNext={advance} />
+        <Generate
+          product={product}
+          presenter={presenter}
+          draft={draft}
+          onNext={advance}
+          onReview={() => onNavigate("review", productId)}
+        />
       ) : null}
       {view === "delivery" ? (
         <Delivery product={product} presenter={presenter} draft={draft} onNavigate={onNavigate} />
@@ -966,113 +962,20 @@ function Prepare({
   );
 }
 
-function Review({
-  product,
-  presenter,
-  draft,
-  filter,
-  onFilter,
-  onConfirm,
-}: {
-  product: Project | null;
-  presenter: { name: string };
-  draft: StudioDraft;
-  filter: (typeof REVIEW_FILTERS)[number];
-  onFilter: (filter: (typeof REVIEW_FILTERS)[number]) => void;
-  onConfirm: () => void;
-}) {
-  const cells = visibleReviewCells(filter);
-  const name = product?.product_name ?? "已选商品";
-  return (
-    <>
-      <div className="ot-content">
-        <div className="ot-headrow">
-          <div>
-            <h1 className="ot-page-title">审稿确认</h1>
-            <p className="ot-page-sub">核对九宫格分镜与口播，确认后一键生成。无需先做图片广告。</p>
-          </div>
-          <div className="ot-context">商品 <strong>{name}</strong></div>
-        </div>
-        <div className="ot-split">
-          <div className="ot-col">
-            <section className="ot-preview">
-              <div className="ot-preview-bar">
-                <div className="ot-ptabs">
-                  <button type="button">分镜预览</button>
-                  <button type="button">关键帧</button>
-                  <button type="button" className="on">九宫格</button>
-                </div>
-                <div className="ot-meta">{draft.duration} · {draft.ratio} · 9 镜</div>
-              </div>
-              <div className="ot-preview-body">
-                <div className="ot-filters-inline" role="group" aria-label="分镜筛选">
-                  {REVIEW_FILTERS.map((item) => (
-                    <button key={item} type="button" className={item === filter ? "on" : ""} aria-pressed={item === filter} onClick={() => onFilter(item)}>{item}</button>
-                  ))}
-                </div>
-                <div className="ot-nine" role="list" aria-label="审稿九宫格">
-                  {cells.map((cell) => (
-                    <div key={cell.id} role="listitem" className="ot-cell" style={{ minHeight: 96 }}>
-                      <span className={"ot-cell-bg " + cell.tone} />
-                      <span className="ot-cell-tag">镜 {cell.id}<span className="dur">{cell.dur}</span></span>
-                      <span className="ot-cell-cap">{cell.caption}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </section>
-          </div>
-          <div className="ot-side-col">
-            <section className="ot-panel">
-              <div className="ot-label">口播文案</div>
-              <div className="ot-script">{reviewScript(name)}</div>
-            </section>
-            <section className="ot-panel">
-              <div className="ot-label">配音试听</div>
-              <div className="ot-audio">
-                <div className="ot-play"><Logo size={10} /></div>
-                <div className="ot-wave">{[5, 11, 16, 9, 18, 13, 7, 15, 19, 11, 6, 14].map((height, index) => <i key={index} style={{ height }} />)}</div>
-                <div className="ot-meta">{presenter.name}</div>
-              </div>
-            </section>
-            <section className="ot-panel">
-              <div className="ot-label">费用明细</div>
-              <div className="ot-fee-row"><span>文案与分镜</span><b>已含</b></div>
-              <div className="ot-fee-row"><span>配音合成</span><b>2 积分</b></div>
-              <div className="ot-fee-row"><span>视频生成 · {draft.duration}</span><b>10 积分</b></div>
-              <div className="ot-divider" />
-              <div className="ot-fee-row"><span>合计</span><span className="ot-fee-total">{DEMO_FEE} 积分</span></div>
-              <div className="ot-hint">演示口径。确认后进入生成步，不在此页扣积分，也不经过图片广告。</div>
-            </section>
-          </div>
-        </div>
-      </div>
-      <footer className="ot-sticky">
-        <div>
-          <div className="ot-sticky-title">一键生成成片</div>
-          <div className="ot-sticky-sub">下一步是生成，不是图片广告</div>
-        </div>
-        <div className="ot-sticky-right">
-          <button type="button" className="ot-btn ot-btn-primary ot-btn-lg" onClick={onConfirm}>
-            确认并生成视频<span className="ot-fee">· {DEMO_FEE} 积分</span>
-          </button>
-        </div>
-      </footer>
-    </>
-  );
-}
-
 function Generate({
   product,
   presenter,
   draft,
   onNext,
+  onReview,
 }: {
   product: Project | null;
   presenter: { name: string; role: string };
   draft: StudioDraft;
   onNext: () => void;
+  onReview: () => void;
 }) {
+  const guard = useScriptGateGuard(product?.project_id ?? null);
   return (
     <>
       <div className="ot-content">
@@ -1086,13 +989,24 @@ function Generate({
           <div className="ot-checkline">规格：{draft.ratio} · {draft.duration}</div>
           <div className="ot-checkline">图片广告：未使用，也不是本步的前置条件</div>
         </section>
+        {guard.loading ? <p className="ot-hint" role="status">正在核对审稿闸…</p> : null}
+        {!guard.loading && guard.blocked ? (
+          <section className="ot-panel" role="alert">
+            <h2 className="ot-gate">付费生成已拦住</h2>
+            <p className="ot-page-sub">{guard.message}</p>
+            <button type="button" className="ot-btn ot-btn-primary" onClick={onReview}>回到审稿过闸</button>
+          </section>
+        ) : null}
+        {!guard.loading && !guard.blocked ? <p role="status">{guard.message}</p> : null}
       </div>
       <footer className="ot-sticky">
         <div>
-          <div className="ot-sticky-title">生成步骤已完成编排</div>
-          <div className="ot-sticky-sub">真实渲染仍可稍后从成片页进入托管工作台</div>
+          <div className="ot-sticky-title">{guard.blocked ? "生成前要先过审稿闸" : "生成步骤已完成编排"}</div>
+          <div className="ot-sticky-sub">
+            {guard.blocked ? "未 apply / ack 不会进入成片" : "真实渲染仍可稍后从成片页进入托管工作台"}
+          </div>
         </div>
-        <button type="button" className="ot-btn ot-btn-primary ot-btn-lg" onClick={onNext}>查看成片</button>
+        <button type="button" className="ot-btn ot-btn-primary ot-btn-lg" disabled={guard.loading || guard.blocked} onClick={onNext}>查看成片</button>
       </footer>
     </>
   );

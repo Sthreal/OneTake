@@ -1,0 +1,311 @@
+/** 工作室审稿步：多角度选稿（切片 B）和花钱前审稿闸（切片 C）。
+ *
+ * 这里只有纯判断和轮询编排，不渲染。付费视频入口是否放行，以稿上的 review_gate 为准：
+ * enforce 且不是 passed，就当成会 409 SCRIPT_REVIEW_REQUIRED。
+ */
+import type {
+  EditScriptInput,
+  GenerateScriptInput,
+  ReviewGateSummary,
+  ScriptReviewResult,
+  ScriptState,
+  ScriptVersion,
+} from "../../features/script/types";
+import { SELLING_POINTS, type StudioDraft } from "./model";
+
+export const SCRIPT_ANGLES = ["pain_point", "scene", "comparison"] as const;
+
+export const ANGLE_LABELS: Record<string, string> = {
+  pain_point: "痛点种草",
+  scene: "场景安利",
+  comparison: "对比测评",
+};
+
+export const REVIEW_DIMENSIONS = [
+  { id: "rhythm", label: "节奏" },
+  { id: "spoken", label: "口语" },
+  { id: "freshness", label: "新鲜" },
+  { id: "structure", label: "结构" },
+] as const;
+
+const PENDING_GATE: ReviewGateSummary = {
+  mode: "enforce",
+  status: "pending",
+  decision: null,
+  length_ok: null,
+  error_code: null,
+};
+
+export interface PaidVideoGuard {
+  blocked: boolean;
+  code: "SCRIPT_REVIEW_REQUIRED" | null;
+  message: string;
+}
+
+export interface StudioScriptClient {
+  getScript: (projectId: string) => Promise<ScriptState>;
+  generateScript: (projectId: string, input: GenerateScriptInput) => Promise<ScriptState>;
+}
+
+export interface LoadScriptOptions {
+  sleep?: (ms: number) => Promise<void>;
+  intervalMs?: number;
+  maxPolls?: number;
+}
+
+const pendingLoads = new Map<string, Promise<ScriptState>>();
+
+export function scriptVersions(state: ScriptState | null | undefined): ScriptVersion[] {
+  if (!state) return [];
+  if (state.candidates && state.candidates.length > 0) return state.candidates;
+  return state.version ? [state.version] : [];
+}
+
+export function orderedCandidates(state: ScriptState | null | undefined): ScriptVersion[] {
+  return [...scriptVersions(state)].sort((a, b) => {
+    const ai = SCRIPT_ANGLES.indexOf((a.angle ?? "") as (typeof SCRIPT_ANGLES)[number]);
+    const bi = SCRIPT_ANGLES.indexOf((b.angle ?? "") as (typeof SCRIPT_ANGLES)[number]);
+    return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi) || a.version_number - b.version_number;
+  });
+}
+
+export function angleLabel(version: ScriptVersion): string {
+  return version.angle_label || ANGLE_LABELS[version.angle ?? ""] || "口播";
+}
+
+export function gateSummary(version: ScriptVersion | null | undefined): ReviewGateSummary {
+  return version?.review_gate ?? PENDING_GATE;
+}
+
+/** enforce 下没到 passed，生成步就要拦住，避免付费入口 409。off / warn 不拦。 */
+export function paidVideoBlock(version: ScriptVersion | null | undefined): PaidVideoGuard {
+  if (!version) {
+    return {
+      blocked: true,
+      code: "SCRIPT_REVIEW_REQUIRED",
+      message: "还没有口播稿。先在审稿步生成三套角度并过闸，再进付费视频。未完成时付费入口会返回 409 SCRIPT_REVIEW_REQUIRED。",
+    };
+  }
+  const gate = gateSummary(version);
+  if (gate.mode === "off" || gate.mode === "warn") {
+    return { blocked: false, code: null, message: "" };
+  }
+  if (gate.status === "passed") {
+    return { blocked: false, code: null, message: "" };
+  }
+  if (gate.status === "reviewed") {
+    return {
+      blocked: true,
+      code: "SCRIPT_REVIEW_REQUIRED",
+      message: "四维已经审完，但还没过闸。请应用改写或明确保留原稿。未完成时付费视频会返回 409 SCRIPT_REVIEW_REQUIRED。",
+    };
+  }
+  if (gate.status === "failed") {
+    return {
+      blocked: true,
+      code: "SCRIPT_REVIEW_REQUIRED",
+      message: "这次审稿没有过闸。等长或审稿失败时不能应用改写，请保留原稿后再进生成。",
+    };
+  }
+  return {
+    blocked: true,
+    code: "SCRIPT_REVIEW_REQUIRED",
+    message: "审稿还没过闸。请先审稿，再应用改写或明确保留原稿。未完成时付费视频会返回 409 SCRIPT_REVIEW_REQUIRED。",
+  };
+}
+
+export function applyAllowed(input: { gate_status?: string; length_ok?: boolean | null; error_code?: string | null } | null): boolean {
+  if (!input) return false;
+  return input.gate_status === "reviewed" && input.length_ok === true && !input.error_code;
+}
+
+export function ackAllowed(input: { gate_status?: string } | null): boolean {
+  if (!input) return false;
+  return input.gate_status === "reviewed" || input.gate_status === "failed";
+}
+
+export function gateHeadline(gate: ReviewGateSummary): string {
+  if (gate.status === "passed") {
+    if (gate.decision === "applied") return "审稿闸：已通过（已写入改写）";
+    if (gate.decision === "acked") return "审稿闸：已通过（保留原稿）";
+    return "审稿闸：已通过";
+  }
+  if (gate.status === "failed") {
+    return gate.error_code === "SCRIPT_REVIEW_LENGTH"
+      ? "审稿闸：等长未通过，只能保留原稿"
+      : "审稿闸：审稿失败，只能保留原稿";
+  }
+  if (gate.status === "reviewed") return "审稿闸：已审，还没过闸";
+  return "审稿闸：未开始";
+}
+
+export function lengthFailureCopy(input: {
+  gate_status?: string;
+  error_code?: string | null;
+  length_errors?: string[];
+} | null): string | null {
+  if (!input || input.gate_status !== "failed") return null;
+  const lengthFail = input.error_code === "SCRIPT_REVIEW_LENGTH" || (input.length_errors?.length ?? 0) > 0;
+  if (!lengthFail && input.error_code && input.error_code !== "SCRIPT_REVIEW_LENGTH") {
+    return "这次审稿失败，不能应用改写，只能保留原稿。";
+  }
+  const fields = input.length_errors?.length ? input.length_errors.join("、") : "";
+  return fields
+    ? `等长未通过（${fields}）。这次改写不能应用，只能保留原稿。`
+    : "等长未通过。这次改写不能应用，只能保留原稿。";
+}
+
+export function editResetGate(before: ReviewGateSummary, after: ReviewGateSummary): boolean {
+  return before.status !== "pending" && after.status === "pending";
+}
+
+export function angleSwitchLocked(state: ScriptState | null | undefined): boolean {
+  return scriptVersions(state).some((item) => item.status === "confirmed");
+}
+
+export function scriptInFlight(state: ScriptState | null | undefined): boolean {
+  const versions = scriptVersions(state);
+  return versions.length > 0 && versions.some((item) => item.status === "queued" || item.status === "generating");
+}
+
+export function scriptFailed(state: ScriptState | null | undefined): boolean {
+  const versions = scriptVersions(state);
+  return versions.length > 0 && versions.every((item) => item.status === "failed");
+}
+
+export function toEditInput(version: ScriptVersion): EditScriptInput {
+  return {
+    hook: version.hook,
+    painPoint: version.pain_point,
+    sellingPoints: [...version.selling_points],
+    usageScenario: version.usage_scenario,
+    cta: version.cta,
+  };
+}
+
+export function sameEdit(form: EditScriptInput, version: ScriptVersion): boolean {
+  const current = toEditInput(version);
+  return form.hook === current.hook
+    && form.painPoint === current.painPoint
+    && form.usageScenario === current.usageScenario
+    && form.cta === current.cta
+    && form.sellingPoints.join("\n") === current.sellingPoints.join("\n");
+}
+
+export function mergeReviewedVersion(state: ScriptState, version: ScriptVersion): ScriptState {
+  const existing = scriptVersions(state);
+  const found = existing.some((item) => item.version_id === version.version_id);
+  const candidates = found
+    ? existing.map((item) => (item.version_id === version.version_id ? version : item))
+    : [...existing, version];
+  return {
+    version,
+    candidates,
+    selected_version_id: version.version_id,
+  };
+}
+
+export function reviewFacts(review: ScriptReviewResult | null, version: ScriptVersion | null): {
+  gate_status: string;
+  length_ok: boolean | null;
+  error_code: string | null;
+  length_errors: string[];
+} {
+  if (review) {
+    return {
+      gate_status: review.gate_status,
+      length_ok: review.length_ok,
+      error_code: review.error_code,
+      length_errors: review.length_errors,
+    };
+  }
+  const gate = gateSummary(version);
+  return {
+    gate_status: gate.status,
+    length_ok: gate.length_ok,
+    error_code: gate.error_code,
+    length_errors: [],
+  };
+}
+
+/** 准备步勾选的卖点，转成 generate 需要的痛点 / 卖点 / 场景。 */
+export function studioScriptInput(
+  product: { product_name: string; product_note?: string | null },
+  draft: Pick<StudioDraft, "points">,
+): GenerateScriptInput {
+  const chosen = SELLING_POINTS.filter((item) => draft.points.includes(item.id));
+  const points = (chosen.length ? chosen : [SELLING_POINTS[0]]).slice(0, 5);
+  const note = product.product_note?.trim() ?? "";
+  return {
+    painPoint: clamp(points[0]?.desc || note || "使用起来不顺手", 80),
+    sellingPoints: points.map((item) => item.title),
+    usageScenario: clamp(note.length >= 2 ? note : "日常使用", 100),
+    offer: draft.points.includes("promo") ? "下单赠小样" : null,
+  };
+}
+
+function clamp(value: string, max: number): string {
+  const trimmed = value.trim();
+  return trimmed.length <= max ? trimmed : trimmed.slice(0, max);
+}
+
+function defaultSleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function settleScript(
+  state: ScriptState,
+  projectId: string,
+  api: StudioScriptClient,
+  options: LoadScriptOptions | undefined,
+): Promise<ScriptState> {
+  const sleep = options?.sleep ?? defaultSleep;
+  const intervalMs = options?.intervalMs ?? 800;
+  const maxPolls = options?.maxPolls ?? 40;
+  let current = state;
+  let polls = 0;
+  while (scriptInFlight(current) && polls < maxPolls) {
+    polls += 1;
+    await sleep(intervalMs);
+    current = await api.getScript(projectId);
+  }
+  return current;
+}
+
+/** 没有稿就 generate 一次；排队中则轮询 GET，直到 ready / failed 或次数用尽。 */
+export function loadStudioScript(
+  projectId: string,
+  input: GenerateScriptInput,
+  api: StudioScriptClient,
+  options?: LoadScriptOptions,
+): Promise<ScriptState> {
+  const existing = pendingLoads.get(projectId);
+  if (existing) return existing;
+  const job = (async () => {
+    let state = await api.getScript(projectId);
+    if (scriptVersions(state).length === 0) {
+      state = await api.generateScript(projectId, input);
+    }
+    return settleScript(state, projectId, api, options);
+  })().finally(() => {
+    pendingLoads.delete(projectId);
+  });
+  pendingLoads.set(projectId, job);
+  return job;
+}
+
+/** 明确再生成一批。已有 ready 稿时 generate 会另开一批，默认仍是角 0。 */
+export function regenerateStudioScript(
+  projectId: string,
+  input: GenerateScriptInput,
+  api: StudioScriptClient,
+  options?: LoadScriptOptions,
+): Promise<ScriptState> {
+  const job = (async () => {
+    const state = await api.generateScript(projectId, input);
+    return settleScript(state, projectId, api, options);
+  })();
+  return job;
+}

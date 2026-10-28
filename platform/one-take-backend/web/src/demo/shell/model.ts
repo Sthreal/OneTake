@@ -282,9 +282,5 @@ export function imageAdExportPayload(input: { caption: string; ratio: string; pr
   };
 }
 
-export function reviewScript(productName: string): string {
-  return `这瓶${productName}，质地轻盈好吸收，一抹就融入皮肤。三重保湿因子锁住水分，敏感肌也能安心用。现在下单还有限定小样。`;
-}
-
 export const DEMO_CREDITS = 128;
 export const DEMO_FEE = 12;
