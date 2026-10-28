@@ -34,11 +34,12 @@ def _script_input() -> ScriptInput:
 
 
 def _draft() -> ScriptDraft:
+    """过切片 A 的钩子 / 双 CTA，同时仍落在 45–72。"""
     return ScriptDraft(
-        hook="下午三点又渴又困，想喝点提神的",
+        hook="还在为涂口红拔干发愁？",
         pain_point="白水没味道，甜饮料又怕腻",
         selling_points=("显色饱满", "不拔干"),
-        usage_scenario="通勤和开会前都能用",
+        usage_scenario="通勤和开会前都能用，顺手看看",
         cta="点下方链接带走",
     )
 
@@ -98,7 +99,7 @@ def test_over_twenty_percent_fails_the_whole_revision() -> None:
 def test_unlisted_number_fails_without_counting_as_success() -> None:
     # 字数与原稿钩子对齐，失败原因是未提供的数字，不是等长。
     revised = ScriptDraft(
-        hook="下午三点只要999想提神喝",
+        hook="还在为999元发愁吗",
         pain_point=_draft().pain_point,
         selling_points=_draft().selling_points,
         usage_scenario=_draft().usage_scenario,
