@@ -73,6 +73,7 @@ def test_review_is_text_only_and_sends_facts_and_dimensions(monkeypatch) -> None
     for dimension in REVIEW_DIMENSIONS:
         assert dimension in text
     assert "不得新增事实" in text and "条数必须与输入一致" in text
+    assert "20%" in text
     assert "果粒橙" in text and "30% 鲜橙汁" in text
     assert review.changed_fields == []                            # 原样返回 → 没有改动
     assert review.failed_dimensions == []
@@ -147,7 +148,7 @@ def test_apply_review_uses_revised_draft_when_enabled(monkeypatch) -> None:
 def test_apply_review_is_skipped_when_disabled() -> None:
     adapter = _FakeAdapter(review=None)
     draft, returned = apply_script_review(adapter, script_input=_script_input(), draft=_draft(), enabled=False)
-    assert draft == _draft() and returned is None and adapter.calls == 0     # 默认关闭 → 一次都不调
+    assert draft == _draft() and returned is None and adapter.calls == 0     # enabled=False → 一次都不调
 
 
 def test_apply_review_falls_back_to_original_on_failure() -> None:

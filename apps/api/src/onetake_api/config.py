@@ -166,10 +166,13 @@ class Settings(BaseSettings):
     segment_quality_enabled: bool = False
     qwen_vl_price_per_call: float | str | None = None
 
-    # ---- 文案审稿（批次 2b）----
-    # 默认**关闭**：开一次文案审稿会多花一次 LLM 调用（4 维度审稿 + 只重写不合格的单句）。
-    # 审稿失败只降级到未审稿版本，不影响成稿；产物仍过既有的全部内容校验。
-    script_review_enabled: bool = False
+    # ---- 文案审稿闸（切片 C，花钱前）----
+    # 默认开启，并且 GATE=enforce：付费视频前必须有人对当前稿 apply 改写或 ack 保留原稿。
+    # enforce / warn 不在生成任务里自动改写，避免审稿失败被静默当成已经过闸。
+    # off：不拦截（ENABLED=true 时仍可走旧的「生成时增强审稿、失败降级」）。
+    # warn：不拦截，未过闸只记日志。这道闸不替代 cost_approvals。
+    script_review_enabled: bool = True
+    script_review_gate: Literal["off", "warn", "enforce"] = "enforce"
     # ---- 自动链成本护栏（S8+S9+S10）----
     # 自动链**默认关闭**（要一键跑中间段必须显式打开）；预算默认 0 = 只跑免费 / mock 阶段，
     # 一旦这一步在当前配置下要花钱，推进器就停下来等人审批（绝不自动「加预算」）。

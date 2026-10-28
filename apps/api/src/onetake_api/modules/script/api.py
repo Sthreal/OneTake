@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from onetake_api.config import get_settings
 from onetake_api.modules.script.angles import ANGLE_LABELS, FACT_ANGLE, FACT_BATCH_ID, is_selected_facts
 from onetake_api.modules.script.domain import ScriptVersion
 from onetake_api.modules.script.public import ScriptPublicService
-from onetake_api.modules.script.service import ScriptView
+from onetake_api.modules.script.review_gate import effective_gate_status, stored_gate
+from onetake_api.modules.script.service import ScriptReviewView, ScriptView
 from onetake_api.platform.database import get_session
 from onetake_api.platform.request_context import get_request_id
 
@@ -35,6 +38,10 @@ class SelectScriptRequest(BaseModel):
     version_id: str = Field(min_length=4, max_length=40)
 
 
+class ApplyScriptReviewRequest(BaseModel):
+    action: Literal["apply", "ack"]
+
+
 class ScriptFactsData(BaseModel):
     product_name: str
     product_note: str | None
@@ -42,6 +49,27 @@ class ScriptFactsData(BaseModel):
     selling_points: list[str]
     usage_scenario: str
     offer: str | None
+
+
+class ReviewGateSummary(BaseModel):
+    mode: str
+    status: str
+    decision: str | None = None
+    length_ok: bool | None = None
+    error_code: str | None = None
+
+
+class RevisedScriptData(BaseModel):
+    hook: str
+    pain_point: str
+    selling_points: list[str]
+    usage_scenario: str
+    cta: str
+
+
+class ReviewDimensionData(BaseModel):
+    passed: bool
+    reason: str = ""
 
 
 class ScriptVersionData(BaseModel):
@@ -70,6 +98,7 @@ class ScriptVersionData(BaseModel):
     angle_label: str | None = None
     selected: bool = False
     generation_batch_id: str | None = None
+    review_gate: ReviewGateSummary
 
 
 class ScriptData(BaseModel):
@@ -80,6 +109,26 @@ class ScriptData(BaseModel):
 
 class ScriptResponse(BaseModel):
     data: ScriptData
+    request_id: str
+
+
+class ScriptReviewData(BaseModel):
+    gate_mode: str
+    gate_status: str
+    decision: str | None
+    dimensions: dict[str, ReviewDimensionData]
+    failed_dimensions: list[str]
+    revised: RevisedScriptData | None
+    changed_fields: list[str]
+    length_ok: bool
+    length_errors: list[str]
+    error_code: str | None
+    blocks_paid_video: bool
+    version: ScriptVersionData
+
+
+class ScriptReviewResponse(BaseModel):
+    data: ScriptReviewData
     request_id: str
 
 
@@ -117,6 +166,61 @@ def _version_data(version: ScriptVersion) -> ScriptVersionData:
         angle_label=ANGLE_LABELS.get(_angle(version) or ""),
         selected=is_selected_facts(version.facts),
         generation_batch_id=_batch_id(version),
+        review_gate=_review_gate_summary(version),
+    )
+
+
+def _review_gate_summary(version: ScriptVersion) -> ReviewGateSummary:
+    gate = stored_gate(version.facts)
+    status = effective_gate_status(version)
+    visible = status != "pending"
+    length_ok = gate.get("length_ok")
+    return ReviewGateSummary(
+        mode=get_settings().script_review_gate,
+        status=status,
+        decision=gate.get("decision") if status == "passed" else None,
+        length_ok=bool(length_ok) if visible and length_ok is not None else None,
+        error_code=gate.get("error_code") if visible else None,
+    )
+
+
+def _revised_data(payload: dict | None) -> RevisedScriptData | None:
+    if not isinstance(payload, dict):
+        return None
+    points = payload.get("selling_points") or []
+    return RevisedScriptData(
+        hook=str(payload.get("hook") or ""),
+        pain_point=str(payload.get("pain_point") or ""),
+        selling_points=[str(item) for item in points],
+        usage_scenario=str(payload.get("usage_scenario") or ""),
+        cta=str(payload.get("cta") or ""),
+    )
+
+
+def _review_response(view: ScriptReviewView) -> ScriptReviewResponse:
+    dimensions = {
+        name: ReviewDimensionData(
+            passed=bool(item.get("passed")) if isinstance(item, dict) else False,
+            reason=str(item.get("reason") or "") if isinstance(item, dict) else "",
+        )
+        for name, item in view.dimensions.items()
+    }
+    return ScriptReviewResponse(
+        data=ScriptReviewData(
+            gate_mode=view.gate_mode,
+            gate_status=view.gate_status,
+            decision=view.decision,
+            dimensions=dimensions,
+            failed_dimensions=list(view.failed_dimensions),
+            revised=_revised_data(view.revised),
+            changed_fields=list(view.changed_fields),
+            length_ok=view.length_ok,
+            length_errors=list(view.length_errors),
+            error_code=view.error_code,
+            blocks_paid_video=view.blocks_paid_video,
+            version=_version_data(view.version),
+        ),
+        request_id=get_request_id(),
     )
 
 
@@ -194,3 +298,21 @@ def select_script(
 @router.post("/confirm", response_model=ScriptResponse)
 def confirm_script(project_id: str, session: Session = Depends(get_session)) -> ScriptResponse:
     return _response(ScriptPublicService().confirm(session, project_id))
+
+
+@router.post("/review", response_model=ScriptReviewResponse)
+def review_script(project_id: str, session: Session = Depends(get_session)) -> ScriptReviewResponse:
+    """对当前 ready / confirmed 稿显式审稿。200 只表示审完了，gate_status=passed 才算过闸。"""
+    return _review_response(ScriptPublicService().review(session, project_id))
+
+
+@router.post("/review/apply", response_model=ScriptReviewResponse)
+def apply_script_review_route(
+    project_id: str,
+    payload: ApplyScriptReviewRequest,
+    session: Session = Depends(get_session),
+) -> ScriptReviewResponse:
+    """apply 写入等长改写；ack 明确保留原稿。等长失败只能 ack。"""
+    return _review_response(
+        ScriptPublicService().apply_review(session, project_id, action=payload.action)
+    )

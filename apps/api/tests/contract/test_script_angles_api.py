@@ -67,6 +67,20 @@ def _payload() -> dict:
     }
 
 
+def _pass_review_gate(client, project_id: str) -> None:
+    """切片 C：confirm 前要对当前 latest 稿 ack。select 换 latest 之后必须重走。"""
+    reviewed = client.post(f"/api/v1/projects/{project_id}/script/review")
+    assert reviewed.status_code == 200, reviewed.text
+    acked = client.post(
+        f"/api/v1/projects/{project_id}/script/review/apply",
+        json={"action": "ack"},
+    )
+    assert acked.status_code == 200, acked.text
+    assert acked.json()["data"]["version"]["version_id"] == client.get(
+        f"/api/v1/projects/{project_id}/script"
+    ).json()["data"]["version"]["version_id"]
+
+
 def _generate_ready(client, db_session, object_storage, monkeypatch) -> tuple[str, dict]:
     monkeypatch.setattr("onetake_api.modules.script.service.get_queue", lambda _name: FakeQueue())
     project_id = _seed(db_session, object_storage)
@@ -118,6 +132,7 @@ def test_generate_returns_three_candidates_and_defaults_to_angle_zero(
     with pytest.raises(ContentPlanConflictError, match="文案尚未确认"):
         ContentPlanApplicationService().generate(db_session, project_id)
 
+    _pass_review_gate(client, project_id)
     confirmed = client.post(f"/api/v1/projects/{project_id}/script/confirm")
     assert confirmed.status_code == 200
     confirmed_body = confirmed.json()["data"]
@@ -151,6 +166,7 @@ def test_select_makes_that_angle_latest_and_only_it_can_be_confirmed(
     assert latest["version"]["version_id"] == comparison["version_id"]
     assert latest["version"]["angle"] == "comparison"
 
+    _pass_review_gate(client, project_id)
     confirmed = client.post(f"/api/v1/projects/{project_id}/script/confirm")
     assert confirmed.status_code == 200
     confirmed_body = confirmed.json()["data"]

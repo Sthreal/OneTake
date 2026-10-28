@@ -105,6 +105,9 @@ def _job_count(session: Session, project_id: str) -> int:
 
 def test_paid_endpoints_require_cost_approval(client, db_session, object_storage, monkeypatch) -> None:
     project, plan = _build_project(db_session, object_storage, monkeypatch, "付费闸")
+    # 本用例钉费用闸。审稿闸默认 enforce 会先返回 SCRIPT_REVIEW_REQUIRED。
+    monkeypatch.setenv("SCRIPT_REVIEW_GATE", "off")
+    get_settings.cache_clear()
     segments = VideoSegmentPublicService().materialize_segments(db_session, project_id=project.id)
     assert segments, "需要至少一个分段用于返修/候选入口"
     segment_id = segments[0].id
