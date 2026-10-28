@@ -68,7 +68,14 @@ class QwenVlScriptAdapter:
         self._endpoint = endpoint
         self.model = model
 
-    def generate(self, *, image_bytes: bytes, mime_type: str, script_input: ScriptInput) -> ScriptDraft:
+    def generate(
+        self,
+        *,
+        image_bytes: bytes,
+        mime_type: str,
+        script_input: ScriptInput,
+        angle: str | None = None,
+    ) -> ScriptDraft:
         if not self._api_key:
             raise QwenVlScriptError("DASHSCOPE_API_KEY 未配置")
         if not image_bytes:
@@ -94,6 +101,13 @@ class QwenVlScriptAdapter:
             "selling_points 必须是字符串数组。不要输出 Markdown。事实："
             + json.dumps(facts, ensure_ascii=False)
         )
+        if angle is not None:
+            from onetake_api.modules.script.angles import angle_prompt_suffix
+
+            try:
+                prompt += angle_prompt_suffix(angle)
+            except ValueError as exc:
+                raise QwenVlScriptError(str(exc)) from exc
         try:
             response = httpx.post(
                 self._endpoint,
