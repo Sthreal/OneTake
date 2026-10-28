@@ -409,6 +409,7 @@ class ScriptApplicationService:
             session.commit()
             return version
         except DomainError as exc:
+            logger.warning("文案生成未通过校验：%s %s", exc.code, getattr(exc, "message", exc))
             self._jobs.mark_failed(session, job, exc.code)
             return self._mark_failed(session, version, exc.code)
         except Exception:

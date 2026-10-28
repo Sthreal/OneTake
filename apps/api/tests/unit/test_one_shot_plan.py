@@ -137,7 +137,8 @@ def test_one_shot_estimate_flags_missing_r2v_price() -> None:
 def test_segmented_estimate_keeps_i2v_metrics() -> None:
     plan = SimpleNamespace(id="vid_seg", mode="product", template_id="clean", duration_seconds=18.0, path="segmented")
     estimate = estimate_video_generation(plan, _one_shot_settings())
-    assert estimate.i2v_clips == 4
+    # 使用镜 7 秒会按上限拆成两次，分段调用数是 5；整段秒数仍由各镜相加。
+    assert estimate.i2v_clips == 5
     assert estimate.r2v_calls == 0
 
 def test_every_beat_purpose_has_a_chinese_label() -> None:

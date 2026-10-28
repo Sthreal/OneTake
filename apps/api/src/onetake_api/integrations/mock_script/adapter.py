@@ -16,7 +16,8 @@ class MockScriptAdapter:
         hook = f"还在为{script_input.pain_point}烦恼？看看{product}。"
         pain = f"重点看它的实际表现。"
         points = [f"{point}。" for point in script_input.selling_points]
-        scenario = f"日常用起来很自然。"
+        # 末尾轻提是双 CTA 的前半句（P4A），完整行动号召仍放在 cta，避免把场景句写成第二段广告。
+        scenario = "日常用起来很自然，顺手看看。"
         if script_input.offer:
             cta = f"感兴趣就来看看。"
         else:

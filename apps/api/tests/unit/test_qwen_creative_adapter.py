@@ -19,5 +19,7 @@ def test_qwen_creative_only_updates_visual_fields() -> None:
     planner = QwenCreativePlanner(api_key="key", endpoint="https://example.test/qwen", model="qwen-plus", client=httpx.Client(transport=httpx.MockTransport(handler)))
     result = planner.enhance(variants=variants, facts={"product_name": "榨汁杯"})
     assert result[0].scenes[0].start_seconds == 0
-    assert result[0].scenes[0].script_excerpt == "第一句第二句"
+    # 创意规划只改画面字段。字幕落在哪一镜跟着 BEATS 走，这里锁的是「没被改写」。
+    assert result[0].scenes[0].script_excerpt == variants[0].scenes[0].script_excerpt
+    assert "第一句" in result[0].scenes[0].script_excerpt
     assert result[0].scenes[0].prompt == "创意-scene_1"
