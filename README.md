@@ -103,67 +103,38 @@ One Take 把这些问题收进一个工作台：
 
 ## 🚀 Quick Start
 
-### 1. 启动 One Take Core
-
 ```powershell
 Copy-Item .env.example .env
-docker compose up -d --build api worker mcp
+docker compose up -d --build
 ```
 
 启动后：
 
+- One Take Web：http://localhost:5173
 - API 文档：http://localhost:8000/docs
 - Provider 状态：http://localhost:8000/api/v1/providers/status
 - MCP：http://localhost:8010/mcp
 - MinIO Console：http://localhost:9001
 
-### 2. 启动 One Take 产品后端
-
-另开一个 PowerShell：
-
-```powershell
-cd platform/one-take-backend
-npm install
-$env:ONETAKE_MCP_URL = "http://127.0.0.1:8010/mcp"
-$env:ONETAKE_MCP_TOKEN = "<与 One Take MCP 配置一致>"
-$env:ONETAKE_API_URL = "http://127.0.0.1:8000"
-npm run dev:backend
-```
-
-### 3. 启动产品 Web
-
-再开一个 PowerShell：
-
-```powershell
-cd platform/one-take-backend
-npm --prefix web install
-npm --prefix web run dev
-```
-
-访问：http://localhost:5173
+默认从 `.env.example` 启动时使用 Mock，不产生付费调用。真实 Provider 必须显式关闭 Mock 安全锁并配置凭据。
 
 ## 🧱 架构
 
 ```text
 One Take Web
     │
-    ├─ /api/*              → One Take Core API
-    ├─ /miniclaw-api/*     → One Take 产品后端
-    └─ /miniclaw-ws/*      → One Take 产品后端事件流
+    └─ /api/*              → One Take Core API
+
+External Agent
+    │
+    └─ MCP                 → One Take Core API
 
 One Take Core API
-    ├─ PostgreSQL          项目、素材、Pipeline、Outbox
+    ├─ PostgreSQL          项目、素材、Pipeline、任务状态
     ├─ Redis / RQ          Worker 队列与异步任务
     ├─ MinIO               媒体对象存储
     ├─ Provider Adapters   AI、渲染、配音和字幕能力
     └─ MCP Bridge          受控的只读与人工审批写工具
-
-One Take Agent Platform
-    ├─ Workspace           每个项目一个隔离工作区
-    ├─ Session             会话、流式输出、取消和恢复
-    ├─ Memory / Skills     项目级上下文和可复用能力
-    ├─ Scheduler           定时任务和后台运行
-    └─ Channels            Web、MCP 和消息渠道统一接入
 ```
 
 ## 📁 仓库结构
@@ -171,18 +142,21 @@ One Take Agent Platform
 ```text
 OneTake/
 ├─ apps/
-│  ├─ api/                         # One Take 核心 FastAPI 服务
-│  ├─ worker/                      # RQ Worker 与媒体处理任务
+│  ├─ api/                         # One Take 核心 FastAPI 服务与 RQ Worker 任务
 │  ├─ mcp/                         # One Take 受控 MCP Bridge
-│  └─ web/                         # 已冻结的旧版 Web，仅用于回退
+│  └─ cli/                         # 命令行运维与调试工具
 ├─ platform/
-│  └─ one-take-backend/            # 产品后端、Agent Runtime 与当前产品 Web
+│  └─ one-take-backend/
+│     ├─ web/                      # 当前产品 Web
+│     └─ LICENSE                   # 原 MiniClaw 平台许可证保留
 ├─ assets/readme/                  # GitHub 首页视觉素材
 ├─ docs/                           # 架构、方案档案和验收报告
 ├─ infra/                          # 数据库与基础设施配置
 ├─ scripts/                        # 开发和验收脚本
 └─ docker-compose.yml              # One Take 核心服务编排
 ```
+
+MiniClaw 后端已归档到 tag `archive/miniclaw-backend-2026-10-23`；可借鉴设计见 `docs/miniclaw-可借鉴设计.md`。
 
 ## 🧪 开发与测试
 
@@ -192,20 +166,17 @@ One Take Core：
 docker compose exec -T api pytest -q
 ```
 
-产品后端：
-
-```powershell
-cd platform/one-take-backend
-npm run typecheck
-npm test -- --run
-```
-
 产品 Web：
 
 ```powershell
-cd platform/one-take-backend
-npm --prefix web run test:run
-npm --prefix web run build
+npm --prefix platform/one-take-backend/web run test:run
+npm --prefix platform/one-take-backend/web run build
+```
+
+真实链路零费用预检：
+
+```powershell
+python scripts/check_real_chain.py
 ```
 
 ## 🔐 Provider 模式

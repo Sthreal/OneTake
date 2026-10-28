@@ -8,11 +8,11 @@ from pathlib import Path
 
 from imageio_ffmpeg import get_ffmpeg_exe
 
+from onetake_api.integrations.mock_video.motion_filters import DEFAULT_MOTION, build_motion_filter
 from onetake_api.platform.errors import DomainError
 
 MAX_OUTPUT_BYTES = 30 * 1024 * 1024
-ZOOM_MAX_SCALE = 1.05
-ZOOM_SCALE_RANGE = ZOOM_MAX_SCALE - 1
+# 超采样倍数：**画布策略只允许写在这里**（运镜模块不读它，见 motion_filters 模块说明）
 ZOOM_SUPERSAMPLE = 2
 
 
@@ -68,16 +68,23 @@ def render_base_video(
             "format=yuv420p"
         )
         if mode == "product" and template_id == "dynamic":
+            # 2× 超采样：**画布策略的唯一定义处**。运镜模块是分辨率无关的纯函数，
+            # 由这里把放大后的画布传进去（所以 motion_filters.py 里 grep 不到 ZOOM_SUPERSAMPLE）。
             motion_width = width * ZOOM_SUPERSAMPLE
             motion_height = height * ZOOM_SUPERSAMPLE
-            total_frames = max(1.0, duration_seconds * fps)
-            zoom_step = ZOOM_SCALE_RANGE / total_frames
+            # 运镜：默认缓慢推近，与改造前逐字等价（由 test_mock_video_renderer 锁定整串）
+            motion = build_motion_filter(
+                DEFAULT_MOTION,
+                width=motion_width,
+                height=motion_height,
+                fps=fps,
+                duration_seconds=duration_seconds,
+            )
             layout_filter = (
                 f"scale={motion_width}:{motion_height}:force_original_aspect_ratio=decrease,"
                 f"pad={motion_width}:{motion_height}:(ow-iw)/2:(oh-ih)/2:color=white,"
                 "format=yuv420p,"
-                f"zoompan=z='min(1+{zoom_step:.8f}*on,{ZOOM_MAX_SCALE})':"
-                f"d=1:s={motion_width}x{motion_height}:fps={fps},"
+                f"{motion},"
                 f"scale={width}:{height}:flags=lanczos,"
                 f"fade=t=in:st=0:d=1,fade=t=out:st={max(0.0, duration_seconds - 1):.3f}:d=1"
             )
@@ -182,7 +189,8 @@ def validate_final_video(
     metadata = inspect_video(video_bytes)
     if metadata.width != expected_width or metadata.height != expected_height:
         raise MockVideoError(f"成片分辨率错误：{metadata.width}x{metadata.height}")
-    if not 18 <= metadata.duration_seconds <= 25:
+    # 短版（2026-10-15）：成片时长跟随配音（8~25 秒），不再钉死 18 秒下限
+    if not 8 <= metadata.duration_seconds <= 25:
         raise MockVideoError(f"成片时长超出范围：{metadata.duration_seconds:.2f}s")
     if abs(metadata.fps - expected_fps) > 0.1:
         raise MockVideoError(f"成片帧率错误：{metadata.fps:g}fps")

@@ -13,6 +13,7 @@ from onetake_api.modules.maintenance.service import MediaLifecycleService
 from onetake_api.modules.project.domain.errors import ProjectValidationError
 from onetake_api.modules.project.domain.model import Project
 from onetake_api.modules.project.public import ProjectPublicService
+from onetake_api.modules.project.url_import import import_project_from_url
 from onetake_api.platform.database import get_session
 from onetake_api.platform.request_context import get_request_id
 
@@ -30,16 +31,38 @@ class ProjectCreateRequest(BaseModel):
 class ProjectUpdateRequest(BaseModel):
     product_name: ProductName | None = None
     product_note: ProductNote | None = None
+    # 出镜人（人物库）：传 id 选用，传空字符串表示取消
+    character_id: str | None = None
 
 
 class ProjectData(BaseModel):
     project_id: str
     product_name: str
     product_note: str | None
+    character_id: str | None = None
     status: str
     created_at: datetime
     updated_at: datetime
 
+
+class ProjectFromUrlRequest(BaseModel):
+    """粘贴一个商品链接。长度上限与 `url_fetch.guard.MAX_URL_LENGTH` 保持一致。"""
+
+    url: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2048)]
+
+
+class ProjectFromUrlData(BaseModel):
+    project_id: str
+    product_name: str
+    product_price: str | None
+    asset_ids: list[str]
+    warning: str | None
+    source: str
+
+
+class ProjectFromUrlResponse(BaseModel):
+    data: ProjectFromUrlData
+    request_id: str
 
 class ProjectResponse(BaseModel):
     data: ProjectData
@@ -56,6 +79,7 @@ def _project_data(project: Project) -> ProjectData:
         project_id=project.id,
         product_name=project.product_name,
         product_note=project.product_note,
+        character_id=project.character_id,
         status=project.status,
         created_at=project.created_at,
         updated_at=project.updated_at,
@@ -77,6 +101,32 @@ def create_project(
     return ProjectResponse(data=_project_data(project), request_id=get_request_id())
 
 
+@router.post("/from-url", response_model=ProjectFromUrlResponse, status_code=status.HTTP_201_CREATED)
+def create_project_from_url(
+    payload: ProjectFromUrlRequest,
+    session: Session = Depends(get_session),
+    storage=Depends(get_object_storage),
+) -> ProjectFromUrlResponse:
+    """从商品链接建项目（S13）。
+
+    失败语义：**内网/环回/云元数据地址一律 422 且不发请求**（SSRF 防护，`UrlNotAllowedError`
+    由全局 DomainError 处理器转成 422）；**普通抓取失败仍然 201**，只在 `warning` 里说明原因 ——
+    项目已建好，用户可继续手动上传。
+    """
+    result = import_project_from_url(session, url=payload.url, storage=storage)
+    session.commit()
+    return ProjectFromUrlResponse(
+        data=ProjectFromUrlData(
+            project_id=result.project_id,
+            product_name=result.product_name,
+            product_price=result.product_price,
+            asset_ids=result.asset_ids,
+            warning=result.warning,
+            source=result.source,
+        ),
+        request_id=get_request_id(),
+    )
+
 @router.patch("/{project_id}", response_model=ProjectResponse)
 def update_project(
     project_id: str,
@@ -93,6 +143,8 @@ def update_project(
         product_name=payload.product_name,
         product_note=payload.product_note,
         update_product_note="product_note" in payload.model_fields_set,
+        character_id=payload.character_id,
+        update_character_id="character_id" in payload.model_fields_set,
     )
     session.commit()
     return ProjectResponse(data=_project_data(project), request_id=get_request_id())

@@ -16,5 +16,8 @@ class ContentPlanPublicService:
     def update(self, session: Session, **kwargs):
         return self._service.update(session, **kwargs)
 
+    def update_scene_camera(self, session: Session, **kwargs):
+        return self._service.update_scene_camera(session, **kwargs)
+
     def confirm(self, session: Session, project_id: str):
         return self._service.confirm(session, project_id)

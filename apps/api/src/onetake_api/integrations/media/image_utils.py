@@ -70,3 +70,20 @@ def image_dimensions(image_bytes: bytes) -> tuple[int, int]:
 
     with Image.open(BytesIO(image_bytes)) as image:
         return image.size
+
+
+def flatten_for_reference(image_bytes: bytes, *, background: tuple[int, int, int] = (255, 255, 255)) -> bytes:
+    """把带透明通道的图片压到不透明底上（Phase 3 参考生视频用）。
+
+    百炼 r2v 的 `reference_image` **不支持透明通道**，直接传透明 PNG 会被拒；
+    这里统一 flatten 成 RGB PNG，颜色分量不变，只把 alpha 合成到指定底色。
+    """
+    if not image_bytes:
+        raise ValueError("输入图片为空")
+    with Image.open(BytesIO(image_bytes)) as source:
+        image = ImageOps.exif_transpose(source).convert("RGBA")
+        canvas = Image.new("RGB", image.size, background)
+        canvas.paste(image, (0, 0), image)
+        output = BytesIO()
+        canvas.save(output, format="PNG", optimize=True)
+        return output.getvalue()

@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "onetake-cli"
+version = "1.0.0"
+description = "One Take 命令行（只包既有 HTTP 端点，不重写业务逻辑）"
+requires-python = ">=3.11"
+dependencies = []          # 零依赖：只用标准库
+
+[project.scripts]
+onetake = "onetake_cli.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

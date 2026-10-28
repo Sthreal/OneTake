@@ -11,9 +11,11 @@ from imageio_ffmpeg import get_ffmpeg_exe
 from onetake_api.platform.errors import DomainError
 
 ANCHOR_SOURCE_SCENE_KEYFRAME = "scene_keyframe"
+# 商品入画关键帧（Phase 1 起：已被用户采用的关键帧优先作为锚点）
+ANCHOR_SOURCE_INTEGRATED_KEYFRAME = "integrated_keyframe"
 ANCHOR_SOURCE_PREVIOUS_TAIL = "previous_tail"
 ANCHOR_SOURCE_MANUAL = "manual"
-ANCHOR_SOURCES = frozenset({ANCHOR_SOURCE_SCENE_KEYFRAME, ANCHOR_SOURCE_PREVIOUS_TAIL, ANCHOR_SOURCE_MANUAL})
+ANCHOR_SOURCES = frozenset({ANCHOR_SOURCE_SCENE_KEYFRAME, ANCHOR_SOURCE_INTEGRATED_KEYFRAME, ANCHOR_SOURCE_PREVIOUS_TAIL, ANCHOR_SOURCE_MANUAL})
 DEFAULT_TAIL_OFFSET_FRAMES = 2
 
 
@@ -34,6 +36,8 @@ class SegmentAnchor:
     frame_bytes: bytes
     source: str
     source_candidate_id: str | None = None
+    # 尾帧（Phase 2 首尾帧转场）：与首帧一起交给 kf2v 模型，转场在片段内生成
+    end_frame_bytes: bytes | None = None
 
     def __post_init__(self) -> None:
         if not self.frame_bytes:
@@ -114,9 +118,20 @@ def resolve_segment_anchor(
     return SegmentAnchor(frame_bytes=previous_tail_frame, source=ANCHOR_SOURCE_PREVIOUS_TAIL, source_candidate_id=previous_candidate_id)
 
 
-def concatenate_videos(*, clips: list[bytes], duration_seconds: float, fps: int) -> bytes:
+def concatenate_videos(
+    *, clips: list[bytes], duration_seconds: float, fps: int, keep_audio: bool = False
+) -> bytes:
+    """拼接视频片段。
+
+    `keep_audio=False`（默认）：**丢弃所有片段音轨**（`-an`）——这是产品契约所需：
+    语音只来自 TTS 配音，用户可在成片前编辑字幕并重新配音，模型自带的声音无法跟随字幕变化。
+    `keep_audio=True`：保留模型原声（整片一次生成路径的口型台词场景）；缺音轨的片段会自动补静音，
+    避免 concat 因流不一致而失败。
+    """
     if not clips:
         raise VideoProcessingError("没有可拼接的视频片段")
+    if keep_audio:
+        clips = [_ensure_audio_track(clip) for clip in clips]
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir)
         paths = []
@@ -128,15 +143,57 @@ def concatenate_videos(*, clips: list[bytes], duration_seconds: float, fps: int)
         list_path.write_text("".join(f"file '{path.as_posix()}'\n" for path in paths), encoding="utf-8")
         output = root / "combined.mp4"
         try:
-            subprocess.run(
-                [get_ffmpeg_exe(), "-y", "-f", "concat", "-safe", "0", "-i", str(list_path), "-t", f"{duration_seconds:.3f}", "-r", str(fps), "-an", "-c:v", "libx264", "-b:v", "8M", "-pix_fmt", "yuv420p", str(output)],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
+            command = [
+                get_ffmpeg_exe(), "-y", "-f", "concat", "-safe", "0", "-i", str(list_path),
+                "-t", f"{duration_seconds:.3f}", "-r", str(fps),
+                "-c:v", "libx264", "-b:v", "8M", "-pix_fmt", "yuv420p",
+            ]
+            command += ["-c:a", "aac", "-ar", "48000", "-ac", "2"] if keep_audio else ["-an"]
+            command.append(str(output))
+            subprocess.run(command, check=True, capture_output=True, text=True)
         except (subprocess.CalledProcessError, OSError) as exc:
             raise VideoProcessingError("视频片段拼接失败") from exc
         return output.read_bytes()
+
+
+
+
+def inspect_has_audio(video_bytes: bytes) -> bool:
+    """视频是否含音轨（拼接时决定是否需要补静音、以及校验语音开关）。"""
+    if not video_bytes:
+        return False
+    with tempfile.TemporaryDirectory() as temp_dir:
+        input_path = Path(temp_dir) / "probe.mp4"
+        input_path.write_bytes(video_bytes)
+        try:
+            completed = subprocess.run(
+                [get_ffmpeg_exe(), "-hide_banner", "-i", str(input_path), "-f", "null", "-"],
+                check=False, capture_output=True, text=True,
+            )
+        except OSError:
+            return False
+        return any(" Audio: " in line for line in completed.stderr.splitlines())
+
+
+def _ensure_audio_track(video_bytes: bytes) -> bytes:
+    """给没有音轨的片段补一条静音轨，保证 concat 时所有输入流一致。"""
+    if inspect_has_audio(video_bytes):
+        return video_bytes
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        input_path = root / "in.mp4"
+        output_path = root / "out.mp4"
+        input_path.write_bytes(video_bytes)
+        subprocess.run(
+            [
+                get_ffmpeg_exe(), "-y", "-i", str(input_path),
+                "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
+                "-shortest", "-map", "0:v:0", "-map", "1:a:0",
+                "-c:v", "copy", "-c:a", "aac", "-ar", "48000", "-ac", "2", str(output_path),
+            ],
+            check=True, capture_output=True, text=True,
+        )
+        return output_path.read_bytes()
 
 
 def inspect_video_dimensions(video_bytes: bytes) -> tuple[int, int]:

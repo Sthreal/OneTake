@@ -11,12 +11,16 @@ from onetake_api.config import get_settings
 from onetake_api.modules.asset.api import router as asset_router
 from onetake_api.modules.content_plan.api import router as content_plan_router
 from onetake_api.modules.content_qa.api import router as content_qa_router
+from onetake_api.modules.content_qa.api import repairs_router as content_qa_repairs_router
 from onetake_api.modules.audio_subtitle.api import router as audio_subtitle_router
 from onetake_api.modules.job.api import router as job_router
 from onetake_api.modules.main_image.api import router as main_image_router
+from onetake_api.modules.output.api import export_router as export_router
 from onetake_api.modules.output.api import router as output_router
 from onetake_api.modules.pipeline.api import router as pipeline_router
+from onetake_api.modules.pipeline.auto_run_api import router as auto_run_router
 from onetake_api.modules.project.api import router as project_router
+from onetake_api.modules.preview.api import router as preview_router
 from onetake_api.modules.provider.api import router as provider_router
 from onetake_api.modules.provider.service import get_provider_statuses
 from onetake_api.modules.recognition.api import router as recognition_router
@@ -46,19 +50,26 @@ app.add_middleware(
 )
 register_error_handlers(app)
 app.include_router(project_router)
+app.include_router(preview_router)
 app.include_router(provider_router)
 app.include_router(asset_router)
 app.include_router(content_plan_router)
 app.include_router(content_qa_router)
+app.include_router(content_qa_repairs_router)
 app.include_router(pipeline_router)
+app.include_router(auto_run_router)
 app.include_router(recognition_router)
 app.include_router(main_image_router)
 app.include_router(script_router)
 app.include_router(voice_router)
+from onetake_api.modules.character.api import router as character_router
+
+app.include_router(character_router)
 app.include_router(subtitle_router)
 app.include_router(audio_subtitle_router)
 app.include_router(video_router)
 app.include_router(output_router)
+app.include_router(export_router)
 app.include_router(job_router)
 
 

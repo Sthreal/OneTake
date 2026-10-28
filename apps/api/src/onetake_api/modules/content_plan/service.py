@@ -52,10 +52,17 @@ class ContentPlanApplicationService:
         return self._repository.latest(session, project_id)
 
     def generate(self, session: Session, project_id: str) -> ContentPlan:
-        self._projects.get_project(session, project_id=project_id)
+        project = self._projects.get_project(session, project_id=project_id)
         pipeline = self._pipeline.get_or_create(session, project_id)
         if pipeline.status not in {"audio_subtitle_confirmed", "content_plan_ready", "content_plan_confirmed"}:
-            raise ContentPlanConflictError("请先确认配音和字幕")
+            # 别再说死一句"请先确认配音和字幕"：2026-10-17 用户实测，自动链其实是**文案阶段失败**，
+            # 界面上却提示"确认配音和字幕"，导致完全找不到问题在哪。这里如实报当前状态与卡住的阶段。
+            stage = getattr(pipeline, "stage", None)
+            detail = f"（停在「{stage}」这一步）" if stage else ""
+            raise ContentPlanConflictError(
+                f"还不能生成分镜：前 4 段没有跑完，自动链当前状态是「{pipeline.status}」{detail}。"
+                "请先重试自动链（可重复重试）；文案反复不合格时可让它重新生成一次。"
+            )
         script_view = self._scripts.latest(session, project_id)
         script = script_view.version
         if script is None or script.status != SCRIPT_CONFIRMED:
@@ -64,7 +71,12 @@ class ContentPlanApplicationService:
         if subtitle is None or subtitle.status != SUBTITLE_CONFIRMED:
             raise ContentPlanConflictError("字幕尚未确认")
         try:
-            variants = generate_rule_variants(segments=subtitle.segments)
+            variants = generate_rule_variants(
+                segments=subtitle.segments,
+                # 商品形态只从"商品名/备注"确定性推断（判不出来就不给倾向）；只影响画面与表达倾向
+                product_name=getattr(project, "product_name", "") or "",
+                product_note=getattr(project, "product_note", "") or "",
+            )
         except ValueError as exc:
             raise ContentPlanValidationError(str(exc)) from exc
         settings = get_settings()
@@ -77,7 +89,8 @@ class ContentPlanApplicationService:
             variants = planner.enhance(variants=variants, facts={**script.facts, "hook": script.hook, "pain_point": script.pain_point, "selling_points": script.selling_points, "usage_scenario": script.usage_scenario, "offer": script.offer, "cta": script.cta})
             provider = "qwen-plus"
             model = settings.creative_planner_model
-        total_duration = max(18.0, max(float(scene.end_seconds) for variant in variants for scene in variant.scenes))
+                # 短版：分镜总时长不再钉死 18 秒（现在是 3+3+4+4 = 14 秒）
+        total_duration = max(8.0, max(float(scene.end_seconds) for variant in variants for scene in variant.scenes))
         now = self._clock.now()
         plan = ContentPlan(
             id=new_id("cpl"), project_id=project_id, script_version_id=script.id, subtitle_version_id=subtitle.id,
@@ -107,6 +120,40 @@ class ContentPlanApplicationService:
                 raise ContentPlanValidationError("分镜字段无效") from exc
             variants[index] = replace(variants[index], scenes=parsed)
         updated = replace(plan, variants=variants, selected_variant_index=index, updated_at=self._clock.now())
+        self._repository.update(session, updated)
+        session.commit()
+        return updated
+
+    def update_scene_camera(
+        self, session: Session, project_id: str, *, scene_id: str, camera_move: str
+    ) -> ContentPlan:
+        """只改**一个分镜的运镜**（导演模式的逐镜控制）。
+
+        与批量 `update()` 的关键区别：**允许已确认的方案**。理由：运镜是**生成参数**（进 i2v 运动提示词），
+        不是分镜结构 —— 镜数 / 时长 / 文案 / 商品位都没变，所以"已确认"这道闸不该拦它；
+        它也不改变费用预估（kf2v / i2v 条数不变）→ 既有费用批准继续有效。
+        **生效时机**：下一次生成该镜时（已生成的候选不动，与"逐镜重拍"是两条独立的路）。
+        """
+        plan = self._require_plan(session, project_id)
+        camera = (camera_move or "").strip()
+        if not camera:
+            raise ContentPlanValidationError("运镜描述不能为空")
+        if len(camera) > 200:
+            raise ContentPlanValidationError("运镜描述不能超过 200 字")
+        variants = list(plan.variants)
+        index = plan.selected_variant_index
+        if index < 0 or index >= len(variants):
+            raise ContentPlanValidationError("分镜方案索引无效")
+        variant = variants[index]
+        scenes = list(variant.scenes)
+        for position, scene in enumerate(scenes):
+            if scene.scene_id == scene_id:
+                scenes[position] = replace(scene, camera_move=camera)
+                break
+        else:
+            raise ContentPlanValidationError("分镜不存在")
+        variants[index] = replace(variant, scenes=scenes)
+        updated = replace(plan, variants=variants, updated_at=self._clock.now())
         self._repository.update(session, updated)
         session.commit()
         return updated

@@ -94,7 +94,7 @@ def test_script_flow_success_and_edit(
     assert job is not None
     ready = service.process_job(db_session, job.id)
     assert ready.status == "ready"
-    assert 85 <= ready.character_count <= 120
+    assert 45 <= ready.character_count <= 72
     assert ready.full_text
     assert PipelinePublicService().get_or_create(db_session, project_id).status == "script_ready"
 
@@ -105,7 +105,7 @@ def test_script_flow_success_and_edit(
         pain_point=ready.pain_point,
         selling_points=ready.selling_points,
         usage_scenario=ready.usage_scenario,
-        cta="想确认这些已经写明的特点，现在就来进一步看看。",
+        cta="现在就来进一步看看。",
     )
     assert edited.version is not None
     assert edited.version.status == "ready"

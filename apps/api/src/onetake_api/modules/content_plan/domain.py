@@ -27,6 +27,9 @@ class ContentScene:
     camera_move: str = "slow_push_in"
     product_mode: str = "overlay"
     transition: str = "fade"
+    # 空镜（product_mode=absent）的**英文检索词**（批次 4a）：供免 Key 素材检索；
+    # 非空镜恒为空串（商品必须在帧内，不允许用通用素材顶替）。
+    stock_query: str = ""
 
 
 @dataclass(frozen=True)

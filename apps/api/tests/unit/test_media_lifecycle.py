@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
+from onetake_api.modules.character.public import sheet_key, source_sheet_key
 from onetake_api.modules.maintenance.service import MediaLifecycleService
 
 
@@ -53,6 +54,23 @@ def test_delete_project_media_deletes_only_project_prefix() -> None:
     assert storage.deleted_prefixes == ["projects/prj_1/"]
     assert service._outbox.events[0]["event_name"] == "ProjectMediaDeleted"
     assert service._outbox.events[0]["payload"] == {"project_id": "prj_1", "deleted_objects": 2}
+
+
+def test_delete_project_media_never_touches_the_character_library() -> None:
+    """出镜人母版存 `characters/` **独立前缀** → 项目媒体清理永远碰不到它（跨项目复用才成立）。"""
+    service = MediaLifecycleService()
+    service._projects = FakeProjects()
+    service._outbox = FakeOutbox()
+    service._clock = FakeClock()
+    storage = FakeStorage()
+
+    deleted = service.delete_project_media(None, project_id="prj_1", storage=storage)
+
+    assert deleted == 2
+    assert storage.deleted_prefixes == ["projects/prj_1/"]
+    for key in (sheet_key("chr_1"), source_sheet_key("chr_1")):
+        assert not key.startswith(storage.deleted_prefixes[0]), "人物库母版绝不能落在项目前缀下"
+        assert key.startswith("characters/")
 
 
 def test_cleanup_expired_media_reports_failed_project() -> None:

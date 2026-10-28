@@ -42,6 +42,8 @@ class ProjectPublicService:
         product_name: str | None,
         product_note: str | None,
         update_product_note: bool,
+        character_id: str | None = None,
+        update_character_id: bool = False,
     ) -> Project:
         return self._service.update_project(
             session,
@@ -50,5 +52,7 @@ class ProjectPublicService:
                 product_name=product_name,
                 product_note=product_note,
                 update_product_note=update_product_note,
+                character_id=character_id,
+                update_character_id=update_character_id,
             ),
         )

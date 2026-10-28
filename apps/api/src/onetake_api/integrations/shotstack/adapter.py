@@ -30,6 +30,7 @@ class ShotstackCompositionAdapter:
         poll_timeout_seconds: int = 600,
         max_retries: int = 3,
         retry_backoff_seconds: float = 2.0,
+        caption_style: str = "standard",
         client: httpx.Client | None = None,
         sleep: Callable[[float], None] = time.sleep,
         monotonic: Callable[[], float] = time.monotonic,
@@ -41,6 +42,7 @@ class ShotstackCompositionAdapter:
         self._poll_timeout_seconds = poll_timeout_seconds
         self._max_retries = max(0, max_retries)
         self._retry_backoff_seconds = max(0.0, retry_backoff_seconds)
+        self._caption_style = caption_style
         self._client = client or httpx.Client(timeout=REQUEST_TIMEOUT_SECONDS)
         self._sleep = sleep
         self._monotonic = monotonic
@@ -63,19 +65,15 @@ class ShotstackCompositionAdapter:
                 srt_bytes=request.srt_bytes,
                 duration_seconds=request.duration_seconds,
                 fps=request.fps,
+                width=request.width,
+                style=self._caption_style,
             )
         base_video_url = self._upload(base_video, "base.mp4", "video/mp4")
         audio_url = self._upload(request.audio_bytes, "voice.wav", "audio/wav") if request.audio_bytes else None
-        product_image_url = (
-            self._upload(request.product_image_bytes, "product.png", "image/png")
-            if request.overlay_product and request.product_image_bytes
-            else None
-        )
         payload = self._build_edit_payload(
             request=request,
             base_video_url=base_video_url,
             audio_url=audio_url,
-            product_image_url=product_image_url,
         )
         render_id = self._submit_render(payload)
         output_url = self._wait_for_render(render_id)
@@ -86,6 +84,8 @@ class ShotstackCompositionAdapter:
                 srt_bytes=request.srt_bytes,
                 duration_seconds=request.duration_seconds,
                 fps=request.fps,
+                width=request.width,
+                style=self._caption_style,
                 preserve_audio=True,
             )
         return final_video
@@ -229,40 +229,13 @@ class ShotstackCompositionAdapter:
         request: CompositionRequest,
         base_video_url: str,
         audio_url: str | None,
-        product_image_url: str | None,
     ) -> dict[str, Any]:
         tracks: list[dict[str, Any]] = []
-        if product_image_url:
-            product_clips = []
-            if request.product_layers:
-                for layer in request.product_layers:
-                    product_clip = {
-                        "asset": {"type": "image", "src": product_image_url},
-                        "start": layer.start,
-                        "length": layer.length,
-                        "fit": "contain",
-                        "position": "center",
-                    }
-                    if layer.effect:
-                        product_clip["effect"] = layer.effect
-                    product_clips.append(product_clip)
-            else:
-                product_clip = {
-                    "asset": {"type": "image", "src": product_image_url},
-                    "start": 0,
-                    "length": request.duration_seconds,
-                    "fit": "contain",
-                    "position": "center",
-                }
-                if request.motion_effect:
-                    product_clip["effect"] = request.motion_effect
-                product_clips.append(product_clip)
-            tracks.append({"clips": product_clips})
         video_clip = {
             "asset": {"type": "video", "src": base_video_url},
             "start": 0,
             "length": request.duration_seconds,
-            "fit": "contain" if request.overlay_product else "cover",
+            "fit": "cover",   # M4-03：不再叠商品，基片一律铺满（原值兼管"是否叠商品"）
             "position": "center",
         }
         if request.motion_effect:

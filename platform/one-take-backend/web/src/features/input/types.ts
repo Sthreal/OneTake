@@ -7,6 +7,18 @@ export interface Project {
   status: ProjectStatus;
   created_at: string;
   updated_at: string;
+  /** 出镜人（人物库）：空 = 不指定（后端 2026-10-15 加）。 */
+  character_id?: string | null;
+}
+
+/** 从商品链接导入的结果（S13）。`warning` 非空表示"项目建好了但没抓全"。 */
+export interface ProjectFromUrlResult {
+  project_id: string;
+  product_name: string;
+  product_price: string | null;
+  asset_ids: string[];
+  warning: string | null;
+  source: string;
 }
 
 export type AssetStatus = "pending" | "ready" | "failed";

@@ -20,6 +20,7 @@ class ProjectModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    character_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
 
 def _to_domain(model: ProjectModel) -> Project:
@@ -31,6 +32,7 @@ def _to_domain(model: ProjectModel) -> Project:
         created_at=model.created_at,
         updated_at=model.updated_at,
         expires_at=model.expires_at,
+        character_id=model.character_id,
     )
 
 
@@ -45,6 +47,7 @@ class SqlAlchemyProjectRepository:
                 created_at=project.created_at,
                 updated_at=project.updated_at,
                 expires_at=project.expires_at,
+                character_id=project.character_id,
             )
         )
 
@@ -58,6 +61,7 @@ class SqlAlchemyProjectRepository:
             return
         model.product_name = project.product_name
         model.product_note = project.product_note
+        model.character_id = project.character_id
         model.updated_at = project.updated_at
 
     def list_expired(self, session: Session, before: datetime) -> list[Project]:

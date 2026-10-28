@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import hashlib
 from dataclasses import dataclass, replace
 
@@ -9,7 +10,7 @@ from onetake_api.config import get_settings
 from onetake_api.integrations.mock_script.adapter import MockScriptAdapter
 from onetake_api.integrations.object_storage.dependencies import get_object_storage
 from onetake_api.integrations.object_storage.public import ObjectStoragePublicService
-from onetake_api.integrations.qwen_vl_script.adapter import QwenVlScriptAdapter
+from onetake_api.integrations.qwen_vl_script.adapter import QwenVlScriptAdapter, QwenVlScriptError, ScriptReview
 from onetake_api.modules.job.public import JobPublicService
 from onetake_api.modules.main_image.public import MainImagePublicService
 from onetake_api.modules.outbox.public import OutboxPublicService
@@ -17,6 +18,7 @@ from onetake_api.modules.pipeline.public import PipelinePublicService
 from onetake_api.modules.project.public import ProjectPublicService
 from onetake_api.modules.script.content import (
     NormalizedScript,
+    ScriptGenerationError,
     normalize_edited,
     normalize_generated,
     normalize_input,
@@ -50,6 +52,9 @@ class ScriptConflictError(DomainError):
     retryable = True
 
 
+logger = logging.getLogger(__name__)
+
+
 class ScriptProviderConfigurationError(DomainError):
     code = "SCRIPT_PROVIDER_NOT_CONFIGURED"
     http_status = 422
@@ -58,6 +63,39 @@ class ScriptProviderConfigurationError(DomainError):
 @dataclass(frozen=True)
 class ScriptView:
     version: ScriptVersion | None
+
+
+def normalize_with_review_fallback(*, reviewed_draft, original_draft, script_input, review):
+    """审稿后的稿子若**过不了既有内容校验**，退回未审稿版本（审稿是增强，不是新失败点）。
+
+    真机实测踩到：审稿把 hook/pain_point/cta 都改写了，但改写稿不满足当时的字数口径/事实白名单 →
+    原来的实现直接 `ScriptGenerationError` 让整条文案**生成失败** ✗。
+    现在：先试审稿版，失败就退未审稿版（**不再多花一次调用**），并把 review 置空（如实反映"这次没用上审稿"）。
+    """
+    try:
+        return normalize_generated(reviewed_draft, script_input), review
+    except ScriptGenerationError as exc:
+        if review is None:
+            raise
+        logger.warning("审稿版不满足内容约束（%s），退回未审稿版本", exc.message)
+        return normalize_generated(original_draft, script_input), None
+
+def apply_script_review(adapter, *, script_input, draft, enabled: bool):
+    """批次 2b：审稿是**增强**，不是必经路径。
+
+    - 未启用 / 适配器没实现 `review` → 直接用未审稿版本（零行为变更）；
+    - 审稿**失败**（超时、结构不合法、卖点条数被改）→ 退回未审稿版本，只记一行原因
+      （绝不因为"审稿没跑成"让整条文案生成失败）。
+    - 产物仍要过 `normalize_generated` 的全部既有校验（事实/字数/数字白名单），审稿不能绕过它们。
+    """
+    if not enabled or adapter is None or not hasattr(adapter, "review"):
+        return draft, None
+    try:
+        review: ScriptReview = adapter.review(script_input=script_input, draft=draft)
+    except QwenVlScriptError as exc:
+        logger.warning("文案审稿失败，使用未审稿版本：%s", exc.message)
+        return draft, None
+    return review.revised, review
 
 
 def _adapter():
@@ -314,12 +352,28 @@ class ScriptApplicationService:
         try:
             image_bytes = b"".join(self.storage.read_object(object_key=version.source_object_key))
             script_input = _input_from_version(version)
-            draft = _adapter().generate(
+            adapter = _adapter()
+            draft = adapter.generate(
                 image_bytes=image_bytes,
                 mime_type="image/png",
                 script_input=script_input,
             )
-            normalized = normalize_generated(draft, script_input)
+            # 批次 2b：可选审稿（多一次付费调用；默认关闭）。审稿失败只降级，不影响成稿。
+            settings = get_settings()
+            generated_draft = draft   # 留一份"未审稿"版本，审稿改坏时回退用
+            draft, review = apply_script_review(
+                adapter, script_input=script_input, draft=draft,
+                enabled=bool(getattr(settings, "script_review_enabled", False)),
+            )
+            if review is not None:
+                logger.info(
+                    "文案审稿：未通过维度=%s，改写字段=%s",
+                    review.failed_dimensions, review.changed_fields,
+                )
+            normalized, review = normalize_with_review_fallback(
+                reviewed_draft=draft, original_draft=generated_draft,
+                script_input=script_input, review=review,
+            )
             now = self._clock.now()
             version = replace(
                 version,

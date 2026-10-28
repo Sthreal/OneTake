@@ -79,6 +79,12 @@ services:
       - ./apps/api/src:/app/src
 
   api:
+    # 批次 1a~5 新增的一批开关（CAPTION_STYLE / STOCK_ENABLED / BGM_ENABLED /
+    # SEGMENT_QUALITY_ENABLED / QWEN_VL_PRICE_PER_CALL / SCRIPT_REVIEW_ENABLED / EXPORT_* …）
+    # 必须能从 .env 进容器：下面的 environment 是**白名单**，漏一个就等于"开关点了没反应"。
+    # env_file 与 environment 并存时 **environment 优先**，所以显式项（含代理）行为不变。
+    env_file:
+      - .env
     build:
       context: ./apps/api
     environment:
@@ -119,7 +125,6 @@ services:
       CONTENT_QA_ENDPOINT: ${CONTENT_QA_ENDPOINT:-https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation}
       CONTENT_QA_FRAME_COUNT: ${CONTENT_QA_FRAME_COUNT:-5}
       WAN_I2V_PROVIDER: ${WAN_I2V_PROVIDER:-mock}
-      PRODUCT_SCENE_ENABLED: ${PRODUCT_SCENE_ENABLED:-false}
       WAN_I2V_MODEL: ${WAN_I2V_MODEL:-}
       WAN_I2V_RESOLUTION: ${WAN_I2V_RESOLUTION:-720P}
       WAN_I2V_WITH_AUDIO: ${WAN_I2V_WITH_AUDIO:-false}
@@ -131,6 +136,41 @@ services:
       WAN_S2V_MAX_SECONDS: ${WAN_S2V_MAX_SECONDS:-30}
       WAN_S2V_PRICE_PER_SECOND: ${WAN_S2V_PRICE_PER_SECOND:-}
       WAN_S2V_AVATAR_PATH: ${WAN_S2V_AVATAR_PATH:-}
+      # ---- 商品入画链路（Phase 0-5）：必须显式透传，否则容器只读到代码默认值 ----
+      GENERATION_PATH_DEFAULT: ${GENERATION_PATH_DEFAULT:-segmented}
+      KEYFRAME_MODE: ${KEYFRAME_MODE:-integrated}
+      KEYFRAME_CANDIDATES: ${KEYFRAME_CANDIDATES:-2}
+      KEYFRAME_PIXEL_LOCK_FALLBACK: ${KEYFRAME_PIXEL_LOCK_FALLBACK:-true}
+      KEYFRAME_QA_PROVIDER: ${KEYFRAME_QA_PROVIDER:-rules}
+      KEYFRAME_IMAGE_SIZE: ${KEYFRAME_IMAGE_SIZE:-1080*1920}
+      VIDEO_MOTION_PROMPT_ENABLED: ${VIDEO_MOTION_PROMPT_ENABLED:-true}
+      VIDEO_KF2V_ENABLED: ${VIDEO_KF2V_ENABLED:-true}
+      # 整片路径保留模型原声（口型台词）；开启时不再叠 TTS，避免双声
+      VIDEO_KEEP_MODEL_AUDIO: ${VIDEO_KEEP_MODEL_AUDIO:-false}
+      WAN_KF2V_MODEL: ${WAN_KF2V_MODEL:-}
+      WAN_KF2V_PRICE_PER_SECOND: ${WAN_KF2V_PRICE_PER_SECOND:-}
+      WAN_R2V_MODEL: ${WAN_R2V_MODEL:-}
+      WAN_R2V_RESOLUTION: ${WAN_R2V_RESOLUTION:-720P}
+      WAN_R2V_MAX_SECONDS: ${WAN_R2V_MAX_SECONDS:-15}
+      VIDEO_JOB_TIMEOUT_SECONDS: ${VIDEO_JOB_TIMEOUT_SECONDS:-2400}
+      WAN_R2V_POLL_TIMEOUT_SECONDS: ${WAN_R2V_POLL_TIMEOUT_SECONDS:-900}
+      WAN_R2V_PRICE_PER_SECOND: ${WAN_R2V_PRICE_PER_SECOND:-}
+      QWEN_IMAGE_PRICE_PER_CALL: ${QWEN_IMAGE_PRICE_PER_CALL:-}
+      NATIVE_FEEL_ENABLED: ${NATIVE_FEEL_ENABLED:-true}
+      NATIVE_FEEL_STRENGTH: ${NATIVE_FEEL_STRENGTH:-subtle}
+      GATE_MODE: ${GATE_MODE:-enforce}
+      AUTO_RUN_ENABLED: ${AUTO_RUN_ENABLED:-false}
+      AUTO_RUN_BUDGET_CNY: ${AUTO_RUN_BUDGET_CNY:-0}
+      # 自动链配音音色：真实 CosyVoice 必须填当前模型下有效的音色 ID（如 *_v2）
+      AUTO_RUN_VOICE_ID: ${AUTO_RUN_VOICE_ID:-longxiaochun_v2}
+      AIGC_LABEL_ENABLED: ${AIGC_LABEL_ENABLED:-true}
+      AIGC_LABEL_TEXT: ${AIGC_LABEL_TEXT:-AI生成}
+      AIGC_LABEL_POSITION: ${AIGC_LABEL_POSITION:-top_right}
+      AIGC_LABEL_SIZE_RATIO: ${AIGC_LABEL_SIZE_RATIO:-0.028}
+      AIGC_LABEL_OPACITY: ${AIGC_LABEL_OPACITY:-0.75}
+      AIGC_LABEL_SAFE_MARGIN_RATIO: ${AIGC_LABEL_SAFE_MARGIN_RATIO:-0.04}
+      AIGC_LABEL_AVOID_SUBTITLE: ${AIGC_LABEL_AVOID_SUBTITLE:-true}
+      AIGC_LABEL_SOURCE: ${AIGC_LABEL_SOURCE:-local}
       VIDEO_ESTIMATE_CONFIRMATION_THRESHOLD: ${VIDEO_ESTIMATE_CONFIRMATION_THRESHOLD:-5}
       VIDEO_ESTIMATE_MINUTES_PER_CLIP: ${VIDEO_ESTIMATE_MINUTES_PER_CLIP:-1}
       VIDEO_ESTIMATE_OVERHEAD_MINUTES: ${VIDEO_ESTIMATE_OVERHEAD_MINUTES:-0.5}
@@ -173,6 +213,12 @@ services:
       retries: 10
 
   worker:
+    # 批次 1a~5 新增的一批开关（CAPTION_STYLE / STOCK_ENABLED / BGM_ENABLED /
+    # SEGMENT_QUALITY_ENABLED / QWEN_VL_PRICE_PER_CALL / SCRIPT_REVIEW_ENABLED / EXPORT_* …）
+    # 必须能从 .env 进容器：下面的 environment 是**白名单**，漏一个就等于"开关点了没反应"。
+    # env_file 与 environment 并存时 **environment 优先**，所以显式项（含代理）行为不变。
+    env_file:
+      - .env
     build:
       context: ./apps/api
     environment:
@@ -214,7 +260,6 @@ services:
       CONTENT_QA_ENDPOINT: ${CONTENT_QA_ENDPOINT:-https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation}
       CONTENT_QA_FRAME_COUNT: ${CONTENT_QA_FRAME_COUNT:-5}
       WAN_I2V_PROVIDER: ${WAN_I2V_PROVIDER:-mock}
-      PRODUCT_SCENE_ENABLED: ${PRODUCT_SCENE_ENABLED:-false}
       WAN_I2V_MODEL: ${WAN_I2V_MODEL:-}
       WAN_I2V_RESOLUTION: ${WAN_I2V_RESOLUTION:-720P}
       WAN_I2V_WITH_AUDIO: ${WAN_I2V_WITH_AUDIO:-false}
@@ -226,6 +271,41 @@ services:
       WAN_S2V_MAX_SECONDS: ${WAN_S2V_MAX_SECONDS:-30}
       WAN_S2V_PRICE_PER_SECOND: ${WAN_S2V_PRICE_PER_SECOND:-}
       WAN_S2V_AVATAR_PATH: ${WAN_S2V_AVATAR_PATH:-}
+      # ---- 商品入画链路（Phase 0-5）：必须显式透传，否则容器只读到代码默认值 ----
+      GENERATION_PATH_DEFAULT: ${GENERATION_PATH_DEFAULT:-segmented}
+      KEYFRAME_MODE: ${KEYFRAME_MODE:-integrated}
+      KEYFRAME_CANDIDATES: ${KEYFRAME_CANDIDATES:-2}
+      KEYFRAME_PIXEL_LOCK_FALLBACK: ${KEYFRAME_PIXEL_LOCK_FALLBACK:-true}
+      KEYFRAME_QA_PROVIDER: ${KEYFRAME_QA_PROVIDER:-rules}
+      KEYFRAME_IMAGE_SIZE: ${KEYFRAME_IMAGE_SIZE:-1080*1920}
+      VIDEO_MOTION_PROMPT_ENABLED: ${VIDEO_MOTION_PROMPT_ENABLED:-true}
+      VIDEO_KF2V_ENABLED: ${VIDEO_KF2V_ENABLED:-true}
+      # 整片路径保留模型原声（口型台词）；开启时不再叠 TTS，避免双声
+      VIDEO_KEEP_MODEL_AUDIO: ${VIDEO_KEEP_MODEL_AUDIO:-false}
+      WAN_KF2V_MODEL: ${WAN_KF2V_MODEL:-}
+      WAN_KF2V_PRICE_PER_SECOND: ${WAN_KF2V_PRICE_PER_SECOND:-}
+      WAN_R2V_MODEL: ${WAN_R2V_MODEL:-}
+      WAN_R2V_RESOLUTION: ${WAN_R2V_RESOLUTION:-720P}
+      WAN_R2V_MAX_SECONDS: ${WAN_R2V_MAX_SECONDS:-15}
+      VIDEO_JOB_TIMEOUT_SECONDS: ${VIDEO_JOB_TIMEOUT_SECONDS:-2400}
+      WAN_R2V_POLL_TIMEOUT_SECONDS: ${WAN_R2V_POLL_TIMEOUT_SECONDS:-900}
+      WAN_R2V_PRICE_PER_SECOND: ${WAN_R2V_PRICE_PER_SECOND:-}
+      QWEN_IMAGE_PRICE_PER_CALL: ${QWEN_IMAGE_PRICE_PER_CALL:-}
+      NATIVE_FEEL_ENABLED: ${NATIVE_FEEL_ENABLED:-true}
+      NATIVE_FEEL_STRENGTH: ${NATIVE_FEEL_STRENGTH:-subtle}
+      GATE_MODE: ${GATE_MODE:-enforce}
+      AUTO_RUN_ENABLED: ${AUTO_RUN_ENABLED:-false}
+      AUTO_RUN_BUDGET_CNY: ${AUTO_RUN_BUDGET_CNY:-0}
+      # 自动链配音音色：真实 CosyVoice 必须填当前模型下有效的音色 ID（如 *_v2）
+      AUTO_RUN_VOICE_ID: ${AUTO_RUN_VOICE_ID:-longxiaochun_v2}
+      AIGC_LABEL_ENABLED: ${AIGC_LABEL_ENABLED:-true}
+      AIGC_LABEL_TEXT: ${AIGC_LABEL_TEXT:-AI生成}
+      AIGC_LABEL_POSITION: ${AIGC_LABEL_POSITION:-top_right}
+      AIGC_LABEL_SIZE_RATIO: ${AIGC_LABEL_SIZE_RATIO:-0.028}
+      AIGC_LABEL_OPACITY: ${AIGC_LABEL_OPACITY:-0.75}
+      AIGC_LABEL_SAFE_MARGIN_RATIO: ${AIGC_LABEL_SAFE_MARGIN_RATIO:-0.04}
+      AIGC_LABEL_AVOID_SUBTITLE: ${AIGC_LABEL_AVOID_SUBTITLE:-true}
+      AIGC_LABEL_SOURCE: ${AIGC_LABEL_SOURCE:-local}
       VIDEO_ESTIMATE_CONFIRMATION_THRESHOLD: ${VIDEO_ESTIMATE_CONFIRMATION_THRESHOLD:-5}
       VIDEO_ESTIMATE_MINUTES_PER_CLIP: ${VIDEO_ESTIMATE_MINUTES_PER_CLIP:-1}
       VIDEO_ESTIMATE_OVERHEAD_MINUTES: ${VIDEO_ESTIMATE_OVERHEAD_MINUTES:-0.5}
@@ -278,13 +358,14 @@ services:
     command: uvicorn onetake_mcp.main:app --host 0.0.0.0 --port 8010 --reload
   web:
     build:
-      context: ./apps/web
+      # 唯一前端（五阶段工作台 StudioWorkspace + 关键帧/合规/交付门面板）。
+      # S3（2026-10-14）：旧的 apps/web（一页式，只渲染 InputWorkspace）**已删除**，
+      # 因此不再存在「两个前端都占 5173」的歧义。
+      context: ./platform/one-take-backend/web
     environment:
       VITE_API_BASE_URL: /api
       VITE_API_PROXY_TARGET: http://api:8000
-      VITE_MINICLAW_ENABLED: ${VITE_MINICLAW_ENABLED:-true}
-      VITE_MINICLAW_API_PROXY_TARGET: ${DOCKER_MINICLAW_API_PROXY_TARGET:-http://host.docker.internal:3000}
-      VITE_MINICLAW_WS_PROXY_TARGET: ${DOCKER_MINICLAW_WS_PROXY_TARGET:-ws://host.docker.internal:3000}
+
     ports:
       - "5173:5173"
     depends_on:
@@ -292,9 +373,9 @@ services:
         condition: service_healthy
     command: npm run dev -- --host 0.0.0.0
     volumes:
-      - ./apps/web/src:/app/src
-      - ./apps/web/index.html:/app/index.html
-      - ./apps/web/vite.config.ts:/app/vite.config.ts
+      - ./platform/one-take-backend/web/src:/app/src
+      - ./platform/one-take-backend/web/index.html:/app/index.html
+      - ./platform/one-take-backend/web/vite.config.ts:/app/vite.config.ts
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:5173"]
       interval: 10s

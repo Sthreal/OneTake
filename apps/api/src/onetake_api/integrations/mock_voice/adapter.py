@@ -15,7 +15,9 @@ class MockVoiceAdapter:
 
     def synthesize(self, *, text: str, voice_id: str, language: str, speed: float) -> VoiceSynthesisResult:
         character_count = len(_SPACE_RE.sub("", text))
-        duration = min(30.0, max(3.0, round(character_count / max(0.5, speed * 3.5), 2)))
+        # 短版对齐（2026-10-15）：比例必须与真实 TTS / 文案估算一致（实测 74 字 ≈ 14.4 秒 → 5.1 字/秒）。
+        # 用旧的 3.5 会让 mock 配音凭空长 45%（67 字 → 19.1s），成片也跟着从 14s 变 19s。
+        duration = min(30.0, max(3.0, round(character_count / max(0.5, speed * 5.1), 2)))
         sample_rate = 24000
         frame_count = int(duration * sample_rate)
         output = BytesIO()

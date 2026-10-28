@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import logging
 from dataclasses import replace
 
 from sqlalchemy.orm import Session
@@ -7,18 +9,27 @@ from sqlalchemy.orm import Session
 from onetake_api.modules.content_plan.domain import STATUS_CONFIRMED as CONTENT_PLAN_CONFIRMED
 from onetake_api.modules.content_plan.domain import ContentPlan
 from onetake_api.config import get_settings
-from onetake_api.integrations.media.video_utils import SegmentAnchor, resolve_segment_anchor
-from onetake_api.integrations.product_scene.scene_assets import load_scene_keyframe
-from onetake_api.integrations.product_scene.style_profiles import apply_style_to_keyframe, get_style_profile
+from onetake_api.integrations.media.video_utils import (
+    ANCHOR_SOURCE_INTEGRATED_KEYFRAME,
+    ANCHOR_SOURCE_PREVIOUS_TAIL,
+    SegmentAnchor,
+    VideoProcessingError,
+    resolve_segment_anchor,
+)
 from onetake_api.modules.video_plan.segment_generation import (
+    GeneratedCandidate,
     SegmentGenerationError,
     SegmentVideoGenerator,
     assemble_segment_negative_prompt,
     generate_seed,
 )
 from onetake_api.modules.content_plan.public import ContentPlanPublicService
+from onetake_api.modules.pipeline.public import PipelinePublicService
 from onetake_api.modules.project.public import ProjectPublicService
 from onetake_api.modules.video_plan.domain import (
+    SEAM_MODES,
+    SEAM_PIN,
+    SEAM_TAIL,
     BATCH_DONE,
     BATCH_FAILED,
     BATCH_IDLE,
@@ -34,16 +45,25 @@ from onetake_api.modules.video_plan.segment_domain import (
     CANDIDATE_REJECTED,
     SEGMENT_ACCEPTED,
     SEGMENT_AWAITING_REVIEW,
+    SEGMENT_FAILED,
+    SEGMENT_GENERATING,
     SEGMENT_PLANNED,
     VideoSegment,
 )
+from onetake_api.modules.video_plan.keyframe_repository import VideoKeyframeCandidateRepository
+from onetake_api.modules.video_plan.motion_prompt import SYMPTOM_PATCHES
 from onetake_api.modules.video_plan.segment_repository import (
     VideoSegmentCandidateRepository,
     VideoSegmentRepository,
 )
+from onetake_api.integrations.stock.domain import StockError
+from onetake_api.integrations.stock.fill import fill_from_stock
+from onetake_api.modules.content_plan.generator import default_stock_query
 from onetake_api.platform.clock import SystemClock
 from onetake_api.platform.errors import DomainError
 from onetake_api.platform.ids import new_id
+
+logger = logging.getLogger(__name__)
 
 
 class SegmentNotFoundError(DomainError):
@@ -72,16 +92,31 @@ class SegmentPlanNotConfirmedError(DomainError):
     http_status = 409
 
 
+class SegmentKeyframeMissingError(DomainError):
+    """该镜没有已采用的**商品入画关键帧**，且无法用尾帧续写。
+
+    「生成背景 + 叠商品」路线已废弃（M4-03），所以这里不再回退到背景生成，
+    而是明确报错并停在待人工 —— 见 README.md:232「可追踪、可回退、可审计优先于
+    '看起来已经成功'」。
+    """
+
+    code = "SEGMENT_KEYFRAME_MISSING"
+    http_status = 409
+
 class VideoSegmentApplicationService:
     def __init__(self, *, storage=None, generator: SegmentVideoGenerator | None = None) -> None:
         self._plans = VideoPlanRepository()
         self._segments = VideoSegmentRepository()
         self._candidates = VideoSegmentCandidateRepository()
+        self._keyframes = VideoKeyframeCandidateRepository()
         self._projects = ProjectPublicService()
         self._content_plans = ContentPlanPublicService()
         self._clock = SystemClock()
         self._storage = storage
         self._generator = generator or SegmentVideoGenerator(storage=storage)
+        # 批次 4a：本次进程内已用过的素材 id（跨镜去重）。只覆盖"同一次批量生成"——批量循环复用
+        # 同一个 service 实例，这正是需要去重的范围；跨请求复用同一支 b-roll 不构成重复问题。
+        self._stock_used_ids: set[str] = set()
 
     @property
     def storage(self):
@@ -142,12 +177,16 @@ class VideoSegmentApplicationService:
 
 
     # ---- batch orchestration --------------------------------------------
-    def start_batch(self, session: Session, *, project_id: str, job_id: str | None = None) -> VideoPlan:
+    def start_batch(
+        self, session: Session, *, project_id: str, job_id: str | None = None, stop_after_segments: int | None = None
+    ) -> VideoPlan:
         plan = self._resolve_plan(session, project_id=project_id, plan_id=None)
         running = replace(plan, batch_status=BATCH_RUNNING, batch_stop_requested=False, updated_at=self._clock.now())
         self._plans.update(session, running)
         session.commit()
-        return self.continue_batch(session, project_id=project_id, job_id=job_id)
+        return self.continue_batch(
+            session, project_id=project_id, job_id=job_id, stop_after_segments=stop_after_segments
+        )
 
     def stop_batch(self, session: Session, *, project_id: str) -> VideoPlan:
         plan = self._resolve_plan(session, project_id=project_id, plan_id=None)
@@ -156,7 +195,9 @@ class VideoSegmentApplicationService:
         session.commit()
         return stopped
 
-    def continue_batch(self, session: Session, *, project_id: str, job_id: str | None = None) -> VideoPlan:
+    def continue_batch(
+        self, session: Session, *, project_id: str, job_id: str | None = None, stop_after_segments: int | None = None
+    ) -> VideoPlan:
         plan = self._resolve_plan(session, project_id=project_id, plan_id=None)
         content_plan = self._require_content_plan(session, project_id, plan)
         if content_plan is None:
@@ -168,6 +209,8 @@ class VideoSegmentApplicationService:
         self._plans.update(session, batch_plan)
         session.commit()
         stopped = False
+        stepped_out = False
+        processed = 0
         try:
             for segment in segments:
                 current = self._plans.get(session, plan.id)
@@ -177,16 +220,29 @@ class VideoSegmentApplicationService:
                 latest = self._segments.get(session, segment.id)
                 if latest is None or latest.accepted_candidate_id:
                     continue
+                # 步进（S2）：本轮额度用完就停在这里，**不合成**，保持 running 等下一次调用
+                if stop_after_segments is not None and processed >= max(1, stop_after_segments):
+                    stepped_out = True
+                    break
                 self.generate_candidate(session, project_id=project_id, segment_id=segment.id)
                 refreshed = self._segments.get(session, segment.id)
                 if refreshed is None or not refreshed.candidates:
                     raise SegmentGenerationError("批量生成未产出候选")
                 self.accept_candidate(session, project_id=project_id, candidate_id=refreshed.candidates[-1].id)
+                processed += 1
         except DomainError as exc:
             failed = replace(self._plans.get(session, plan.id) or plan, batch_status=BATCH_FAILED, batch_stop_requested=False, updated_at=self._clock.now())
             self._plans.update(session, failed)
             session.commit()
             raise exc
+        if stepped_out and not stopped:
+            stepped = replace(
+                self._plans.get(session, plan.id) or plan,
+                batch_status=BATCH_RUNNING, batch_stop_requested=False, updated_at=self._clock.now(),
+            )
+            self._plans.update(session, stepped)
+            session.commit()
+            return stepped
         segments = self._segments.list_for_plan(session, plan.id)
         accepted_order = [seg.order_index for seg in segments if seg.accepted_candidate_id]
         if stopped:
@@ -202,12 +258,32 @@ class VideoSegmentApplicationService:
         composed = self._compose_batch_final(session, project_id=project_id, plan=plan, segments=segments)
         return composed
 
+    def _align_exposures(self, clips: list[bytes]) -> list[bytes]:
+        """S1：拼接前做跨段曝光对齐。
+
+        **质量补丁，不阻断出片**：测量或重编码任何一步失败都只记日志、用原片段继续 ——
+        "曝光没对齐"是观感问题，"因为后处理失败而交不出片"是可用性问题，后者更严重。
+        未检测到漂移时 `align_clip_exposures` 直接返回原片段（**零重编码**）。
+        """
+        from onetake_api.integrations.media.exposure_align import align_clip_exposures
+
+        try:
+            result = align_clip_exposures(clips)
+        except Exception as exc:  # noqa: BLE001 —— 质量补丁绝不阻断出片
+            logger.warning("跨段曝光对齐已跳过：%s", exc)
+            return clips
+        if result.applied:
+            logger.info(
+                "跨段曝光对齐：极差 %.1f → %.1f（修正 %s）",
+                result.spread_before, result.spread_after, [round(item, 4) for item in result.deltas],
+            )
+        return result.clips
+
     def _compose_batch_final(self, session: Session, *, project_id: str, plan: VideoPlan, segments: list[VideoSegment]) -> VideoPlan:
-        from onetake_api.integrations.media.image_utils import add_contact_shadow
         from onetake_api.integrations.media.video_utils import concatenate_videos
         from onetake_api.integrations.mock_video.renderer import validate_final_video
-        from onetake_api.modules.composition.port import CompositionRequest
         from onetake_api.modules.composition.service import get_composition_provider
+        from onetake_api.modules.composition.port import CompositionRequest
         from onetake_api.modules.output.domain import OutputArtifact
         from onetake_api.modules.output.repository import OutputRepository
         from onetake_api.modules.video_plan.domain import COMPLETED, RENDERING
@@ -218,6 +294,8 @@ class VideoSegmentApplicationService:
             if accepted is None or not accepted.video_object_key:
                 raise SegmentConflictError("存在未接受的分段，无法拼接")
             clips.append(b"".join(self.storage.read_object(object_key=accepted.video_object_key)))
+        # S1：拼接前做跨段曝光对齐（只在检测到漂移时重编码；失败不阻断出片）
+        clips = self._align_exposures(clips)
         base_video = concatenate_videos(clips=clips, duration_seconds=plan.duration_seconds, fps=plan.fps)
         base_key = f"projects/{project_id}/video/{plan.id}/base.mp4"
         self.storage.put_bytes(object_key=base_key, content=base_video, mime_type="video/mp4")
@@ -227,13 +305,17 @@ class VideoSegmentApplicationService:
 
         audio_bytes = b"".join(self.storage.read_object(object_key=plan.voice_object_key)) if plan.voice_enabled and plan.voice_object_key else None
         srt_bytes = b"".join(self.storage.read_object(object_key=plan.subtitle_object_key)) if plan.subtitle_enabled and plan.subtitle_object_key else None
-        main_image = b"".join(self.storage.read_object(object_key=plan.main_image_object_key))
+        # 商品图层构造已随 M4-03 提交 4 删除（商品只由入画关键帧进入画面）。
+        # 保留分镜确认校验：它是分段生成的前置条件，与叠加无关。
+        content_plan = self._content_plans.latest(session, plan.project_id)
+        if content_plan is None or content_plan.status != CONTENT_PLAN_CONFIRMED:
+            raise SegmentPlanNotConfirmedError("请先确认视频分镜")
         composition = get_composition_provider()
         final_video = composition.compose(CompositionRequest(
             base_video_bytes=base_video, audio_bytes=audio_bytes, srt_bytes=srt_bytes,
-            product_image_bytes=add_contact_shadow(main_image), overlay_product=plan.mode == "avatar",
             duration_seconds=plan.duration_seconds, width=plan.width, height=plan.height, fps=plan.fps,
-            motion_effect=None, product_layers=None,
+            motion_effect=None,
+            caption_style=plan.caption_style, bgm_enabled=plan.bgm_enabled, bgm_gain_db=plan.bgm_gain_db,
         ))
         metadata = validate_final_video(final_video, expected_width=plan.width, expected_height=plan.height, expected_fps=plan.fps, expected_audio=audio_bytes is not None)
         final_key = f"projects/{project_id}/output/{plan.id}/final.mp4"
@@ -246,14 +328,15 @@ class VideoSegmentApplicationService:
             now, now + timedelta(seconds=24 * 60 * 60), metadata.width, metadata.height, metadata.fps,
             metadata.video_codec, metadata.audio_codec,
         ))
-        completed = replace(plan, status=COMPLETED, final_object_key=final_key, batch_status=BATCH_DONE,
+        completed = replace(rendering, status=COMPLETED, final_object_key=final_key, batch_status=BATCH_DONE,
                             batch_stop_requested=False, error_code=None, updated_at=now, completed_at=now)
         self._plans.update(session, completed)
+        PipelinePublicService().mark_completed(session, project_id)
         session.commit()
         return completed
 
     # ---- candidate lifecycle --------------------------------------------
-    def generate_candidate(self, session: Session, *, project_id: str, segment_id: str, seed: int | None = None):
+    def generate_candidate(self, session: Session, *, project_id: str, segment_id: str, seed: int | None = None, symptom: str | None = None):
         from onetake_api.modules.video_plan.segment_domain import VideoSegmentCandidate
 
         plan = self._resolve_plan(session, project_id=project_id, plan_id=None)
@@ -275,16 +358,58 @@ class VideoSegmentApplicationService:
         if len(segment.candidates) >= settings.video_max_candidates_per_segment:
             raise SegmentConflictError("该分段候选数量已达上限，请先接受或拒绝现有候选")
 
-        previous = next((item for item in segments if item.order_index == segment.order_index - 1), None)
-        anchor = self._resolve_anchor(segment, previous, scene, plan, settings.video_continuity_enabled)
-        duration = max(1, round(segment.duration_seconds))
-        negative_prompt = assemble_segment_negative_prompt(scene, plan)
-        generated = self._generator.generate(
-            plan=plan, segment=segment, scene=scene, anchor=anchor,
-            duration=duration, seed=seed if seed is not None else generate_seed(), negative_prompt=negative_prompt,
+        # "生成中"必须**落库**：真实调用一段要 30~90 秒（wan-kf2v 实测 ~72s），
+        # 期间页面刷新/轮询必须能看到"生成中"，否则用户以为坏了（2026-10-16 实测反馈）。
+        # 这个状态本来就在枚举里（SEGMENT_GENERATING），只是从来没人写过。
+        self._segments.update(
+            session,
+            replace(segment, status=SEGMENT_GENERATING, last_error=None, updated_at=self._clock.now()),
         )
-        if generated.width != plan.width or generated.height != plan.height:
-            raise SegmentGenerationError(f"分段视频尺寸 {generated.width}x{generated.height} 与方案 {plan.width}x{plan.height} 不一致")
+        session.commit()
+
+        # 从这里到"候选落库"之间任何异常都**不能**把这一段留在"生成中"（否则页面会永远显示生成中）
+        try:
+            previous = next((item for item in segments if item.order_index == segment.order_index - 1), None)
+            next_scene = next((item for item in variant.scenes if item.order == scene.order + 1), None)
+            anchor = self._resolve_anchor(
+                session, segment, previous, scene, next_scene, plan, settings.video_continuity_enabled
+            )
+            duration = max(1, round(segment.duration_seconds))
+            negative_prompt = assemble_segment_negative_prompt(scene, plan)
+            if symptom is not None and symptom not in SYMPTOM_PATCHES:
+                raise SegmentValidationError(f"未知症状：{symptom}")
+            # 出镜人：项目绑了人 → 这一镜有人（运动提示词要加人物惯性层），且**不允许**用免 Key 空镜素材
+            # （空镜里没有这个人，混进片子就是人忽然消失）。
+            has_character = self._has_character(session, project_id)
+            # 批次 4a：空镜优先用免 Key 素材（拿不到 / 失败 → 下面照常走原生成路径）
+            generated = (
+                None
+                if has_character
+                else self._try_stock_fill(
+                    plan=plan, scene=scene, symptom=symptom, duration=duration, settings=settings,
+                )
+            )
+            generate_kwargs = dict(
+                plan=plan, segment=segment, scene=scene, anchor=anchor,
+                duration=duration, seed=seed if seed is not None else generate_seed(),
+                negative_prompt=negative_prompt,
+            )
+            if symptom is not None:
+                # 只有返修才传 symptom：常规生成保持原有调用形状，注入的生成器无需跟着改签名
+                generate_kwargs["symptom"] = symptom
+            if has_character:
+                # 同理：只在有人时才多传这个 kwarg，老调用方/假生成器不受影响
+                generate_kwargs["person_shot"] = True
+            if generated is None:
+                generated = self._generator.generate(**generate_kwargs)
+            if generated.width != plan.width or generated.height != plan.height:
+                raise SegmentGenerationError(
+                    f"分段视频尺寸 {generated.width}x{generated.height} 与方案 {plan.width}x{plan.height} 不一致"
+                )
+        except Exception as exc:  # noqa: BLE001 - 落"失败"要覆盖一切异常（含上面的领域错误）
+            code = str(getattr(exc, "code", None) or type(exc).__name__)
+            self._mark_generation_failed(session, segment, error_code=code[:80])
+            raise
 
         now = self._clock.now()
         candidate_id = new_id("can")
@@ -296,6 +421,13 @@ class VideoSegmentApplicationService:
         self.storage.put_bytes(object_key=video_key, content=generated.video_bytes, mime_type="video/mp4")
         self.storage.put_bytes(object_key=tail_key, content=generated.tail_frame_bytes, mime_type="image/png")
         self.storage.put_bytes(object_key=head_key, content=generated.head_frame_bytes, mime_type="image/png")
+        if generated.attribution:
+            # 批次 4a：CC 署名必须**留痕**（交付门会把它读出来提醒用户），不是只写日志
+            self.storage.put_bytes(
+                object_key=f"{base_key}/stock-attribution.json",
+                content=json.dumps(generated.attribution, ensure_ascii=False, indent=1).encode("utf-8"),
+                mime_type="application/json",
+            )
 
         for existing in segment.candidates:
             if existing.status in {"ready", "accepted"}:
@@ -306,7 +438,7 @@ class VideoSegmentApplicationService:
             anchor_candidate_id=anchor.source_candidate_id, video_object_key=video_key,
             tail_frame_object_key=tail_key, head_frame_object_key=head_key,
             duration_seconds=generated.duration_seconds, width=generated.width, height=generated.height,
-            fps=generated.fps, seed=seed, created_at=now,
+            fps=generated.fps, seed=seed, symptom=symptom, created_at=now,
         )
         self._candidates.add(session, candidate)
         refreshed = replace(segment, status=SEGMENT_AWAITING_REVIEW, last_error=None, updated_at=now)
@@ -314,8 +446,144 @@ class VideoSegmentApplicationService:
         session.commit()
         return self._segments.list_for_plan(session, plan.id)
 
-    def _resolve_anchor(self, segment: VideoSegment, previous, scene, plan: VideoPlan, continuity_enabled: bool) -> SegmentAnchor:
-        keyframe = apply_style_to_keyframe(load_scene_keyframe(scene.visual_goal), get_style_profile(plan.template_id))
+    def _has_character(self, session: Session, project_id: str) -> bool:
+        """项目有没有绑出镜人（只读项目行，不读母版文件 —— 这里只需要一个布尔）。"""
+        try:
+            project = self._projects.get_project(session, project_id=project_id)
+            return bool(getattr(project, "character_id", None))
+        except Exception:  # noqa: BLE001 - 读不到就当没有（不阻断出片）
+            return False
+
+    def _mark_generation_failed(self, session: Session, segment: VideoSegment, *, error_code: str) -> None:
+        """把一段从"生成中"落到"失败"（不静默留在中间态）。"""
+        try:
+            latest = self._segments.get(session, segment.id) or segment
+            self._segments.update(
+                session,
+                replace(latest, status=SEGMENT_FAILED, last_error=error_code, updated_at=self._clock.now()),
+            )
+            session.commit()
+        except Exception:  # noqa: BLE001 - 落失败也失败时，不能把原始异常盖掉
+            session.rollback()
+
+    def _try_stock_fill(self, *, plan: VideoPlan, scene, symptom: str | None, duration: int, settings):
+        """空镜（product_mode=absent）优先用免 Key 素材；返回 `None` 表示"照常走原生成路径"。
+
+        **绝不抛异常**：素材是 0 成本增强，任何失败都只记一行原因后回退（成片优先）。
+        """
+        if not getattr(settings, "stock_enabled", False) or symptom is not None:
+            return None
+        if getattr(scene, "product_mode", "") != "absent":
+            return None
+        query = (getattr(scene, "stock_query", "") or default_stock_query(getattr(scene, "visual_goal", ""))).strip()
+        if not query:
+            return None
+        try:
+            fill = fill_from_stock(
+                query=query, duration_seconds=float(duration), width=plan.width, height=plan.height,
+                fps=plan.fps, exclude_ids=set(self._stock_used_ids),
+                search_limit=int(getattr(settings, "stock_search_limit", 5)),
+                max_asset_bytes=int(getattr(settings, "stock_max_asset_mb", 40)) * 1024 * 1024,
+            )
+        except StockError as exc:
+            logger.warning("空镜素材填充失败，回退原生成路径：%s", exc.message)
+            return None
+        if fill is None:
+            return None
+        self._stock_used_ids.add(fill.asset.asset_id)
+        logger.info("空镜使用免 Key 素材：%s（%s）", fill.asset.title, fill.asset.license.name)
+        return GeneratedCandidate(
+            video_bytes=fill.video_bytes, tail_frame_bytes=fill.tail_frame_bytes,
+            head_frame_bytes=fill.head_frame_bytes, width=fill.width, height=fill.height,
+            fps=fill.fps, duration_seconds=fill.duration_seconds, provider=fill.provider,
+            attribution={
+                "source": fill.asset.source,
+                "provider": fill.asset.provider,
+                "asset_id": fill.asset.asset_id,
+                "title": fill.asset.title,
+                "creator": fill.asset.creator,
+                "license": fill.asset.license.name,
+                "license_url": fill.asset.license.url,
+                "landing_url": fill.asset.landing_url,
+                "attribution": fill.attribution,
+            },
+        )
+    def set_segment_seam_mode(
+        self, session: Session, *, project_id: str, segment_id: str, seam_mode: str | None
+    ) -> list[VideoSegment]:
+        """段级接缝覆盖（S4-③）：`None` = 清除覆盖、继承方案级。
+
+        改它会改变该段 kf2v / i2v 的**条数** → 费用预估随变 → `payload_hash` 变 →
+        旧批准自动失效（前提是预估按段算，见 `VideoSegmentRepository.effective_seams`）。
+        """
+        if seam_mode is not None and seam_mode not in SEAM_MODES:
+            raise SegmentValidationError("接缝模式必须是 pin / tail / off，或留空表示继承方案级")
+        segment = self._segments.get(session, segment_id)
+        if segment is None or segment.project_id != project_id:
+            raise SegmentNotFoundError("分段不存在")
+        updated = replace(segment, seam_mode=seam_mode, updated_at=self._clock.now())
+        self._segments.update(session, updated)
+        session.commit()
+        return self._segments.list_for_plan(session, segment.plan_id)
+
+    def _previous_tail_anchor(self, session: Session, previous) -> SegmentAnchor | None:
+        """上一段已采纳候选的**真实尾帧** → 续拍锚点；取不到返回 None（调用方回退到钉帧）。"""
+        if previous is None or not previous.accepted_candidate_id:
+            return None
+        accepted = next((item for item in previous.candidates if item.id == previous.accepted_candidate_id), None)
+        if accepted is None or not accepted.tail_frame_object_key:
+            return None
+        return SegmentAnchor(
+            frame_bytes=b"".join(self.storage.read_object(object_key=accepted.tail_frame_object_key)),
+            source=ANCHOR_SOURCE_PREVIOUS_TAIL,
+            source_candidate_id=accepted.id,
+        )
+
+    def _resolve_anchor(
+        self,
+        session: Session,
+        segment: VideoSegment,
+        previous,
+        scene,
+        next_scene,
+        plan: VideoPlan,
+        continuity_enabled: bool,
+    ) -> SegmentAnchor:
+        settings = get_settings()
+        # S4-③：**段级覆盖优先**，没设才回落方案级（迁移 0026 前全部为 None → 零变更）
+        seam_mode = getattr(segment, "seam_mode", None) or getattr(plan, "seam_mode", SEAM_PIN)
+        # 接缝模式（S6）：
+        #   pin （默认=历史行为）：首帧=本镜关键帧，尾帧=下一镜关键帧 → 转场在片段内生成
+        #   tail（续拍）：首帧=**上一段已采纳候选的真实尾帧** → 像素级连续（须按顺序生成）
+        #   off ：各镜独立（首帧=本镜关键帧，不带尾帧）
+        if seam_mode == SEAM_TAIL:
+            tail_anchor = self._previous_tail_anchor(session, previous)
+            if tail_anchor is not None:
+                return tail_anchor
+            # 第一段没有上一段可续 → 退回钉帧行为（不报错，但如实记在日志里）
+            logger.info("接缝模式 tail 但无上一段可续，已退回钉帧（segment=%s）", segment.id)
+        # Phase 2：已被用户采用的关键帧优先作为首帧（商品入画），
+        # 并在开启 kf2v 时把下一镜的已采用关键帧作为尾帧，让转场在片段内生成。
+        accepted = self._keyframes.accepted_for_scene(
+            session, project_id=plan.project_id, scene_id=segment.scene_id
+        )
+        if accepted is not None and accepted.image_object_key:
+            first_frame = b"".join(self.storage.read_object(object_key=accepted.image_object_key))
+            end_frame = None
+            if seam_mode == SEAM_PIN and settings.video_kf2v_enabled and next_scene is not None:
+                next_accepted = self._keyframes.accepted_for_scene(
+                    session, project_id=plan.project_id, scene_id=next_scene.scene_id
+                )
+                if next_accepted is not None and next_accepted.image_object_key:
+                    end_frame = b"".join(self.storage.read_object(object_key=next_accepted.image_object_key))
+            return SegmentAnchor(
+                frame_bytes=first_frame,
+                source=ANCHOR_SOURCE_INTEGRATED_KEYFRAME,
+                source_candidate_id=accepted.id,
+                end_frame_bytes=end_frame,
+            )
+        # 「背景生成」回退已废弃（M4-03 提交 2）：没有已采用的关键帧时**不再造背景**，
+        # 只允许「续段」用上一段已采用候选的尾帧；其余情况抛明确错误、停在待人工。
         previous_tail = None
         previous_candidate_id = None
         previous_accepted = False
@@ -331,12 +599,19 @@ class VideoSegmentApplicationService:
         # 而 resolve_segment_anchor 用 segment_index <= 0 表示第一段（0 基约定）。
         # 因此「是不是第一段」只能由有没有上一段来决定；直接传 order_index 会让 1 基数据下的
         # 第 1 段走进续段分支，抛 PREVIOUS_SEGMENT_NOT_ACCEPTED。
-        return resolve_segment_anchor(
-            0 if previous is None else segment.order_index,
-            scene_keyframe=keyframe, previous_tail_frame=previous_tail,
-            previous_candidate_id=previous_candidate_id, previous_accepted=previous_accepted,
-            continuity_enabled=continuity_enabled,
-        )
+        try:
+            return resolve_segment_anchor(
+                0 if previous is None else segment.order_index,
+                scene_keyframe=None, previous_tail_frame=previous_tail,
+                previous_candidate_id=previous_candidate_id, previous_accepted=previous_accepted,
+                continuity_enabled=continuity_enabled,
+            )
+        except VideoProcessingError as exc:
+            # 「第一段/续段缺少分镜关键帧」在旧实现里由背景生成兜底；现在必须停下来等人采用关键帧
+            raise SegmentKeyframeMissingError(
+                f"该镜缺少已采用的商品入画关键帧（scene_id={segment.scene_id}）："
+                "请先生成并采用该镜的关键帧；若这是续段，也可先采用上一段的候选以启用尾帧续写"
+            ) from exc
 
     def accept_candidate(self, session: Session, *, project_id: str, candidate_id: str) -> list[VideoSegment]:
         candidate = self._candidates.get(session, candidate_id)
@@ -379,3 +654,4 @@ class VideoSegmentApplicationService:
         self._invalidate_downstream(session, segment, now)
         session.commit()
         return self._segments.list_for_plan(session, segment.plan_id)
+

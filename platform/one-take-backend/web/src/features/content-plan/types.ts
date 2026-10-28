@@ -15,6 +15,12 @@ export interface ContentScene {
   template_id: string;
   subtitle_segment_ids: number[];
   qa_rules: string[];
+  // ---- 运动字段（Phase 0 起后端透出；Phase 1/2 用于关键帧与 i2v 运动提示词）----
+  visual_goal: string;
+  subject_action: string;
+  camera_move: string;
+  product_mode: string;
+  transition: string;
 }
 
 export interface ContentVariant {
@@ -37,4 +43,16 @@ export interface ContentPlan {
   created_at: string;
   updated_at: string;
   confirmed_at: string | null;
+}
+
+/** 运镜 / 转场 / 商品模式可选项（GET /content-plan/options） */
+export interface ContentPlanOption {
+  id: string;
+  label: string;
+}
+
+export interface ContentPlanOptions {
+  camera_moves: ContentPlanOption[];
+  transitions: ContentPlanOption[];
+  product_modes: ContentPlanOption[];
 }

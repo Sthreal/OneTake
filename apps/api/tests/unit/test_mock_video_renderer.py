@@ -117,3 +117,50 @@ def test_dynamic_template_has_visible_zoom_motion() -> None:
             frames.append(Image.open(frame_path).convert("RGB"))
         diff = ImageChops.difference(frames[0], frames[1])
         assert sum(ImageStat.Stat(diff).mean) / 3 > 0.5
+
+
+# ==== S14 / M4-02：零行为变更的直接证据 ====
+# 下面这串是**运镜能力提取之前**从 renderer 捕获的 dynamic 分支整串（1080 宽 + 5 秒的等价配置，
+# 用 360×640 是为了跑得快；算式与 1080 时同一套）。提取成 motion_filters.py 之后必须逐字相同 ——
+# 这是本切片"零行为变更"最硬的凭据，比任何子串断言都强。
+BASELINE_DYNAMIC_5S = (
+    "scale=720:1280:force_original_aspect_ratio=decrease,"
+    "pad=720:1280:(ow-iw)/2:(oh-ih)/2:color=white,"
+    "format=yuv420p,"
+    "zoompan=z='min(1+0.00033333*on,1.05)':d=1:s=720x1280:fps=30,"
+    "scale=360:640:flags=lanczos,"
+    "fade=t=in:st=0:d=1,fade=t=out:st=4.000:d=1"
+)
+
+
+def test_dynamic_filter_string_is_byte_identical_after_motion_extraction(monkeypatch) -> None:
+    commands: list[list[str]] = []
+
+    def fake_run(command: list[str]) -> str:
+        commands.append(command)
+        Path(command[-1]).write_bytes(b"ftypstub")
+        return ""
+
+    monkeypatch.setattr(renderer, "_run", fake_run)
+    renderer.render_base_video(
+        image_bytes=_png(), mode="product", template_id="dynamic",
+        duration_seconds=5.0, width=360, height=640, fps=30,
+    )
+    assert commands[0][commands[0].index("-vf") + 1] == BASELINE_DYNAMIC_5S
+
+
+def test_clean_template_still_has_no_motion_filter(monkeypatch) -> None:
+    """非 dynamic 模板不得被本切片波及。"""
+    commands: list[list[str]] = []
+
+    def fake_run(command: list[str]) -> str:
+        commands.append(command)
+        Path(command[-1]).write_bytes(b"ftypstub")
+        return ""
+
+    monkeypatch.setattr(renderer, "_run", fake_run)
+    renderer.render_base_video(
+        image_bytes=_png(), mode="product", template_id="clean",
+        duration_seconds=1.0, width=360, height=640, fps=30,
+    )
+    assert "zoompan" not in commands[0][commands[0].index("-vf") + 1]

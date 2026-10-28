@@ -1,4 +1,5 @@
 from onetake_api.config import get_settings
+from onetake_api.integrations.media.local_composer import LocalCompositionAdapter
 from onetake_api.integrations.mock_video.composition import MockCompositionAdapter
 from onetake_api.integrations.shotstack.adapter import ShotstackCompositionAdapter
 from onetake_api.modules.composition.port import CompositionPort
@@ -14,6 +15,10 @@ def get_composition_provider() -> CompositionPort:
     settings = get_settings()
     if settings.mock_providers or settings.composition_provider == "mock":
         return MockCompositionAdapter()
+    if settings.composition_provider == "local":
+        # 本地 FFmpeg 合成：无按次费用，处理顺序为
+        # 商品图层兜底 → 混音 → 字幕 → 去 AI 味 → AIGC 标识
+        return LocalCompositionAdapter()
     if not settings.shotstack_api_key:
         raise CompositionConfigurationError("真实合成缺少 SHOTSTACK_API_KEY")
     return ShotstackCompositionAdapter(
@@ -24,4 +29,5 @@ def get_composition_provider() -> CompositionPort:
         poll_timeout_seconds=settings.shotstack_poll_timeout_seconds,
         max_retries=settings.shotstack_max_retries,
         retry_backoff_seconds=settings.shotstack_retry_backoff_seconds,
+        caption_style=settings.caption_style,
     )

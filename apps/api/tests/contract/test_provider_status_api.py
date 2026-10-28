@@ -6,7 +6,8 @@ def test_provider_status_api_defaults_to_mock(client) -> None:
     response = client.get("/api/v1/providers/status")
     assert response.status_code == 200
     data = response.json()["data"]
-    assert [item["capability"] for item in data] == ["recognition", "image_edit", "matting", "script", "voice", "avatar_video", "composition", "product_video"]
+    # 能力清单 7 项（M4-04 已摘掉 avatar_video）
+    assert [item["capability"] for item in data] == ["recognition", "image_edit", "matting", "script", "voice", "composition", "product_video"]
     assert all(item["effective_mode"] == "mock" for item in data)
     assert "api_key" not in response.text.lower()
 
@@ -76,16 +77,20 @@ def test_shotstack_composition_requires_key() -> None:
     assert composition.reason is not None
 
 
-def test_avatar_video_requires_s2v_model_and_avatar_path() -> None:
+def test_avatar_video_capability_is_no_longer_advertised() -> None:
+    """M4-04：数字人档位下线后，Provider 能力清单**不得再出现** avatar_video。
+
+    这里刻意把 S2V 相关配置**全部填满**再断言能力不存在 —— 证明它是被真正摘掉的，
+    而不是"因为没配 key 所以显示成不可用"。保留一个已下线能力会让前端/CLI 看到
+    "可用但不存在"的选项。
+    """
     settings = Settings(
         mock_providers=False,
         avatar_video_provider="real",
         dashscope_api_key="configured",
-        wan_s2v_model="",
-        wan_s2v_avatar_path="",
+        wan_s2v_model="wan2.2-s2v",
+        wan_s2v_avatar_path="avatar.png",
     )
-    avatar = next(item for item in get_provider_statuses(settings) if item.capability == "avatar_video")
-    assert avatar.configured is False
-    assert avatar.effective_mode == "mock"
-    assert avatar.ready is False
-    assert avatar.reason is not None
+    capabilities = [item.capability for item in get_provider_statuses(settings)]
+    assert "avatar_video" not in capabilities
+    assert capabilities == ["recognition", "image_edit", "matting", "script", "voice", "composition", "product_video"]

@@ -131,7 +131,9 @@ class WanS2VAdapter:
 
     def _wait_for_video_url(self, task_id: str) -> str:
         deadline = time.monotonic() + self._poll_timeout_seconds
-        while time.monotonic() <= deadline:
+        # 严格小于：超时为 0 时必须一次都不轮询（Windows 上 monotonic 粒度约 15ms，
+        # 用 <= 会让已过期的 deadline 仍然进入循环并打出一串轮询）
+        while time.monotonic() < deadline:
             data = self._get_task(task_id)
             output = data.get("output") if isinstance(data.get("output"), dict) else {}
             task_status = str(output.get("task_status") or output.get("status") or "").upper()
@@ -143,8 +145,8 @@ class WanS2VAdapter:
             if task_status in {"FAILED", "CANCELED", "CANCELLED"}:
                 detail = self._error_detail(output) or "无详情"
                 raise WanS2VError(f"Wan S2V 任务状态 {task_status}：{detail}")
-            if task_status not in {"PENDING", "RUNNING"}:
-                raise WanS2VError(f"Wan S2V 任务状态 {task_status or 'UNKNOWN'}")
+            # 状态为空/PENDING/RUNNING 一律视为「还没好」：继续轮询直到超时，
+            # 只有明确的 FAILED/CANCELED 才是失败（无人值守管线需要区分这两者）
             time.sleep(self._poll_interval_seconds)
         raise WanS2VError("Wan S2V 任务超时")
 
