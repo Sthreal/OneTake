@@ -9,9 +9,29 @@ vi.mock("../../shared/api/projectApi", () => ({
 vi.mock("../../shared/api/characterApi", () => ({
   listCharacters: vi.fn(),
 }));
+vi.mock("../../shared/api/scriptApi", () => ({
+  getScript: vi.fn(),
+  generateScript: vi.fn(),
+  editScript: vi.fn(),
+  confirmScript: vi.fn(),
+  selectScript: vi.fn(),
+  reviewScriptGate: vi.fn(),
+  applyScriptReview: vi.fn(),
+}));
 
+import type { ScriptReviewResult, ScriptState, ScriptVersion } from "../../features/script/types";
+import { ApiError } from "../../shared/api/client";
 import { listCharacters } from "../../shared/api/characterApi";
 import { listProjects } from "../../shared/api/projectApi";
+import {
+  applyScriptReview,
+  confirmScript,
+  editScript,
+  generateScript,
+  getScript,
+  reviewScriptGate,
+  selectScript,
+} from "../../shared/api/scriptApi";
 import { StudioShell } from "../StudioShell";
 
 const product = {
@@ -27,9 +47,197 @@ function open(url: string) {
   window.history.replaceState(null, "", url);
 }
 
+function makeVersion(partial: Partial<ScriptVersion>): ScriptVersion {
+  return {
+    version_id: "scr_pain",
+    project_id: "prj_skin",
+    version_number: 1,
+    status: "ready",
+    provider: "mock",
+    model: "mock",
+    facts: {
+      product_name: "春季护肤精华液 30ml",
+      product_note: "主图已就绪",
+      pain_point: "轻薄不粘腻、一抹吸收",
+      selling_points: ["突出材质与质感"],
+      usage_scenario: "主图已就绪",
+      offer: null,
+    },
+    hook: "还在为轻薄不粘腻烦恼？",
+    pain_point: "重点看它的实际表现。",
+    selling_points: ["突出材质与质感。"],
+    usage_scenario: "日常用起来很自然，顺手看看。",
+    offer: null,
+    cta: "想确认这些特点，现在就进一步看看。",
+    full_text: "口播全文",
+    character_count: 48,
+    estimated_duration_seconds: 12,
+    error_code: null,
+    created_at: "2026-10-28T00:00:00Z",
+    updated_at: "2026-10-28T00:00:00Z",
+    completed_at: "2026-10-28T00:00:00Z",
+    confirmed_at: null,
+    angle: "pain_point",
+    angle_label: "痛点种草",
+    selected: true,
+    generation_batch_id: "sbg_1",
+    review_gate: { mode: "enforce", status: "pending", decision: null, length_ok: null, error_code: null },
+    ...partial,
+  };
+}
+
+function installScriptBackend() {
+  const pain = makeVersion({ hook: "还在为轻薄不粘腻烦恼？" });
+  const scene = makeVersion({
+    version_id: "scr_scene",
+    version_number: 2,
+    angle: "scene",
+    angle_label: "场景安利",
+    selected: false,
+    hook: "出门时怎么还不用这瓶？",
+  });
+  const comparison = makeVersion({
+    version_id: "scr_cmp",
+    version_number: 3,
+    angle: "comparison",
+    angle_label: "对比测评",
+    selected: false,
+    hook: "别再继续为清洗麻烦烦着？",
+  });
+  let candidates = [pain, scene, comparison];
+  let selectedId = pain.version_id;
+  let ready = false;
+  let lengthFail = false;
+
+  const current = () => candidates.find((item) => item.version_id === selectedId) ?? candidates[0];
+  const snapshot = (): ScriptState => {
+    const version = current();
+    return {
+      version,
+      selected_version_id: version.version_id,
+      candidates: candidates.map((item) => ({ ...item, selected: item.version_id === version.version_id })),
+    };
+  };
+  const write = (version: ScriptVersion) => {
+    candidates = candidates.map((item) => (item.version_id === version.version_id ? version : item));
+    selectedId = version.version_id;
+  };
+
+  vi.mocked(getScript).mockImplementation(async () => (ready ? snapshot() : { version: null, candidates: [], selected_version_id: null }));
+  vi.mocked(generateScript).mockImplementation(async () => {
+    ready = true;
+    return snapshot();
+  });
+  vi.mocked(selectScript).mockImplementation(async (_projectId, versionId) => {
+    if (candidates.some((item) => item.status === "confirmed")) {
+      throw new ApiError("文案已确认，不能再切换角度", { code: "SCRIPT_CONFLICT", status: 409, retryable: true });
+    }
+    selectedId = versionId;
+    return snapshot();
+  });
+  vi.mocked(reviewScriptGate).mockImplementation(async () => {
+    const base = current();
+    const gate = {
+      mode: "enforce",
+      status: lengthFail ? "failed" : "reviewed",
+      decision: null,
+      length_ok: lengthFail ? false : true,
+      error_code: lengthFail ? "SCRIPT_REVIEW_LENGTH" : null,
+    };
+    const version = { ...base, review_gate: gate };
+    write(version);
+    const result: ScriptReviewResult = {
+      gate_mode: "enforce",
+      gate_status: gate.status,
+      decision: null,
+      dimensions: {
+        rhythm: { passed: !lengthFail, reason: lengthFail ? "改写超长" : "ok" },
+        spoken: { passed: true, reason: "ok" },
+        freshness: { passed: true, reason: "ok" },
+        structure: { passed: true, reason: "ok" },
+      },
+      failed_dimensions: lengthFail ? ["rhythm"] : [],
+      revised: {
+        hook: lengthFail ? `${base.hook}这段改写故意写得很长` : base.hook,
+        pain_point: base.pain_point,
+        selling_points: base.selling_points,
+        usage_scenario: base.usage_scenario,
+        cta: base.cta,
+      },
+      changed_fields: ["hook"],
+      length_ok: !lengthFail,
+      length_errors: lengthFail ? ["hook"] : [],
+      error_code: gate.error_code,
+      blocks_paid_video: true,
+      version,
+    };
+    return result;
+  });
+  vi.mocked(applyScriptReview).mockImplementation(async (_projectId, action) => {
+    const base = current();
+    if (action === "apply" && base.review_gate?.status === "failed") {
+      throw new ApiError("这次审稿的改写不能应用，请明确保留原稿", { code: "SCRIPT_REVIEW_LENGTH", status: 409, retryable: true });
+    }
+    const decision = action === "apply" ? "applied" : "acked";
+    const version = {
+      ...base,
+      hook: action === "apply" ? "改写后的钩子，还在说这瓶精华。" : base.hook,
+      review_gate: { mode: "enforce", status: "passed", decision, length_ok: true, error_code: null },
+    };
+    write(version);
+    return {
+      gate_mode: "enforce",
+      gate_status: "passed",
+      decision,
+      dimensions: {},
+      failed_dimensions: [],
+      revised: null,
+      changed_fields: action === "apply" ? ["hook"] : [],
+      length_ok: true,
+      length_errors: [],
+      error_code: null,
+      blocks_paid_video: false,
+      version,
+    } satisfies ScriptReviewResult;
+  });
+  vi.mocked(confirmScript).mockImplementation(async () => {
+    const base = current();
+    if (base.review_gate?.status !== "passed") {
+      throw new ApiError("文案确认前需要先完成审稿：应用改写或明确保留原稿", { code: "SCRIPT_REVIEW_REQUIRED", status: 409, retryable: true });
+    }
+    const version = { ...base, status: "confirmed" as const, confirmed_at: "2026-10-28T02:00:00Z" };
+    write(version);
+    return snapshot();
+  });
+  vi.mocked(editScript).mockImplementation(async (_projectId, input) => {
+    const base = current();
+    const version = {
+      ...base,
+      hook: input.hook,
+      pain_point: input.painPoint,
+      selling_points: input.sellingPoints,
+      usage_scenario: input.usageScenario,
+      cta: input.cta,
+      status: "ready" as const,
+      confirmed_at: null,
+      updated_at: "2026-10-28T03:00:00Z",
+      review_gate: { mode: "enforce", status: "pending", decision: null, length_ok: null, error_code: null },
+    };
+    write(version);
+    return snapshot();
+  });
+
+  return {
+    failLength() {
+      lengthFail = true;
+    },
+  };
+}
+
 describe("iter18 图片广告与工作室解耦", () => {
   beforeEach(() => {
     open("/");
+    installScriptBackend();
     vi.mocked(listProjects).mockResolvedValue([product]);
     vi.mocked(listCharacters).mockResolvedValue({
       characters: [{
@@ -87,15 +295,108 @@ describe("iter18 图片广告与工作室解耦", () => {
     expect(await screen.findByRole("heading", { name: "审稿确认" })).toBeInTheDocument();
     expect(screen.getByText(/无需先做图片广告/)).toBeInTheDocument();
     expect(within(screen.getByRole("list", { name: "审稿九宫格" })).getAllByRole("listitem")).toHaveLength(9);
+    const angles = within(await screen.findByRole("group", { name: "口播角度" })).getAllByRole("button");
+    expect(angles.map((item) => item.getAttribute("aria-label"))).toEqual(["痛点种草", "场景安利", "对比测评"]);
+    expect(generateScript).toHaveBeenCalledWith("prj_skin", {
+      painPoint: "轻薄不粘腻、一抹吸收",
+      sellingPoints: ["突出材质与质感", "强调敏感肌友好"],
+      usageScenario: "主图已就绪",
+      offer: null,
+    });
+    expect(screen.getByRole("button", { name: /确认并生成视频/ })).toBeDisabled();
 
-    await user.click(screen.getByRole("button", { name: /确认并生成视频/ }));
+    await user.click(screen.getByRole("button", { name: "场景安利" }));
+    await waitFor(() => expect(selectScript).toHaveBeenCalledWith("prj_skin", "scr_scene"));
+    expect(screen.getByRole("button", { name: "场景安利" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("textbox", { name: "钩子" })).toHaveValue("出门时怎么还不用这瓶？");
+
+    await user.click(screen.getByRole("button", { name: "审稿" }));
+    expect(await screen.findByText("审稿闸：已审，还没过闸")).toBeInTheDocument();
+    expect(within(screen.getByRole("list", { name: "四维审稿" })).getByText("节奏")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "应用改写" })).toBeEnabled();
+
+    await user.click(screen.getByRole("button", { name: "保留原稿" }));
+    expect(await screen.findByText("审稿闸：已通过（保留原稿）")).toBeInTheDocument();
+    expect(applyScriptReview).toHaveBeenCalledWith("prj_skin", "ack");
+
+    const go = screen.getByRole("button", { name: /确认并生成视频/ });
+    await waitFor(() => expect(go).toBeEnabled());
+    await user.click(go);
     expect(await screen.findByRole("heading", { name: "生成中" })).toBeInTheDocument();
     expect(screen.getByText(/不经过图片广告/)).toBeInTheDocument();
+    await waitFor(() => expect(confirmScript).toHaveBeenCalledWith("prj_skin"));
+    await waitFor(() => expect(screen.getByRole("button", { name: "查看成片" })).toBeEnabled());
+    expect(screen.getByText(/审稿闸已通过/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "查看成片" }));
     expect(await screen.findByRole("heading", { name: "成片交付" })).toBeInTheDocument();
     expect(screen.getByText(/没有经过图片广告/)).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "图片广告" })).not.toBeInTheDocument();
+  });
+
+  it("等长失败不能应用改写，保留原稿后才能进生成", async () => {
+    const backend = installScriptBackend();
+    backend.failLength();
+    const user = userEvent.setup();
+    open("/?view=prepare");
+    render(<StudioShell />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "开始制作" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "开始制作" }));
+    await user.click(await screen.findByRole("button", { name: "审稿" }));
+    expect(await screen.findByText(/等长未通过（hook）/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "应用改写" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "保留原稿" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "保留原稿" }));
+    expect(await screen.findByText("审稿闸：已通过（保留原稿）")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /确认并生成视频/ })).toBeEnabled();
+  });
+
+  it("手改文案会清闸，要重新审稿", async () => {
+    const user = userEvent.setup();
+    open("/?view=prepare");
+    render(<StudioShell />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "开始制作" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "开始制作" }));
+    await user.click(await screen.findByRole("button", { name: "审稿" }));
+    expect(await screen.findByText("审稿闸：已审，还没过闸")).toBeInTheDocument();
+    const hook = screen.getByRole("textbox", { name: "钩子" });
+    await user.clear(hook);
+    await user.type(hook, "换成一句新的开头。");
+    await user.click(screen.getByRole("button", { name: "保存手改" }));
+    expect(await screen.findByText("手改文案已清掉审稿闸，需要重新审稿。")).toBeInTheDocument();
+    expect(editScript).toHaveBeenCalledWith("prj_skin", expect.objectContaining({ hook: "换成一句新的开头。" }));
+    expect(screen.getByRole("button", { name: /确认并生成视频/ })).toBeDisabled();
+    expect(screen.getByText("审稿闸：未开始")).toBeInTheDocument();
+  });
+
+  it("已确认后再切角度会展示 409，生成步在过闸前拦住", async () => {
+    const user = userEvent.setup();
+    open("/?view=prepare");
+    render(<StudioShell />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "开始制作" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "开始制作" }));
+    await user.click(await screen.findByRole("button", { name: "审稿" }));
+    await screen.findByText("审稿闸：已审，还没过闸");
+    await user.click(screen.getByRole("button", { name: "保留原稿" }));
+    await screen.findByText("审稿闸：已通过（保留原稿）");
+    await user.click(screen.getByRole("button", { name: /确认并生成视频/ }));
+    expect(await screen.findByRole("heading", { name: "生成中" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /审稿确认/ }));
+    await user.click(await screen.findByRole("button", { name: "场景安利" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("文案已确认，不能再切换角度");
+    expect(screen.getByRole("button", { name: "痛点种草" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("直接打开生成步时，未过闸会拦住并送回审稿", async () => {
+    const user = userEvent.setup();
+    open("/?view=generate&project=prj_skin");
+    render(<StudioShell />);
+    expect(await screen.findByRole("heading", { name: "生成中" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("SCRIPT_REVIEW_REQUIRED"));
+    expect(screen.getByRole("button", { name: "查看成片" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "回到审稿过闸" }));
+    expect(await screen.findByRole("heading", { name: "审稿确认" })).toBeInTheDocument();
   });
 
   it("没有商品时准备步不能从零新建，只能去品牌空间", async () => {
