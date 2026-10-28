@@ -1,6 +1,8 @@
 from onetake_api.modules.script.content import spoken_character_count
 from onetake_api.modules.script.domain import ScriptDraft, ScriptInput
 
+_UNSET = object()
+
 # 场景句收在「顺手看看」，和切片 A 的双 CTA 轻提同一句尾巴，rebase 后仍能过校验。
 _LIGHT_TAIL = "顺手看看"
 _PAD = "用着也省心"
@@ -47,8 +49,22 @@ def _angled_draft(script_input: ScriptInput, angle: str) -> ScriptDraft:
 
 
 class MockScriptAdapter:
+    """Mock 文案。`review_script` 供单测配置审稿结果，不打真实模型。
+
+    - 不设置：四维全过，改写等于原稿（等长自然满足）；
+    - `ScriptReview`：原样返回；
+    - `BaseException`：审稿时抛出；
+    - callable(script_input, draft)：返回上述二者之一。
+    类属性和构造参数都能设；`_adapter()` 走的是无参构造，单测用类属性即可。
+    """
+
     provider_name = "mock-qwen-vl-plus"
     model = "qwen-vl-plus"
+    review_script: object = _UNSET
+    review_calls = 0
+
+    def __init__(self, *, review_script: object = _UNSET) -> None:
+        self._review_script = review_script
 
     def generate(
         self,
@@ -78,4 +94,28 @@ class MockScriptAdapter:
             usage_scenario=scenario,
             cta=cta,
         )
+
+    def review(self, *, script_input: ScriptInput, draft: ScriptDraft):
+        from onetake_api.integrations.qwen_vl_script.adapter import REVIEW_DIMENSIONS, ScriptReview
+
+        MockScriptAdapter.review_calls += 1
+        spec = self._review_script if self._review_script is not _UNSET else MockScriptAdapter.review_script
+        if spec is _UNSET:
+            return ScriptReview(
+                dimensions={
+                    name: {"passed": True, "reason": "mock 通过"}
+                    for name in REVIEW_DIMENSIONS
+                },
+                revised=draft,
+                changed_fields=[],
+                provider=self.provider_name,
+                model=self.model,
+            )
+        if isinstance(spec, BaseException):
+            raise spec
+        if isinstance(spec, ScriptReview):
+            return spec
+        if callable(spec):
+            return spec(script_input=script_input, draft=draft)
+        raise TypeError("MockScriptAdapter.review_script 必须是 ScriptReview、异常或 callable")
 

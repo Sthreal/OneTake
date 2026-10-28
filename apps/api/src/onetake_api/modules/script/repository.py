@@ -138,7 +138,6 @@ class ScriptRepository:
         if model is None:
             return
         model.status = version.status
-        model.facts = version.facts
         model.hook = version.hook
         model.pain_point = version.pain_point
         model.selling_points = list(version.selling_points)
@@ -149,6 +148,7 @@ class ScriptRepository:
         model.character_count = version.character_count
         model.estimated_duration_seconds = version.estimated_duration_seconds
         model.error_code = version.error_code
+        model.facts = dict(version.facts)
         model.updated_at = version.updated_at
         model.completed_at = version.completed_at
         model.confirmed_at = version.confirmed_at

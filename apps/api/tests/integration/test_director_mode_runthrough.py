@@ -191,7 +191,10 @@ def test_director_mode_runs_through_all_five_steps(
     plan_id = plan["plan_id"]
     assert plan["path"] == "segmented"
 
-    # 闸②：把"当前配置"打桩成会花钱的样子（生成链仍走 mock，不会真调供应商）
+    # 闸②：把"当前配置"打桩成会花钱的样子（生成链仍走 mock，不会真调供应商）。
+    # 审稿闸默认 enforce，会抢在费用闸前面 409。这里关掉，专测费用闸；审稿闸见 test_script_review_gate。
+    monkeypatch.setenv("SCRIPT_REVIEW_GATE", "off")
+    get_settings.cache_clear()
     monkeypatch.setattr("onetake_api.modules.video_plan.service.get_settings", lambda: PAID_SETTINGS)
     monkeypatch.setattr(
         "onetake_api.modules.video_plan.service.get_composition_provider", lambda: _StubComposition()

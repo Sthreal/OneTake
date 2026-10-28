@@ -165,6 +165,8 @@ class QwenVlScriptAdapter:
             "**只重写不合格的那几句**，合格的句子必须原样保留；不得新增事实、数字、价格、折扣、认证、功效或品牌；"
             f"selling_points 的条数必须与输入一致（{len(draft.selling_points)} 条）；"
             "改写后全文去掉标点仍须为 45-72 个中文字符（短版口径，与生成阶段一致）。"
+            "每个被改写的字段（hook、pain_point、usage_scenario、cta，以及每一条 selling_points）"
+            "去掉标点后的字数必须落在原稿该字段的 ±20% 以内。"
             "输出严格 JSON："
             '{"dimensions":{"rhythm":{"passed":true,"reason":"…"},"spoken":{...},"freshness":{...},"structure":{...}},'
             '"revised":{"hook":"…","pain_point":"…","selling_points":["…"],"usage_scenario":"…","cta":"…"}}。'

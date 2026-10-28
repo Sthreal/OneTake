@@ -583,7 +583,9 @@ class PipelineOrchestrator:
             version = self._scripts.latest(session, project_id).version
             if version is None or version.status != SCRIPT_READY:
                 return False
-            self._scripts.confirm(session, project_id)
+            # 自动链可以代按「文案已确认」，但不会替人 ack 审稿闸。
+            # 付费视频入口仍要 apply/ack；这里若强制闸门，免费/mock 链会停在文案。
+            self._scripts.confirm(session, project_id, enforce_review_gate=False)
             return True
         if spec.name == "voice_subtitle":
             subtitle = self._subtitles.latest(session, project_id)

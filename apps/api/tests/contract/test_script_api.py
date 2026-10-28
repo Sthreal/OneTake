@@ -101,6 +101,18 @@ def test_script_api_flow(client, db_session: Session, object_storage: ObjectStor
     assert edited.status_code == 200
     assert edited.json()["data"]["version"]["status"] == "ready"
 
+    blocked = client.post(f"/api/v1/projects/{project_id}/script/confirm")
+    assert blocked.status_code == 409
+    assert blocked.json()["error"]["code"] == "SCRIPT_REVIEW_REQUIRED"
+
+    reviewed = client.post(f"/api/v1/projects/{project_id}/script/review")
+    assert reviewed.status_code == 200, reviewed.text
+    assert reviewed.json()["data"]["gate_status"] == "reviewed"
+
+    acked = client.post(f"/api/v1/projects/{project_id}/script/review/apply", json={"action": "ack"})
+    assert acked.status_code == 200, acked.text
+    assert acked.json()["data"]["gate_status"] == "passed"
+
     confirmed = client.post(f"/api/v1/projects/{project_id}/script/confirm")
     assert confirmed.status_code == 200
     assert confirmed.json()["data"]["version"]["status"] == "confirmed"

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import asdict, replace
 from datetime import datetime
 
@@ -23,9 +24,13 @@ from onetake_api.modules.video_plan.public import VideoPlanPublicService
 from onetake_api.modules.video_plan.segment_domain import VideoSegment, VideoSegmentCandidate
 from onetake_api.modules.video_plan.segment_public import VideoSegmentPublicService
 from onetake_api.modules.video_plan.segment_service import SegmentPlanMissingError, SegmentValidationError
+from onetake_api.config import get_settings
+from onetake_api.modules.script.public import ScriptPublicService
+from onetake_api.modules.script.service import ScriptReviewRequiredError
 from onetake_api.modules.video_plan.service import (
     KEEP,
     VideoPlanApplicationService,
+    VideoPlanNotFoundError,
     VideoPlanValidationError,
     VideoView,
 )
@@ -36,6 +41,7 @@ from onetake_api.platform.ids import new_id
 from onetake_api.platform.request_context import get_request_id
 
 router = APIRouter(prefix="/api/v1/projects/{project_id}", tags=["video"])
+logger = logging.getLogger(__name__)
 
 
 class CreateVideoPlanRequest(BaseModel):
@@ -161,6 +167,36 @@ def _require_cost_approval(session: Session, project_id: str, plan_id: str | Non
     VideoPlanApplicationService().require_cost_approval(session, project_id=project_id, plan_id=plan_id)
 
 
+def _require_script_review(session: Session, project_id: str) -> None:
+    """花钱前的文案审稿闸。只拦「这份预估会付钱」的入口，不替代 cost_approvals。
+
+    off：不看审稿。warn：未 apply/ack 只记日志。enforce：409 SCRIPT_REVIEW_REQUIRED，
+    并且停在费用闸和任何 provider 调用之前。没有视频方案时与费用闸一样先放行，
+    让原入口报自己的「方案不存在」。
+    """
+    mode = get_settings().script_review_gate
+    if mode == "off":
+        return
+    try:
+        context = VideoPlanApplicationService().cost_approval_context(session, project_id=project_id)
+    except VideoPlanNotFoundError:
+        return
+    if not context.is_paid:
+        return
+    if ScriptPublicService().review_gate_passed(session, project_id):
+        return
+    if mode == "warn":
+        logger.warning("审稿闸未通过（warn，不拦截付费视频）project_id=%s", project_id)
+        return
+    raise ScriptReviewRequiredError("付费视频前需要先完成文案审稿：应用改写或明确保留原稿")
+
+
+def _require_paid_entry(session: Session, project_id: str, plan_id: str | None = None) -> None:
+    """先审稿、再费用。两道闸都在 provider 之前。"""
+    _require_script_review(session, project_id)
+    _require_cost_approval(session, project_id, plan_id)
+
+
 @router.patch("/video-plan", response_model=VideoResponse)
 def update_video_plan_settings(
     project_id: str, payload: UpdateVideoPlanSettingsRequest, session: Session = Depends(get_session)
@@ -195,13 +231,13 @@ def get_video(project_id: str, session: Session = Depends(get_session)) -> Video
 
 @router.post("/video", response_model=VideoResponse, status_code=status.HTTP_202_ACCEPTED)
 def request_video(project_id: str, session: Session = Depends(get_session)) -> VideoResponse:
-    _require_cost_approval(session, project_id)
+    _require_paid_entry(session, project_id)
     return _response(VideoPlanPublicService().request_video(session, project_id))
 
 
 @router.post("/compose", response_model=VideoResponse, status_code=status.HTTP_202_ACCEPTED)
 def request_compose(project_id: str, session: Session = Depends(get_session)) -> VideoResponse:
-    _require_cost_approval(session, project_id)
+    _require_paid_entry(session, project_id)
     return _response(VideoPlanPublicService().request_video(session, project_id))
 
 
@@ -358,7 +394,7 @@ def list_video_segments(project_id: str, plan_id: str | None = None, session: Se
 
 @router.post("/video/segments/{segment_id}/candidates", response_model=SegmentListResponse, status_code=status.HTTP_201_CREATED)
 def generate_segment_candidate(project_id: str, segment_id: str, payload: dict | None = None, session: Session = Depends(get_session)) -> SegmentListResponse:
-    _require_cost_approval(session, project_id)
+    _require_paid_entry(session, project_id)
     seed = payload.get("seed") if isinstance(payload, dict) else None
     segments = VideoSegmentPublicService().generate_candidate(session, project_id=project_id, segment_id=segment_id, seed=seed)
     return _segment_response(
@@ -419,7 +455,7 @@ def start_video_batch(
     stop_after_segments: int | None = Query(default=None, ge=1, le=50),
     session: Session = Depends(get_session),
 ) -> VideoResponse:
-    _require_cost_approval(session, project_id)
+    _require_paid_entry(session, project_id)
     plan = VideoSegmentPublicService().start_batch(
         session, project_id=project_id, stop_after_segments=stop_after_segments
     )
@@ -602,7 +638,7 @@ def list_video_keyframes(project_id: str, session: Session = Depends(get_session
 
 @router.post("/video/keyframes/{scene_id}/candidates", response_model=KeyframeResponse, status_code=status.HTTP_201_CREATED)
 def generate_keyframe_candidates(project_id: str, scene_id: str, payload: KeyframeCandidatesRequest, session: Session = Depends(get_session)) -> KeyframeResponse:
-    _require_cost_approval(session, project_id)
+    _require_paid_entry(session, project_id)
     VideoKeyframePublicService().generate_candidate(
         session, project_id=project_id, scene_id=scene_id, mode=payload.mode, n=payload.n, seed=payload.seed
     )
@@ -620,7 +656,7 @@ def accept_keyframe(project_id: str, scene_id: str, payload: KeyframeAcceptReque
 @router.post("/video/segments/{segment_id}/retake", response_model=SegmentListResponse, status_code=status.HTTP_201_CREATED)
 def retake_video_segment(project_id: str, segment_id: str, payload: RetakeSegmentRequest, session: Session = Depends(get_session)) -> SegmentListResponse:
     """症状式定向返修：一次只改一个变量，失败与费用纪律与常规生成一致。"""
-    _require_cost_approval(session, project_id)
+    _require_paid_entry(session, project_id)
     segments = VideoSegmentPublicService().generate_candidate(
         session, project_id=project_id, segment_id=segment_id, symptom=payload.symptom
     )

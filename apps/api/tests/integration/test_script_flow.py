@@ -93,7 +93,11 @@ def test_script_flow_success_and_edit(
 
     job = JobPublicService().find_active(db_session, project_id, "script")
     assert job is not None
+    from onetake_api.integrations.mock_script.adapter import MockScriptAdapter
+
+    MockScriptAdapter.review_calls = 0
     ready = service.process_job(db_session, job.id)
+    assert MockScriptAdapter.review_calls == 0
     assert ready.status == "ready"
     assert ready.facts.get("angle") == "pain_point"
     assert ready.facts.get("selected") is True
@@ -113,6 +117,11 @@ def test_script_flow_success_and_edit(
     assert edited.version is not None
     assert edited.version.status == "ready"
     assert edited.version.full_text.endswith("看看。")
+
+    reviewed = service.review(db_session, project_id)
+    assert reviewed.gate_status == "reviewed" and reviewed.length_ok is True
+    acked = service.apply_review(db_session, project_id, action="ack")
+    assert acked.gate_status == "passed" and acked.decision == "acked"
 
     confirmed = service.confirm(db_session, project_id)
     assert confirmed.version is not None

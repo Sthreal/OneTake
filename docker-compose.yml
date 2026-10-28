@@ -114,6 +114,8 @@ services:
       IMAGE_EDIT_ENDPOINT: ${IMAGE_EDIT_ENDPOINT:-https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation}
       QWEN_IMAGE_EDIT_PRICE_PER_CALL: ${QWEN_IMAGE_EDIT_PRICE_PER_CALL:-}
       SCRIPT_MODEL: ${SCRIPT_MODEL:-qwen-vl-plus}
+      SCRIPT_REVIEW_ENABLED: ${SCRIPT_REVIEW_ENABLED:-true}
+      SCRIPT_REVIEW_GATE: ${SCRIPT_REVIEW_GATE:-enforce}
       VOICE_MODEL: ${VOICE_MODEL:-cosyvoice-v2}
       SCRIPT_ENDPOINT: ${SCRIPT_ENDPOINT:-https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation}
       COMPOSITION_PROVIDER: ${COMPOSITION_PROVIDER:-mock}
@@ -249,6 +251,8 @@ services:
       IMAGE_EDIT_ENDPOINT: ${IMAGE_EDIT_ENDPOINT:-https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation}
       QWEN_IMAGE_EDIT_PRICE_PER_CALL: ${QWEN_IMAGE_EDIT_PRICE_PER_CALL:-}
       SCRIPT_MODEL: ${SCRIPT_MODEL:-qwen-vl-plus}
+      SCRIPT_REVIEW_ENABLED: ${SCRIPT_REVIEW_ENABLED:-true}
+      SCRIPT_REVIEW_GATE: ${SCRIPT_REVIEW_GATE:-enforce}
       VOICE_MODEL: ${VOICE_MODEL:-cosyvoice-v2}
       SCRIPT_ENDPOINT: ${SCRIPT_ENDPOINT:-https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation}
       COMPOSITION_PROVIDER: ${COMPOSITION_PROVIDER:-mock}
