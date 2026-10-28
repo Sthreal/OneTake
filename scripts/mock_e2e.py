@@ -3,11 +3,17 @@ from __future__ import annotations
 import argparse
 import hashlib
 import io
+import sys
 import time
 from collections.abc import Callable
 
 import httpx
 from PIL import Image, ImageDraw
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 
 def wait_for(path: str, predicate: Callable[[dict], bool], *, timeout: float = 90.0, interval: float = 0.3) -> dict:
@@ -29,6 +35,27 @@ def post(path: str, *, json: dict | None = None) -> dict:
     return response.json()
 
 
+def require_mock_mode() -> None:
+    """在创建任何项目之前确认 API 确实处于 Mock 模式。
+
+    这是手工 E2E 的安全闸：本地 `.env` 是真实 Provider 配置时，脚本必须
+    直接退出，不能先建项目再在后续步骤触发付费调用。
+    """
+    try:
+        response = httpx.get(f"{BASE_URL}/health", timeout=10.0)
+        payload = response.json()
+    except Exception as exc:
+        raise SystemExit(f"无法确认 API 的 Mock 模式：{exc}") from exc
+    if not isinstance(payload, dict) or payload.get("mock_providers") is not True:
+        print(
+            "拒绝执行 Mock E2E：当前 API 不是 Mock 模式（mock_providers != true）。\n"
+            "请先把 MOCK_PROVIDERS=true 并同步 VOICE_PROVIDER=mock 等配置写入运行环境，"
+            "重建/重启 api 与 worker 后重试；本脚本不会自动切换真实链路。",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
+
+
 def product_png() -> bytes:
     image = Image.new("RGB", (900, 900), "white")
     draw = ImageDraw.Draw(image)
@@ -46,6 +73,7 @@ def main() -> None:
     args = parser.parse_args()
     global BASE_URL
     BASE_URL = args.base_url.rstrip("/")
+    require_mock_mode()
 
     project = post("/api/v1/projects", json={"product_name": "Mock验收商品", "product_note": "自动化验收项目"})["data"]
     project_id = project["project_id"]

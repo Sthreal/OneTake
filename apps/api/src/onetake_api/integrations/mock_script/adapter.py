@@ -13,12 +13,12 @@ class MockScriptAdapter:
         script_input: ScriptInput,
     ) -> ScriptDraft:
         product = script_input.product_name
-        hook = f"还在为{script_input.pain_point}烦恼吗？这款{product}值得看看。"
-        pain = f"针对{script_input.pain_point}，可以重点了解它的实际表现。"
+        hook = f"还在为{script_input.pain_point}烦恼？看看{product}。"
+        pain = f"重点看它的实际表现。"
         points = [f"{point}。" for point in script_input.selling_points]
-        scenario = f"在{script_input.usage_scenario}时，可以自然使用。"
+        scenario = f"日常用起来很自然。"
         if script_input.offer:
-            cta = f"结合{script_input.offer}进一步了解，感兴趣就来看看。"
+            cta = f"感兴趣就来看看。"
         else:
             cta = "想确认这些特点，现在就进一步看看。"
         return ScriptDraft(

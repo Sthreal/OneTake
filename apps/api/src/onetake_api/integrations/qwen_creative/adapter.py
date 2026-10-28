@@ -35,6 +35,8 @@ class QwenCreativePlanner:
         prompt = (
             "你是电商短视频视觉导演。只优化镜头、背景和光线，不得修改文案、时间轴、商品事实、价格、销量、认证或功效。"
             "严格输出 JSON，格式为 {\"variants\":[{\"variant_id\":\"...\",\"scenes\":[{\"scene_id\":\"...\",\"prompt\":\"...\",\"shot_type\":\"...\",\"background_style\":\"...\"}]}]}。"
+            "prompt 字段必须使用简体中文，不能输出英文句子；shot_type 和 background_style 继续使用简短稳定的英文标识。"
+            "不得引入其他商品名、竞品名、品牌名、杯子、瓶子、餐具、容器、盒子或道具，不得新增商品事实。"
             "每个输入 scene_id 必须且只能出现一次，不得增加 scene_id。事实和分镜骨架："
             + json.dumps({"facts": facts, "source": source}, ensure_ascii=False)
         )

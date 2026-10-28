@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 from dataclasses import dataclass, replace
 
 from sqlalchemy.orm import Session
@@ -24,6 +25,8 @@ from onetake_api.platform.ids import new_id
 from onetake_api.platform.queue import get_queue
 
 VOICE_URL_SECONDS = 3600
+
+logger = logging.getLogger(__name__)
 
 
 class VoiceNotFoundError(DomainError):
@@ -241,9 +244,28 @@ class VoiceApplicationService:
                 )
             return run
         except DomainError as exc:
+            logger.error(
+                "配音生成失败 project_id=%s run_id=%s provider=%s model=%s voice_id=%s code=%s: %s",
+                run.project_id,
+                run.id,
+                run.provider,
+                run.model,
+                run.voice_id,
+                exc.code,
+                exc,
+                exc_info=True,
+            )
             self._jobs.mark_failed(session, job, exc.code)
             return self._mark_failed(session, run, exc.code)
         except Exception:
+            logger.exception(
+                "配音生成失败 project_id=%s run_id=%s provider=%s model=%s voice_id=%s code=VOICE_PROVIDER_ERROR",
+                run.project_id,
+                run.id,
+                run.provider,
+                run.model,
+                run.voice_id,
+            )
             self._jobs.mark_failed(session, job, "VOICE_PROVIDER_ERROR")
             return self._mark_failed(session, run, "VOICE_PROVIDER_ERROR")
 

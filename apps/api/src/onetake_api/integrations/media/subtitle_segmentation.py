@@ -3,7 +3,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-MAX_CAPTION_CHARS = 16
+MAX_CAPTION_CHARS = 11
+MAX_LINE_CHARS = 10
 SPLIT_PUNCTUATION = r"[，。！？；：、,.;!?;:]+"
 TIME_PATTERN = re.compile(
     r"(\d{2}):(\d{2}):(\d{2})[,.](\d{3})\s*-->\s*"
@@ -29,12 +30,27 @@ def split_srt_bytes(srt_bytes: bytes) -> bytes:
     expanded: list[SubtitleCue] = []
     for cue in cues:
         expanded.extend(_split_cue(cue))
-    if len(expanded) == len(cues):
+    changed = len(expanded) != len(cues) or any(
+        expanded_cue.text != cue.text for expanded_cue, cue in zip(expanded, cues)
+    )
+    if not changed:
         return srt_bytes
     lines: list[str] = []
     for index, cue in enumerate(expanded, 1):
         lines.extend([str(index), f"{_format_time(cue.start_ms)} --> {_format_time(cue.end_ms)}", cue.text, ""])
     return "\n".join(lines).encode("utf-8")
+
+
+def parse_srt_bytes(srt_bytes: bytes) -> list[SubtitleCue]:
+    """公开的 SRT 解析（批次 1b 的字幕越界估算要按**实际会被渲染的行**来算）。
+
+    与 `split_srt_bytes` 共用同一个 `_parse_cues` —— 解析口径只有一处。
+    """
+    try:
+        source = srt_bytes.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        return []
+    return _parse_cues(source)
 
 
 def _parse_cues(source: str) -> list[SubtitleCue]:
@@ -46,7 +62,9 @@ def _parse_cues(source: str) -> list[SubtitleCue]:
         match = TIME_PATTERN.search(lines[1])
         if match is None:
             continue
-        text = "".join(lines[2:]).strip()
+        # 用换行拼接（不是空串）：切分产生的折行（`_wrap_caption` 写入的 `\n`）读回来必须还在，
+        # 否则 ASS/卡拉OK 路径会把两行合成一行（1c 实测踩到）。单行 cue 不受影响。
+        text = "\n".join(lines[2:]).strip()
         if not text:
             continue
         start_ms = _to_ms(*match.groups()[0:4])
@@ -76,11 +94,18 @@ def _split_cue(cue: SubtitleCue) -> list[SubtitleCue]:
         else:
             duration = max(1, round(remaining_ms * len(part) / remaining_chars))
             end_ms = min(cursor + duration, cue.end_ms - (len(parts) - index - 1))
-        result.append(SubtitleCue(start_ms=cursor, end_ms=end_ms, text=part))
+        result.append(SubtitleCue(start_ms=cursor, end_ms=end_ms, text=_wrap_caption(part)))
         cursor = end_ms
         remaining_ms = cue.end_ms - cursor
         remaining_chars -= len(part)
     return result
+
+
+def _wrap_caption(text: str) -> str:
+    if len(text) <= MAX_LINE_CHARS:
+        return text
+    split_at = (len(text) + 1) // 2
+    return f"{text[:split_at]}\n{text[split_at:]}"
 
 
 def _split_text(text: str) -> list[str]:

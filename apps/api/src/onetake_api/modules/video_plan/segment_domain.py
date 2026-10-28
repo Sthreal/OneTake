@@ -36,6 +36,8 @@ class VideoSegmentCandidate:
     height: int | None = None
     fps: int | None = None
     seed: int | None = None
+    # 症状式返修：本次候选只针对该症状做了一次单变量修改（None 表示常规生成）
+    symptom: str | None = None
     error_code: str | None = None
     error_message: str | None = None
 
@@ -54,6 +56,8 @@ class VideoSegment:
     updated_at: datetime
     accepted_candidate_id: str | None = None
     last_error: str | None = None
+    # 段级接缝覆盖（S4-③）：None = 继承方案级 plans.seam_mode
+    seam_mode: str | None = None
     candidates: list[VideoSegmentCandidate] = field(default_factory=list)
 
     @property

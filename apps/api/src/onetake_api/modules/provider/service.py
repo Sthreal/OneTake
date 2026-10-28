@@ -23,8 +23,7 @@ _MOCK_NAMES = {
     "matting": "mock-photoroom",
     "script": "mock-qwen-vl-plus",
     "voice": "mock-cosyvoice-v2",
-    "avatar_video": "mock-avatar-video",
-    "composition": "mock-ffmpeg",
+   "composition": "mock-ffmpeg",
     "product_video": "mock-product-video",
 }
 _REAL_NAMES = {
@@ -34,13 +33,14 @@ _REAL_NAMES = {
     "matting_aliyun": "aliyun-imageseg-segmentcommodity",
     "script": "qwen-vl-plus",
     "voice": "cosyvoice-v2",
-    "avatar_video": "wan-s2v",
-    "composition": "shotstack-stage",
+   "composition": "shotstack-stage",
     "product_video": "wan2.6-i2v",
 }
 
 
 def _provider_name(settings: Settings, capability: str, mode: str) -> str:
+    if capability == "composition" and mode == "local":
+        return "local-ffmpeg"
     if capability == "matting" and mode == "aliyun":
         return _REAL_NAMES["matting_aliyun"]
     if capability == "composition" and mode == "shotstack":
@@ -53,8 +53,6 @@ def _real_configured(settings: Settings, capability: str) -> bool:
         return bool(settings.dashscope_api_key)
     if capability == "composition":
         return bool(settings.shotstack_api_key)
-    if capability == "avatar_video":
-        return bool(settings.dashscope_api_key and settings.wan_s2v_model and settings.wan_s2v_avatar_path)
     if capability == "product_video":
         return bool(settings.dashscope_api_key and settings.wan_i2v_model)
     if capability == "matting":
@@ -67,7 +65,9 @@ def _real_configured(settings: Settings, capability: str) -> bool:
 def get_provider_statuses(settings: Settings | None = None) -> list[ProviderStatus]:
     settings = settings or get_settings()
     statuses: list[ProviderStatus] = []
-    for capability in ("recognition", "image_edit", "matting", "script", "voice", "avatar_video", "composition", "product_video"):
+    # 能力清单已去掉 avatar_video（数字人档位于 2026-10-14 下线，见档案 M4-04）：保留一个已下线能力
+    # 会让 `GET /providers/status` 对外报告一个并不存在的选项。
+    for capability in ("recognition", "image_edit", "matting", "script", "voice", "composition", "product_video"):
         configured_mode = settings.wan_i2v_provider if capability == "product_video" else getattr(settings, f"{capability}_provider")
         configured = configured_mode == "mock" or _real_configured(settings, capability)
         if settings.mock_providers:

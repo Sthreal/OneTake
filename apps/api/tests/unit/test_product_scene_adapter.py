@@ -1,206 +1,79 @@
+"""商品场景相关测试（M4-03 之后只剩「入画路线」的部分）。
+
+**为什么文件名没改**：本文件原先主要测 `ProductSceneAdapter`（生成空背景 + 动背景 —— 即已被
+废弃的「背景 + 叠商品」路线）。那条路线连同 `background_keyframe.py` 与 `adapter.py` 已整体删除，
+本文件现在只保留**入画路线**用到的场景素材断言，以及若干"废弃路径不得复活"的守卫。
+按 `AGENTS.md` §三 不做未授权的重命名/删除，故文件名保持不变。
+"""
+from __future__ import annotations
+
+import importlib
 from io import BytesIO
-
-from PIL import Image
-
 from types import SimpleNamespace
 
-from onetake_api.integrations.product_scene.adapter import ProductSceneAdapter
+import pytest
+from PIL import Image
+
 from onetake_api.modules.video_plan.service import VideoPlanApplicationService
 
 
-class FakeImageEdit:
-    def __init__(self) -> None:
-        self.calls = []
-
-    def edit(self, *, image_bytes: bytes, mime_type: str, prompt: str | None = None, negative_prompt: str | None = None) -> bytes:
-        self.calls.append({
-            "image_bytes": image_bytes,
-            "mime_type": mime_type,
-            "prompt": prompt,
-            "negative_prompt": negative_prompt,
-        })
-        output = BytesIO()
-        Image.new("RGB", (600, 800), (220, 40, 40)).save(output, format="PNG")
-        return output.getvalue()
-
-
-class FakeBackgroundVideo:
-    def __init__(self) -> None:
-        self.calls = []
-
-    def generate(self, *, image_bytes: bytes, prompt: str, duration_seconds: int) -> tuple[bytes, str]:
-        self.calls.append({"image_bytes": image_bytes, "prompt": prompt, "duration_seconds": duration_seconds})
-        return b"background-video", "task_1"
-
-
-def _png(color: tuple[int, int, int]) -> bytes:
-    output = BytesIO()
-    Image.new("RGB", (600, 800), color).save(output, format="PNG")
-    return output.getvalue()
-
-
-def test_product_scene_generates_background_then_animates_background_only() -> None:
-    image_edit = FakeImageEdit()
-    background_video = FakeBackgroundVideo()
-    adapter = ProductSceneAdapter(image_edit=image_edit, background_video=background_video)
-
-    background = adapter.generate_background_image(_png((30, 60, 220)), scene_style="clean")
-    video, task_id = adapter.animate_background(
-        background_image=background,
-        prompt="场景风格：clean。",
-        duration_seconds=5,
-    )
-
-    assert video == b"background-video"
-    assert task_id == "task_1"
-    edit_call = image_edit.calls[0]
-    assert "移除画面中的商品" in str(edit_call["prompt"])
-    assert "浅色现代影棚" in str(edit_call["prompt"])
-    assert "商品" in str(edit_call["negative_prompt"])
-    with Image.open(BytesIO(edit_call["image_bytes"])) as prepared_product:
-        assert prepared_product.size == (720, 1280)
-
-    video_call = background_video.calls[0]
-    with Image.open(BytesIO(video_call["image_bytes"])) as prepared_background:
-        assert prepared_background.size == (720, 1280)
-        assert prepared_background.getpixel((360, 640)) == (220, 40, 40)
-    assert "不要出现商品" in video_call["prompt"]
-    assert video_call["duration_seconds"] == 5
-
-
-def test_product_scene_is_enabled_for_all_product_templates_with_real_providers(monkeypatch) -> None:
-    settings = SimpleNamespace(
-        mock_providers=False,
-        product_scene_enabled=True,
-        wan_i2v_provider="real",
-        image_edit_provider="real",
-        composition_provider="shotstack",
-        dashscope_api_key="key",
-        wan_i2v_model="wan2.6-i2v-flash",
-        shotstack_api_key="key",
-    )
-    monkeypatch.setattr("onetake_api.modules.video_plan.service.get_settings", lambda: settings)
-    for template_id in ("clean", "dynamic", "lifestyle"):
-        assert VideoPlanApplicationService._uses_product_scene(SimpleNamespace(mode="product", template_id=template_id)) is True
-    assert VideoPlanApplicationService._uses_product_scene(SimpleNamespace(mode="avatar", template_id=None)) is False
-
-    settings.product_scene_enabled = False
-    assert VideoPlanApplicationService._uses_product_scene(SimpleNamespace(mode="product", template_id="dynamic")) is False
-
-
 def test_scene_assets_are_vertical() -> None:
+    """入画关键帧用到的场景底图仍按成片分辨率渲染，且提示词里不出现商品。"""
     from onetake_api.integrations.product_scene.scene_assets import load_scene_keyframe, scene_prompt
 
     for goal in ("pain_point", "product_reveal", "usage_scenario", "cta"):
         with Image.open(BytesIO(load_scene_keyframe(goal))) as image:
-            assert image.size == (720, 1280)
+            # 场景素材按成片目标分辨率渲染（与 plan.width/height 一致）
+            assert image.size == (1080, 1920)
         prompt = scene_prompt(goal)
         assert "商品" not in prompt
         assert "包装" not in prompt
 
 
-def test_product_scene_video_uses_selected_style_profile(monkeypatch) -> None:
+def test_create_base_video_no_longer_routes_to_the_product_scene_pipeline(monkeypatch) -> None:
+    """M4-03 提交 1：「生成背景 + 叠商品」整片路径已废弃。
+
+    三种商品模板现在一律走 `render_base_video`（那是**基片**；真实分段生成在 segment_service），
+    不再路由到已删除的 product_scene 管线。
+    """
     import onetake_api.modules.video_plan.service as service_module
 
-    scenes = [
-        SimpleNamespace(visual_goal="pain_point", start_seconds=0.0, end_seconds=3.0),
-        SimpleNamespace(visual_goal="product_reveal", start_seconds=3.0, end_seconds=6.0),
-        SimpleNamespace(visual_goal="usage_scenario", start_seconds=6.0, end_seconds=13.0),
-        SimpleNamespace(visual_goal="cta", start_seconds=13.0, end_seconds=18.0),
-    ]
-    content_plan = SimpleNamespace(
-        status="confirmed",
-        selected_variant_index=0,
-        variants=[SimpleNamespace(scenes=scenes)],
-    )
-    settings = SimpleNamespace(
-        dashscope_api_key="key",
-        wan_i2v_model="wan2.6-i2v-flash",
-        wan_i2v_resolution="720P",
-        wan_i2v_max_seconds=5,
-    )
-    calls = {"styles": [], "durations": []}
-
-    class FakeUploader:
-        def __init__(self, **_kwargs) -> None:
-            pass
-
-        def upload_image(self, _content: bytes, _filename: str) -> str:
-            return "https://example.test/image.png"
-
-    class FakeWan:
-        def __init__(self, **_kwargs) -> None:
-            pass
-
-        def generate(self, *, image_bytes: bytes, prompt: str, duration_seconds: int, negative_prompt: str):
-            assert image_bytes
-            assert prompt
-            assert negative_prompt
-            calls["durations"].append(duration_seconds)
-            return b"video", "task"
-
-    monkeypatch.setattr(service_module, "get_settings", lambda: settings)
-    monkeypatch.setattr(service_module, "DashScopeTemporaryUploader", FakeUploader)
-    monkeypatch.setattr(service_module, "WanI2VAdapter", FakeWan)
-    monkeypatch.setattr(service_module.ContentPlanPublicService, "latest", lambda _self, _session, _project_id: content_plan)
-    monkeypatch.setattr(service_module, "load_scene_keyframe", lambda goal: goal.encode())
+    monkeypatch.setattr(service_module, "get_settings", lambda: SimpleNamespace(mock_providers=True))
+    seen: list[str | None] = []
     monkeypatch.setattr(
         service_module,
-        "apply_style_to_keyframe",
-        lambda image, profile: calls["styles"].append(profile.style_id) or image,
+        "render_base_video",
+        lambda *, image_bytes, mode, template_id, **_kwargs: seen.append(template_id) or b"base",
     )
-    monkeypatch.setattr(service_module, "build_background_prompt", lambda _scene, profile: profile.prompt)
-    monkeypatch.setattr(service_module, "build_background_negative_prompt", lambda _scene, profile: profile.negative_prompt)
-    monkeypatch.setattr(service_module, "concatenate_videos", lambda **_kwargs: b"final")
-
-    service = VideoPlanApplicationService(composition=SimpleNamespace(provider_name="shotstack"))
-    expected_styles = {
-        "clean": "clean_studio",
-        "dynamic": "realistic_commercial",
-        "lifestyle": "natural_lifestyle",
-    }
-
-    for template_id, style_id in expected_styles.items():
-        calls["styles"].clear()
-        calls["durations"].clear()
-        plan = SimpleNamespace(project_id="prj_1", template_id=template_id, duration_seconds=18, fps=30)
-        assert service._create_product_scene_video(None, plan, b"main-image") == b"final"
-        assert calls["styles"] == [style_id] * 4
-        assert calls["durations"] == [3, 3, 4, 3, 5]
-    assert calls["durations"] == [3, 3, 4, 3, 5]
-
-
-def test_create_base_video_routes_all_product_templates_to_scene_pipeline(monkeypatch) -> None:
-    import onetake_api.modules.video_plan.service as service_module
-
-    settings = SimpleNamespace(
-        product_scene_enabled=True,
-        mock_providers=False,
-        image_edit_provider="real",
-        wan_i2v_provider="real",
-        composition_provider="shotstack",
-        dashscope_api_key="key",
-        wan_i2v_model="wan2.6-i2v-flash",
-        shotstack_api_key="key",
-    )
-    monkeypatch.setattr(service_module, "get_settings", lambda: settings)
-    calls: list[str] = []
-    service = VideoPlanApplicationService(composition=SimpleNamespace(provider_name="shotstack"))
-    monkeypatch.setattr(
-        service,
-        "_create_product_scene_video",
-        lambda _session, plan, _image: calls.append(plan.template_id) or b"product-scene",
-    )
+    service = VideoPlanApplicationService(composition=SimpleNamespace(provider_name="mock-video"))
 
     for template_id in ("clean", "dynamic", "lifestyle"):
         plan = SimpleNamespace(
-            mode="product",
-            template_id=template_id,
-            duration_seconds=18,
-            width=1080,
-            height=1920,
-            fps=30,
+            mode="product", template_id=template_id, duration_seconds=18,
+            width=1080, height=1920, fps=30, path="segmented",
         )
-        assert service._create_base_video(None, plan, b"main-image", None) == b"product-scene"
+        assert service._create_base_video(None, plan, b"main-image", None) == b"base"
 
-    assert calls == ["clean", "dynamic", "lifestyle"]
+    assert seen == ["clean", "dynamic", "lifestyle"]
+
+
+def test_product_scene_pipeline_helpers_must_not_come_back() -> None:
+    """M4-03 提交 1 的回归守卫：被废弃路径的三个入口**不得复活**。
+
+    这条断言比"删掉旧测试"更有价值 —— 它防的是"以后有人再把那条路径加回来"。
+    """
+    for name in ("_uses_product_scene", "_create_product_scene_video", "_product_scene_config_errors"):
+        assert not hasattr(VideoPlanApplicationService, name), f"{name} 又回来了？"
+
+
+@pytest.mark.parametrize(
+    "module",
+    (
+        "onetake_api.integrations.product_scene.background_keyframe",
+        "onetake_api.integrations.product_scene.adapter",
+    ),
+)
+def test_background_generation_modules_must_not_come_back(module: str) -> None:
+    """M4-03 提交 3：整条「生成背景」路线的模块也不得复活。"""
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module(module)

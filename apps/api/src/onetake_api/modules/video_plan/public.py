@@ -18,6 +18,9 @@ class VideoPlanPublicService:
     def create_plan(self, session: Session, **kwargs) -> VideoView:
         return self._service.create_plan(session, **kwargs)
 
+    def update_settings(self, session: Session, **kwargs) -> VideoView:
+        return self._service.update_settings(session, **kwargs)
+
     def request_video(self, session: Session, project_id: str) -> VideoView:
         return self._service.request_video(session, project_id)
 

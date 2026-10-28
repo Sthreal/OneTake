@@ -21,6 +21,8 @@ class VideoSegmentModel(Base):
     status: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
     accepted_candidate_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
     last_error: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    # 段级接缝覆盖（见 migrations/versions/0026_segment_seam_mode.py）；NULL = 继承方案级
+    seam_mode: Mapped[str | None] = mapped_column(String(20), nullable=True)
     created_at: Mapped[object] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[object] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -46,6 +48,7 @@ class VideoSegmentCandidateModel(Base):
     height: Mapped[int | None] = mapped_column(Integer, nullable=True)
     fps: Mapped[int | None] = mapped_column(Integer, nullable=True)
     seed: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    symptom: Mapped[str | None] = mapped_column(String(40), nullable=True)
     error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
     error_message: Mapped[str | None] = mapped_column(String(300), nullable=True)
     created_at: Mapped[object] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -56,6 +59,7 @@ def _segment_to_domain(model: VideoSegmentModel, candidates: list[VideoSegmentCa
         id=model.id, plan_id=model.plan_id, project_id=model.project_id, order_index=model.order_index,
         scene_id=model.scene_id, start_seconds=model.start_seconds, end_seconds=model.end_seconds,
         status=model.status, accepted_candidate_id=model.accepted_candidate_id, last_error=model.last_error,
+        seam_mode=model.seam_mode,
         created_at=model.created_at, updated_at=model.updated_at, candidates=candidates or [],
     )
 
@@ -67,7 +71,7 @@ def _candidate_to_domain(model: VideoSegmentCandidateModel) -> VideoSegmentCandi
         anchor_source=model.anchor_source, anchor_candidate_id=model.anchor_candidate_id,
         video_object_key=model.video_object_key, tail_frame_object_key=model.tail_frame_object_key,
         head_frame_object_key=model.head_frame_object_key, duration_seconds=model.duration_seconds,
-        width=model.width, height=model.height, fps=model.fps, seed=model.seed,
+        width=model.width, height=model.height, fps=model.fps, seed=model.seed, symptom=model.symptom,
         error_code=model.error_code, error_message=model.error_message, created_at=model.created_at,
     )
 
@@ -80,7 +84,8 @@ class VideoSegmentRepository:
                 order_index=segment.order_index, scene_id=segment.scene_id,
                 start_seconds=segment.start_seconds, end_seconds=segment.end_seconds,
                 status=segment.status, accepted_candidate_id=segment.accepted_candidate_id,
-                last_error=segment.last_error, created_at=segment.created_at, updated_at=segment.updated_at,
+                last_error=segment.last_error, seam_mode=segment.seam_mode,
+                created_at=segment.created_at, updated_at=segment.updated_at,
             ))
 
     def list_for_plan(self, session: Session, plan_id: str) -> list[VideoSegment]:
@@ -94,6 +99,17 @@ class VideoSegmentRepository:
         model = session.get(VideoSegmentModel, segment_id)
         return _segment_to_domain(model, VideoSegmentCandidateRepository().list_for_segment(session, model.id)) if model else None
 
+    def effective_seams(self, session: Session, plan_id: str) -> list[str | None]:
+        """按分段顺序给出**段级接缝覆盖**（可能含 None）—— 供费用预估按段推演。
+
+        为什么预估一定要读它：接缝模式决定「这一镜有没有尾帧」，而 kf2v / i2v **单价不同** ——
+        预估不读它就必然与实际不符（本仓历史上已栽过一次「预估按一种切法、生成按另一种」）。
+        """
+        models = session.scalars(
+            select(VideoSegmentModel).where(VideoSegmentModel.plan_id == plan_id).order_by(VideoSegmentModel.order_index.asc())
+        ).all()
+        return [model.seam_mode for model in models]
+
     def update(self, session: Session, segment: VideoSegment) -> None:
         model = session.get(VideoSegmentModel, segment.id)
         if model is None:
@@ -101,6 +117,7 @@ class VideoSegmentRepository:
         model.status = segment.status
         model.accepted_candidate_id = segment.accepted_candidate_id
         model.last_error = segment.last_error
+        model.seam_mode = segment.seam_mode
         model.updated_at = segment.updated_at
 
 
@@ -113,7 +130,7 @@ class VideoSegmentCandidateRepository:
             tail_frame_object_key=candidate.tail_frame_object_key, head_frame_object_key=candidate.head_frame_object_key,
             anchor_source=candidate.anchor_source, anchor_candidate_id=candidate.anchor_candidate_id,
             duration_seconds=candidate.duration_seconds, width=candidate.width, height=candidate.height,
-            fps=candidate.fps, seed=candidate.seed, error_code=candidate.error_code,
+            fps=candidate.fps, seed=candidate.seed, symptom=candidate.symptom, error_code=candidate.error_code,
             error_message=candidate.error_message, created_at=candidate.created_at,
         ))
 

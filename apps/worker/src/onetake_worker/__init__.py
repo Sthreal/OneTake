@@ -1,1 +1,0 @@
-"""One Take worker package."""

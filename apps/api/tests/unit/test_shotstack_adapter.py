@@ -3,7 +3,7 @@ import json
 import httpx
 
 from onetake_api.integrations.shotstack.adapter import ShotstackCompositionAdapter
-from onetake_api.modules.composition.port import CompositionRequest, ProductLayer
+from onetake_api.modules.composition.port import CompositionRequest
 
 
 def test_shotstack_adapter_uploads_assets_and_returns_rendered_video(monkeypatch) -> None:
@@ -43,14 +43,13 @@ def test_shotstack_adapter_uploads_assets_and_returns_rendered_video(monkeypatch
         api_key="stage-key",
         environment="stage",
         api_base="https://api.shotstack.io",
+        caption_style="bold",
         client=httpx.Client(transport=httpx.MockTransport(handler)),
     )
     result = adapter.compose(CompositionRequest(
         base_video_bytes=b"base-video",
         audio_bytes=b"voice-audio",
         srt_bytes="1\n00:00:00,000 --> 00:00:02,000\n字幕\n".encode("utf-8"),
-        product_image_bytes=b"product-image",
-        overlay_product=True,
         duration_seconds=18,
         width=1080,
         height=1920,
@@ -60,18 +59,22 @@ def test_shotstack_adapter_uploads_assets_and_returns_rendered_video(monkeypatch
 
     assert result == b"captioned-final"
     assert adapter.provider_name == "shotstack-stage"
-    assert len(uploads) == 3
-    assert [upload["body"] for upload in uploads] == [b"base-video", b"voice-audio", b"product-image"]
+    # M4-03 提交 4：不再上传商品图、时间线里也不再有商品 image clip
+    assert len(uploads) == 2
+    assert [upload["body"] for upload in uploads] == [b"base-video", b"voice-audio"]
     payload = render_payloads[0]
     assert payload["output"] == {"format": "mp4", "fps": 30, "size": {"width": 1080, "height": 1920}}
     track_types = [track["clips"][0]["asset"]["type"] for track in payload["timeline"]["tracks"]]
-    assert track_types == ["image", "video", "audio"]
-    assert payload["timeline"]["tracks"][1]["clips"][0]["fit"] == "contain"
+    assert track_types == ["video", "audio"]
+    # 基片 `fit` 固定为 cover：原值兼管"是否叠商品"，现在只可能是 cover
+    assert payload["timeline"]["tracks"][0]["clips"][0]["fit"] == "cover"
     assert payload["timeline"]["tracks"][0]["clips"][0]["effect"] == "zoomIn"
-    assert payload["timeline"]["tracks"][1]["clips"][0]["effect"] == "zoomIn"
     assert len(burned) == 1
     assert burned[0]["base_video_bytes"] == b"shotstack-final"
     assert burned[0]["preserve_audio"] is True
+    # 批次 1a：样式与帧宽同样要透传（Shotstack 路径的后置字幕烧录）
+    assert burned[0]["width"] == 1080
+    assert burned[0]["style"] == "bold"
     assert burned[0]["srt_bytes"] == "1\n00:00:00,000 --> 00:00:02,000\n字幕\n".encode("utf-8")
 
 
@@ -107,31 +110,24 @@ def test_shotstack_adapter_retries_transient_transport_errors() -> None:
     assert attempts == 2
 
 
-def test_shotstack_builds_product_layers() -> None:
-    request = CompositionRequest(
-        base_video_bytes=b"base-video",
-        audio_bytes=None,
-        srt_bytes=None,
-        product_image_bytes=b"product-image",
-        overlay_product=True,
-        duration_seconds=18,
-        width=1080,
-        height=1920,
-        fps=30,
-        product_layers=[
-            ProductLayer(start=3, length=3, effect="zoomIn"),
-            ProductLayer(start=6, length=7, effect="zoomIn"),
-            ProductLayer(start=13, length=5, effect="zoomIn"),
-        ],
-    )
+def test_shotstack_payload_has_no_product_track_and_uses_cover_fit() -> None:
+    """M4-03 提交 4：时间线里不再有商品 image clip；基片 `fit` 固定为 cover。
 
+    原 `fit` 兼管"是否叠商品"（contain = 留位置给商品叠上来；cover = 铺满），
+    现在不再叠商品 → 只可能是 cover（验收第 3 条）。
+    """
+    request = CompositionRequest(
+        base_video_bytes=b"base-video", audio_bytes=None, srt_bytes=None,
+        duration_seconds=18, width=1080, height=1920, fps=30,
+    )
     payload = ShotstackCompositionAdapter._build_edit_payload(
         request=request,
         base_video_url="https://source.example/base.mp4",
         audio_url=None,
-        product_image_url="https://source.example/product.png",
     )
 
-    product_clips = payload["timeline"]["tracks"][0]["clips"]
-    assert [(clip["start"], clip["length"]) for clip in product_clips] == [(3, 3), (6, 7), (13, 5)]
-    assert all(clip["effect"] == "zoomIn" for clip in product_clips)
+    tracks = payload["timeline"]["tracks"]
+    assert len(tracks) == 1, tracks          # 只剩视频轨（无音频、更无商品图层轨）
+    clips = tracks[0]["clips"]
+    assert [clip["asset"]["type"] for clip in clips] == ["video"]
+    assert clips[0]["fit"] == "cover"

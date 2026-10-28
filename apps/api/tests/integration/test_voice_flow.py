@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
@@ -63,6 +64,42 @@ def test_voice_flow_success(db_session: Session, object_storage: ObjectStoragePu
     assert ready.audio_object_key is not None
     assert ready.duration_seconds is not None
     assert PipelinePublicService().get_or_create(db_session, project_id).status == "subtitle_ready"
+
+
+def test_voice_failure_logs_provider_exception(
+    db_session: Session,
+    object_storage: ObjectStoragePublicService,
+    monkeypatch,
+    caplog,
+) -> None:
+    monkeypatch.setattr("onetake_api.modules.voice.service.get_queue", lambda _name: FakeQueue())
+    project_id = _seed_confirmed_script(db_session)
+    service = VoiceApplicationService(storage=object_storage)
+    service.request(
+        db_session,
+        project_id=project_id,
+        enabled=True,
+        subtitle_enabled=False,
+        voice_id="female",
+        language="zh",
+        speed=1.0,
+    )
+    job = JobPublicService().find_active(db_session, project_id, "voice")
+    assert job is not None
+
+    class BrokenAdapter:
+        def synthesize(self, **_kwargs):
+            raise RuntimeError("CosyVoice 418 InvalidParameter: voice female")
+
+    monkeypatch.setattr("onetake_api.modules.voice.service._adapter", lambda: BrokenAdapter())
+
+    with caplog.at_level(logging.ERROR, logger="onetake_api.modules.voice.service"):
+        failed = service.process_job(db_session, job.id)
+
+    assert failed.status == "failed"
+    assert failed.error_code == "VOICE_PROVIDER_ERROR"
+    assert "配音生成失败" in caplog.text
+    assert "CosyVoice 418 InvalidParameter: voice female" in caplog.text
 
 
 def test_voice_can_be_disabled(db_session: Session, object_storage: ObjectStoragePublicService) -> None:

@@ -29,10 +29,12 @@ class ContentQaReportModel(Base):
     semantic_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     semantic_checks: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     semantic_issues: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    # 客观信号（Phase 5）：黑帧/静音/冻结/响度/时长
+    signals: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 def _to_domain(model: ContentQaReportModel) -> ContentQaReport:
-    return ContentQaReport(model.id, model.project_id, model.plan_id, model.video_plan_id, model.status, model.score, model.passed, [QaCheck(**item) for item in model.checks], list(model.critical_failures), model.provider, model.model, model.created_at, model.rule_score, model.semantic_score, [QaCheck(**item) for item in model.semantic_checks], list(model.semantic_issues))
+    return ContentQaReport(model.id, model.project_id, model.plan_id, model.video_plan_id, model.status, model.score, model.passed, [QaCheck(**item) for item in model.checks], list(model.critical_failures), model.provider, model.model, model.created_at, model.rule_score, model.semantic_score, [QaCheck(**item) for item in model.semantic_checks], list(model.semantic_issues), model.signals)
 
 
 class ContentQaRepository:

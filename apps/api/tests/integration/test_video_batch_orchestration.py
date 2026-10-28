@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+from dataclasses import replace
 from datetime import UTC, datetime
 
 from PIL import Image
@@ -15,7 +16,7 @@ from onetake_api.modules.pipeline.public import PipelinePublicService
 from onetake_api.modules.project.public import ProjectPublicService
 from onetake_api.modules.subtitle.domain import SUBTITLE_CONFIRMED, SubtitleVersion
 from onetake_api.modules.subtitle.repository import SubtitleRepository
-from onetake_api.modules.video_plan.domain import BATCH_DONE, BATCH_STOPPED
+from onetake_api.modules.video_plan.domain import BATCH_DONE, BATCH_RUNNING, BATCH_STOPPED
 from onetake_api.modules.video_plan.segment_generation import GeneratedCandidate
 from onetake_api.modules.video_plan.service import VideoPlanApplicationService
 from onetake_api.modules.voice.domain import VOICE_CONFIRMED, VoiceRun
@@ -82,6 +83,38 @@ def _seed_plan(session: Session, storage: ObjectStoragePublicService, name: str)
     return project.id, plan
 
 
+def _accept_keyframe(session: Session, storage: ObjectStoragePublicService, project_id: str, scene_id: str) -> None:
+    """M4-03 提交 2 起：商品段**必须**有已采用的入画关键帧（背景回退已废弃）。
+
+    直接写入 ready 候选并采用：本文件测的是批处理编排，不是关键帧生成，去掉 QA 耦合更聚焦。
+    """
+    import io
+    from datetime import UTC, datetime
+
+    from PIL import Image
+
+    from onetake_api.modules.video_plan.keyframe_domain import KEYFRAME_READY, VideoKeyframeCandidate
+    from onetake_api.modules.video_plan.keyframe_repository import VideoKeyframeCandidateRepository
+    from onetake_api.modules.video_plan.keyframe_service import VideoKeyframeApplicationService
+
+    image = Image.new("RGB", (360, 640), (200, 60, 60))
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    object_key = f"projects/{project_id}/keyframes/test/{scene_id}.png"
+    storage.put_bytes(object_key=object_key, content=buffer.getvalue(), mime_type="image/png")
+
+    repository = VideoKeyframeCandidateRepository()
+    candidate = VideoKeyframeCandidate(
+        id=f"kfc_{scene_id}", project_id=project_id, content_plan_id="cpl_test", scene_id=scene_id,
+        order_index=1, mode="integrated", status=KEYFRAME_READY, provider="test",
+        created_at=datetime.now(UTC), image_object_key=object_key, width=360, height=640,
+    )
+    repository.add(session, candidate)
+    session.flush()
+    VideoKeyframeApplicationService(storage=storage).accept_candidate(
+        session, project_id=project_id, keyframe_id=candidate.id
+    )
+
 def _patch_finalize(monkeypatch):
     from onetake_api.modules.video_plan import segment_service
     import onetake_api.integrations.media.video_utils as vu
@@ -99,6 +132,7 @@ def test_batch_resumes_from_first_unaccepted_segment(db_session: Session, object
     _patch_finalize(monkeypatch)
 
     project_id, plan = _seed_plan(db_session, object_storage, "批量续跑")
+    _accept_keyframe(db_session, object_storage, project_id, "scene_0")
     generator = FakeGenerator()
     from onetake_api.modules.video_plan.segment_service import VideoSegmentApplicationService
     service = VideoSegmentApplicationService(storage=object_storage, generator=generator)
@@ -114,6 +148,8 @@ def test_batch_resumes_from_first_unaccepted_segment(db_session: Session, object
     assert completed.batch_status == BATCH_DONE
     assert completed.status == "completed"
     assert completed.final_object_key is not None
+    # S1：base 视频 key 不能被抹掉（旧实现用 `replace(plan, …)` 会把它丢掉）
+    assert completed.base_video_object_key == f"projects/{project_id}/video/{plan.id}/base.mp4"
     # 只重新生成了第 2、3 段
     assert [service._segments.get(db_session, s.id).order_index for s in segments if service._segments.get(db_session, s.id).accepted_candidate_id] == [0, 1, 2]
     assert len(generator.calls) == 2
@@ -127,6 +163,7 @@ def test_batch_stops_at_segment_boundary_and_resumes(db_session: Session, object
     _patch_finalize(monkeypatch)
 
     project_id, plan = _seed_plan(db_session, object_storage, "批量停止")
+    _accept_keyframe(db_session, object_storage, project_id, "scene_0")
     from onetake_api.modules.video_plan.segment_service import VideoSegmentApplicationService
     holder: dict[str, object] = {}
 
@@ -146,6 +183,210 @@ def test_batch_stops_at_segment_boundary_and_resumes(db_session: Session, object
 
     resumed = service.continue_batch(db_session, project_id=project_id)
     assert resumed.batch_status == BATCH_DONE
+    assert resumed.base_video_object_key is not None
     assert resumed.status == "completed"
     final_segments = service.materialize_segments(db_session, project_id=project_id)
     assert all(s.accepted_candidate_id for s in final_segments)
+
+
+def test_batch_steps_one_segment_per_call_and_keeps_running(
+    db_session: Session, object_storage: ObjectStoragePublicService, monkeypatch
+) -> None:
+    """S2：`stop_after_segments=1` 每次只前进一段、保持 running；最后一段走完才合成。"""
+    monkeypatch.setenv("MOCK_PROVIDERS", "true")
+    monkeypatch.setenv("PRODUCT_SCENE_ENABLED", "true")
+    from onetake_api.config import get_settings
+
+    get_settings.cache_clear()
+    _patch_finalize(monkeypatch)
+
+    project_id, plan = _seed_plan(db_session, object_storage, "批量步进")
+    _accept_keyframe(db_session, object_storage, project_id, "scene_0")
+    generator = FakeGenerator()
+    from onetake_api.modules.video_plan.segment_service import VideoSegmentApplicationService
+
+    service = VideoSegmentApplicationService(storage=object_storage, generator=generator)
+
+    def accepted_count() -> int:
+        return sum(
+            1 for item in service.materialize_segments(db_session, project_id=project_id) if item.accepted_candidate_id
+        )
+
+    first = service.continue_batch(db_session, project_id=project_id, stop_after_segments=1)
+    assert first.batch_status == BATCH_RUNNING
+    assert first.status != "completed"
+    assert accepted_count() == 1
+    assert len(generator.calls) == 1
+
+    second = service.continue_batch(db_session, project_id=project_id, stop_after_segments=1)
+    assert second.batch_status == BATCH_RUNNING
+    assert accepted_count() == 2
+    assert len(generator.calls) == 2
+
+    third = service.continue_batch(db_session, project_id=project_id, stop_after_segments=1)
+    assert third.batch_status == BATCH_DONE
+    assert third.status == "completed"
+    assert accepted_count() == 3
+    assert len(generator.calls) == 3
+    assert third.base_video_object_key is not None
+
+
+def test_new_plan_defaults_to_auto_realism_and_that_tier_drives_the_prompt(
+    db_session: Session, object_storage: ObjectStoragePublicService, monkeypatch
+) -> None:
+    """S5 口径 5：**新项目 auto**（老项目由迁移 0024 写 `off`），且档位真的决定分段提示词。"""
+    from dataclasses import replace
+
+    from onetake_api.modules.video_plan.segment_generation import assemble_segment_prompt
+
+    monkeypatch.setenv("MOCK_PROVIDERS", "true")
+    monkeypatch.setenv("PRODUCT_SCENE_ENABLED", "true")
+    from onetake_api.config import get_settings
+
+    get_settings.cache_clear()
+    project_id, plan = _seed_plan(db_session, object_storage, "真实感档")
+    assert plan.motion_realism == "auto"
+
+    scene = _scene(0)
+    assert "光线：" in assemble_segment_prompt(scene, plan)
+    assert "光线：" not in assemble_segment_prompt(scene, replace(plan, motion_realism="off"))
+
+
+def test_seam_modes_choose_the_right_anchor(
+    db_session: Session, object_storage: ObjectStoragePublicService, monkeypatch
+) -> None:
+    """S6：pin=钉帧（尾帧取下一镜关键帧）/ tail=续拍（首帧取上一段真实尾帧）/ off=各镜独立。"""
+    from dataclasses import replace
+
+    monkeypatch.setenv("MOCK_PROVIDERS", "true")
+    monkeypatch.setenv("PRODUCT_SCENE_ENABLED", "true")
+    from onetake_api.config import get_settings
+
+    get_settings.cache_clear()
+    _patch_finalize(monkeypatch)
+
+    project_id, plan = _seed_plan(db_session, object_storage, "接缝模式")
+    _accept_keyframe(db_session, object_storage, project_id, "scene_0")
+    _accept_keyframe(db_session, object_storage, project_id, "scene_1")
+    from onetake_api.modules.video_plan.segment_service import VideoSegmentApplicationService
+
+    service = VideoSegmentApplicationService(storage=object_storage, generator=FakeGenerator())
+    segments = service.materialize_segments(db_session, project_id=project_id)
+    first, second = segments[0], segments[1]
+
+    # pin（默认）：首帧=本镜关键帧，尾帧=下一镜关键帧
+    pinned = service._resolve_anchor(db_session, first, None, _scene(0), _scene(1), plan, True)
+    assert pinned.source == "integrated_keyframe"
+    assert pinned.end_frame_bytes is not None
+
+    # off：各镜独立 —— 不带尾帧
+    isolated = service._resolve_anchor(
+        db_session, first, None, _scene(0), _scene(1), replace(plan, seam_mode="off"), True
+    )
+    assert isolated.source == "integrated_keyframe"
+    assert isolated.end_frame_bytes is None
+
+    # 先生成并采纳第 1 段，才有"真实尾帧"可续
+    service.generate_candidate(db_session, project_id=project_id, segment_id=first.id, seed=1)
+    refreshed = service._segments.get(db_session, first.id)
+    service.accept_candidate(db_session, project_id=project_id, candidate_id=refreshed.candidates[-1].id)
+    refreshed = service._segments.get(db_session, first.id)
+
+    # tail：首帧 = 上一段已采纳候选的真实尾帧
+    continued = service._resolve_anchor(
+        db_session, second, refreshed, _scene(1), None, replace(plan, seam_mode="tail"), True
+    )
+    assert continued.source == "previous_tail"
+
+    # tail 但第一段无上一段可续 → 退回钉帧（不报错）
+    fallback = service._resolve_anchor(
+        db_session, first, None, _scene(0), _scene(1), replace(plan, seam_mode="tail"), True
+    )
+    assert fallback.source == "integrated_keyframe"
+
+
+def test_segment_seam_overrides_the_plan_setting(
+    db_session: Session, object_storage: ObjectStoragePublicService, monkeypatch
+) -> None:
+    """S4-③：**段级接缝覆盖方案级**（双向都要成立），清除覆盖后回落到方案级。"""
+    monkeypatch.setenv("MOCK_PROVIDERS", "true")
+    monkeypatch.setenv("PRODUCT_SCENE_ENABLED", "true")
+    from onetake_api.config import get_settings
+
+    get_settings.cache_clear()
+    _patch_finalize(monkeypatch)
+
+    project_id, plan = _seed_plan(db_session, object_storage, "段级接缝")
+    _accept_keyframe(db_session, object_storage, project_id, "scene_0")
+    _accept_keyframe(db_session, object_storage, project_id, "scene_1")
+    from onetake_api.modules.video_plan.segment_service import VideoSegmentApplicationService
+
+    service = VideoSegmentApplicationService(storage=object_storage, generator=FakeGenerator())
+    first = service.materialize_segments(db_session, project_id=project_id)[0]
+
+    # 方案级 pin（默认）→ 有尾帧
+    assert service._resolve_anchor(db_session, first, None, _scene(0), _scene(1), plan, True).end_frame_bytes is not None
+
+    # 段级 off 覆盖方案级 pin → 无尾帧
+    service.set_segment_seam_mode(db_session, project_id=project_id, segment_id=first.id, seam_mode="off")
+    first = service._segments.get(db_session, first.id)
+    assert first.seam_mode == "off"
+    assert service._resolve_anchor(db_session, first, None, _scene(0), _scene(1), plan, True).end_frame_bytes is None
+
+    # 方案级 off + 段级 pin → 有尾帧（反向也成立）
+    service.set_segment_seam_mode(db_session, project_id=project_id, segment_id=first.id, seam_mode="pin")
+    first = service._segments.get(db_session, first.id)
+    assert service._resolve_anchor(
+        db_session, first, None, _scene(0), _scene(1), replace(plan, seam_mode="off"), True
+    ).end_frame_bytes is not None
+
+    # 清除覆盖（None）→ 回落到方案级
+    service.set_segment_seam_mode(db_session, project_id=project_id, segment_id=first.id, seam_mode=None)
+    first = service._segments.get(db_session, first.id)
+    assert first.seam_mode is None
+
+
+def test_plan_compose_overrides_reach_the_composer(
+    db_session: Session, object_storage: ObjectStoragePublicService, monkeypatch
+) -> None:
+    """S4-④a：方案级合成旋钮必须**真的传到 composer** —— 否则 UI 上就是「改了没用」。"""
+    monkeypatch.setenv("MOCK_PROVIDERS", "true")
+    monkeypatch.setenv("PRODUCT_SCENE_ENABLED", "true")
+    from onetake_api.config import get_settings
+
+    get_settings.cache_clear()
+    _patch_finalize(monkeypatch)
+
+    captured: dict[str, object] = {}
+
+    class RecordingComposition:
+        provider_name = "recording"
+
+        def compose(self, request):
+            captured["caption_style"] = request.caption_style
+            captured["bgm_enabled"] = request.bgm_enabled
+            captured["bgm_gain_db"] = request.bgm_gain_db
+            return b"final-video"
+
+    # 覆盖顺序要紧：_patch_finalize 也会设 composition provider，所以放在它之后
+    monkeypatch.setattr(
+        "onetake_api.modules.composition.service.get_composition_provider", lambda: RecordingComposition()
+    )
+
+    project_id, plan = _seed_plan(db_session, object_storage, "合成旋钮")
+    _accept_keyframe(db_session, object_storage, project_id, "scene_0")
+    from onetake_api.modules.video_plan.repository import VideoPlanRepository
+
+    VideoPlanRepository().update(
+        db_session, replace(plan, caption_style="karaoke", bgm_enabled=True, bgm_gain_db=-8.0)
+    )
+    db_session.flush()
+
+    from onetake_api.modules.video_plan.segment_service import VideoSegmentApplicationService
+
+    service = VideoSegmentApplicationService(storage=object_storage, generator=FakeGenerator())
+    service.continue_batch(db_session, project_id=project_id)
+
+    assert captured["caption_style"] == "karaoke"
+    assert captured["bgm_enabled"] is True
+    assert captured["bgm_gain_db"] == -8.0

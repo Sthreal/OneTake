@@ -1,3 +1,5 @@
+import re
+
 from onetake_api.integrations.media.subtitle_segmentation import split_srt_bytes
 
 
@@ -9,8 +11,15 @@ def test_long_sentence_is_split_into_sequential_cues() -> None:
     original = _srt("市面上的果汁大多没有鲜榨成分，口感不够真实。")
     result = split_srt_bytes(original).decode("utf-8")
     assert result.count("-->") == 2
-    assert "市面上的果汁大多没有鲜榨成分" in result
-    assert "口感不够真实" in result
+    # cue 内允许换行、句子允许跨 cue；要守的契约是「字幕文本内容与配音一致」：
+    # 因此只取各自的文本行（跳过 cue 号与时间戳行）再拼接比对
+    content = "".join(
+        re.sub(r"\s+", "", line)
+        for line in result.splitlines()
+        if line.strip() and "-->" not in line and not line.strip().isdigit()
+    )
+    assert "市面上的果汁大多没有鲜榨成分" in content
+    assert "口感不够真实" in content
     assert "00:00:03,231 -->" in result
     assert "--> 00:00:07,673" in result
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, Integer, String, select
+from sqlalchemy import JSON, Boolean, DateTime, Float, Integer, String, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from onetake_api.modules.video_plan.domain import VideoPlan
@@ -37,6 +37,18 @@ class VideoPlanModel(Base):
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     batch_status: Mapped[str] = mapped_column(String(20), nullable=False, default="idle")
     batch_stop_requested: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # 生成路径（见 migrations/versions/0015_video_plan_path.py）
+    path: Mapped[str] = mapped_column(String(20), nullable=False, default="segmented")
+    # 提示词真实感档（见 migrations/versions/0024_plan_motion_realism.py）
+    motion_realism: Mapped[str] = mapped_column(String(20), nullable=False, default="off")
+    # 接缝模式（见 migrations/versions/0025_plan_seam_mode.py）
+    seam_mode: Mapped[str] = mapped_column(String(20), nullable=False, default="pin")
+    # 方案级合成旋钮（见 migrations/versions/0027_plan_compose_overrides.py）；NULL = 跟全局
+    caption_style: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    bgm_enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    bgm_gain_db: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # 交付门结论（见 migrations/versions/0020_video_plan_gate.py）
+    gate_report: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 def _to_domain(model: VideoPlanModel) -> VideoPlan:
@@ -49,6 +61,9 @@ def _to_domain(model: VideoPlanModel) -> VideoPlan:
         final_object_key=model.final_object_key, provider=model.provider, error_code=model.error_code,
         created_at=model.created_at, updated_at=model.updated_at, completed_at=model.completed_at,
         confirmed_at=model.confirmed_at, batch_status=model.batch_status, batch_stop_requested=model.batch_stop_requested,
+        path=model.path, motion_realism=model.motion_realism, seam_mode=model.seam_mode,
+        caption_style=model.caption_style, bgm_enabled=model.bgm_enabled, bgm_gain_db=model.bgm_gain_db,
+        gate_report=model.gate_report,
     )
 
 
@@ -77,3 +92,10 @@ class VideoPlanRepository:
         model.confirmed_at = plan.confirmed_at
         model.batch_status = plan.batch_status
         model.batch_stop_requested = plan.batch_stop_requested
+        model.path = plan.path
+        model.motion_realism = plan.motion_realism
+        model.seam_mode = plan.seam_mode
+        model.caption_style = plan.caption_style
+        model.bgm_enabled = plan.bgm_enabled
+        model.bgm_gain_db = plan.bgm_gain_db
+        model.gate_report = plan.gate_report

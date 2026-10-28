@@ -6,11 +6,30 @@ from dataclasses import dataclass
 from onetake_api.modules.script.domain import ScriptDraft, ScriptInput
 from onetake_api.platform.errors import DomainError
 
-MIN_CHARACTERS = 65
-MAX_CHARACTERS = 120
+# 短版（2026-10-15）：≤15 秒口播 → 45~72 字（实测 74 字 ≈ 14.4 秒，5.1 字/秒）
+MIN_CHARACTERS = 45
+MAX_CHARACTERS = 72
 MAX_SELLING_POINTS = 5
 _NUMBER_RE = re.compile(r"\d+(?:\.\d+)?%?")
 _SPACE_RE = re.compile(r"\s+")
+# 标点（用于"口播字数"口径：与生成/审稿提示词里的"全文去除标点后必须为 45–72"对齐）
+_PUNCT_CATEGORIES = ("Po", "Ps", "Pe", "Pi", "Pf", "Pc", "Pd")
+
+
+def spoken_character_count(text: str) -> int:
+    """口播字数 = **去掉标点与空白**后的字符数。
+
+    为什么必须与提示词同口径（2026-10-17 实测事故）：提示词要求"全文去除标点后必须为 45–72"，
+    而校验过去按**含标点**数，我们自己给每段补的句号也算进去 —— 一篇 68 字的合格稿被补成 73 字，
+    超上限 1 个字直接判不合格，整条自动链卡死在"文案"这一步（用户连撞两次）。
+    """
+    import unicodedata
+
+    return sum(
+        1
+        for char in text
+        if not char.isspace() and unicodedata.category(char) not in _PUNCT_CATEGORIES
+    )
 
 
 class ScriptValidationError(DomainError):
@@ -120,7 +139,7 @@ def normalize_generated(
     if not generated_numbers.issubset(_numeric_facts(script_input)):
         raise ScriptGenerationError("文案包含未提供的事实数字")
 
-    character_count = len(_SPACE_RE.sub("", full_text))
+    character_count = spoken_character_count(full_text)
     if not MIN_CHARACTERS <= character_count <= MAX_CHARACTERS:
         raise ScriptGenerationError(f"文案长度需为 {MIN_CHARACTERS}–{MAX_CHARACTERS} 个字符")
 
@@ -133,7 +152,7 @@ def normalize_generated(
         cta=cta,
         full_text=full_text,
         character_count=character_count,
-        estimated_duration_seconds=round(character_count / 3.5, 1),
+        estimated_duration_seconds=round(character_count / 5.1, 1),
     )
 
 

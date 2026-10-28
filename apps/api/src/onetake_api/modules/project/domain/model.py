@@ -15,6 +15,8 @@ class Project:
     created_at: datetime
     updated_at: datetime
     expires_at: datetime
+    # 出镜人（人物库引用，2026-10-15 加）：空 = 不指定。母版一次入库、跨项目复用
+    character_id: str | None = None
 
 
 def normalize_product_name(value: str) -> str:
@@ -62,6 +64,8 @@ def update_project_entity(
     product_note: str | None,
     update_product_note: bool,
     now: datetime,
+    character_id: str | None = None,
+    update_character_id: bool = False,
 ) -> Project:
     next_product_name = (
         normalize_product_name(product_name)
@@ -73,9 +77,14 @@ def update_project_entity(
         if update_product_note
         else project.product_note
     )
+    # 出镜人：update_character_id=False → 不动；显式传 id → 选用；显式传 "" → 清空
+    next_character_id = (
+        (character_id or None) if update_character_id else project.character_id
+    )
     return replace(
         project,
         product_name=next_product_name,
         product_note=next_product_note,
+        character_id=next_character_id,
         updated_at=now,
     )

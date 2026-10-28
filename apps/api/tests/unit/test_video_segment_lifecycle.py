@@ -99,3 +99,66 @@ def test_accept_unknown_candidate_raises(db_session: Session) -> None:
     service = VideoSegmentApplicationService()
     with pytest.raises(SegmentNotFoundError):
         service.accept_candidate(db_session, project_id="prj_missing", candidate_id="cand_missing")
+
+
+def test_resolve_anchor_raises_instead_of_falling_back_to_background_generation(monkeypatch) -> None:
+    """M4-03 提交 2：没有已采用的关键帧时**不再**回退到「背景生成」，改为明确报错。
+
+    这条同时锁住"回退路径不会复活" —— 旧实现会在这里调 `BackgroundKeyframeService`。
+    """
+    from types import SimpleNamespace
+
+    from onetake_api.modules.video_plan.segment_service import SegmentKeyframeMissingError
+
+    service = VideoSegmentApplicationService()
+    # 该镜没有任何"已采用"的关键帧
+    monkeypatch.setattr(service, "_keyframes", SimpleNamespace(accepted_for_scene=lambda *a, **k: None))
+    plan = SimpleNamespace(project_id="prj_x", id="vid_x", template_id="clean")
+
+    with pytest.raises(SegmentKeyframeMissingError) as excinfo:
+        service._resolve_anchor(
+            None,
+            SimpleNamespace(scene_id="scene_0", order_index=0),
+            None,                                            # 第一段：没有上一段
+            SimpleNamespace(visual_goal="product_reveal"),
+            None,
+            plan,
+            True,
+        )
+
+    assert excinfo.value.code == "SEGMENT_KEYFRAME_MISSING"
+    assert excinfo.value.http_status == 409
+    assert "关键帧" in excinfo.value.message
+
+
+def test_resolve_anchor_keeps_previous_tail_continuation(monkeypatch) -> None:
+    """续段仍可用「上一段已采用候选的尾帧」——它属同一条链，不在本切片废弃范围内。"""
+    from types import SimpleNamespace
+
+    service = VideoSegmentApplicationService()
+    monkeypatch.setattr(service, "_keyframes", SimpleNamespace(accepted_for_scene=lambda *a, **k: None))
+    # `storage` 是只读 property → 在类上打桩（monkeypatch 会自动还原）
+    monkeypatch.setattr(
+        type(service),
+        "storage",
+        property(lambda _self: SimpleNamespace(read_object=lambda *, object_key: [b"tail-frame"])),
+    )
+    previous = SimpleNamespace(
+        accepted_candidate_id="cand_prev",
+        candidates=[SimpleNamespace(id="cand_prev", tail_frame_object_key="k/tail.png")],
+    )
+    plan = SimpleNamespace(project_id="prj_x", id="vid_x", template_id="clean")
+
+    anchor = service._resolve_anchor(
+        None,
+        SimpleNamespace(scene_id="scene_1", order_index=1),
+        previous,
+        SimpleNamespace(visual_goal="usage_scenario"),
+        None,
+        plan,
+        True,
+    )
+
+    assert anchor.source == "previous_tail"
+    assert anchor.source_candidate_id == "cand_prev"
+    assert anchor.frame_bytes == b"tail-frame"

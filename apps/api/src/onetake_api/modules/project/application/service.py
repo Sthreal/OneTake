@@ -68,6 +68,8 @@ class ProjectApplicationService:
             product_note=command.product_note,
             update_product_note=command.update_product_note,
             now=now,
+            character_id=command.character_id,
+            update_character_id=command.update_character_id,
         )
         self._repository.update(session, updated)
         OutboxPublicService().enqueue(
