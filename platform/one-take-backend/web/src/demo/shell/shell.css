@@ -1,0 +1,436 @@
+/* iter18 Modern Minimal。只作用于首页 / 图片广告 / 工作室外壳，不改导演模式的深紫主题。
+   字阶 24 / 18 / 14 / 13 / 12 · 图标 stroke 1.5 · 卡片圆角 12 · 黑胶囊主按钮。 */
+.studio.ot-light {
+  background: #fff;
+  color: #3f3f46;
+  font: 13px/1.5 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+}
+.studio.ot-light::before { content: none; }
+body:has(.ot-light) { background: #f4f4f5; }
+
+.ot { display: flex; height: 100vh; width: 100%; background: #fff; color: #3f3f46; overflow: hidden; }
+.ot button { font-family: inherit; }
+.ot button:focus-visible { outline: 2px solid #000; outline-offset: 2px; }
+
+.ot-side {
+  width: 220px; flex: 0 0 220px; background: #fafafa; border-right: 1px solid #efefef;
+  display: flex; flex-direction: column; padding: 18px 12px 14px; position: sticky; top: 0; height: 100vh;
+}
+.ot-brand { display: flex; align-items: center; gap: 10px; padding: 4px 10px 18px; background: none; border: 0; cursor: pointer; }
+.ot-logo {
+  width: 28px; height: 28px; border-radius: 8px; background: #000; color: #fff;
+  display: flex; align-items: center; justify-content: center; flex: none;
+}
+.ot-name { font-size: 14px; font-weight: 600; color: #000; letter-spacing: -0.03em; }
+.ot-nav { display: flex; flex-direction: column; gap: 2px; }
+.ot-item, .ot-tool {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  border: 0; background: transparent; border-radius: 12px; cursor: pointer; color: #3f3f46;
+}
+.ot-item { padding: 9px 12px; font-size: 13px; font-weight: 500; }
+.ot-item svg, .ot-tool svg { flex: none; color: #71717a; }
+.ot-item:hover, .ot-tool:hover { background: #fff; color: #000; }
+.ot-item.on { background: #fff; color: #000; }
+.ot-item.on svg, .ot-tool.on svg { color: #000; }
+.ot-group { margin-top: 18px; }
+.ot-group-label { font-size: 12px; font-weight: 500; color: #71717a; padding: 0 12px 4px; }
+.ot-tool { padding: 8px 12px; font-size: 12px; font-weight: 500; color: #71717a; }
+.ot-tool.on { background: #fff; color: #000; }
+.ot-spacer { flex: 1; }
+.ot-user {
+  display: flex; align-items: center; gap: 10px; margin-top: 8px; padding: 10px 12px;
+  border-radius: 12px; background: #fff; border: 1px solid #efefef;
+}
+.ot-avatar, .ot-talent-avatar {
+  width: 32px; height: 32px; border-radius: 50%; background: #000; color: #fff;
+  display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex: none;
+}
+.ot-user-name { font-size: 13px; font-weight: 600; color: #000; }
+.ot-user-mail { font-size: 12px; color: #71717a; margin-top: 1px; }
+
+.ot-rail {
+  width: 64px; flex: 0 0 64px; border-right: 1px solid #efefef; background: #fafafa;
+  display: flex; flex-direction: column; align-items: center; padding: 16px 0 14px; gap: 4px;
+  position: sticky; top: 0; height: 100vh;
+}
+.ot-rail-brand {
+  width: 32px; height: 32px; border-radius: 12px; background: #000; color: #fff; border: 0;
+  display: flex; align-items: center; justify-content: center; margin-bottom: 16px; cursor: pointer;
+}
+.ot-rail-item {
+  width: 40px; height: 40px; border-radius: 12px; border: 1px solid transparent; background: transparent;
+  color: #71717a; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative;
+}
+.ot-rail-item:hover { background: #fff; color: #3f3f46; }
+.ot-rail-item.on { background: #fff; color: #000; border-color: #efefef; }
+.ot-tip {
+  display: none; position: absolute; left: 48px; top: 50%; transform: translateY(-50%);
+  background: #000; color: #fff; font-size: 12px; font-weight: 500; padding: 4px 8px; border-radius: 6px; white-space: nowrap; z-index: 5;
+}
+.ot-rail-item:hover .ot-tip, .ot-rail-item:focus-visible .ot-tip { display: block; }
+.ot-credits {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; padding-top: 8px;
+  border-top: 1px solid #efefef; width: 40px; margin-top: auto;
+}
+.ot-credits i { width: 6px; height: 6px; border-radius: 50%; background: #5bf0a5; display: block; }
+.ot-credits span { font-size: 12px; font-weight: 600; color: #3f3f46; }
+
+.ot-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; background: #fff; height: 100vh; }
+.ot-top {
+  height: 64px; flex: none; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 32px; border-bottom: 1px solid #efefef; gap: 12px;
+}
+.ot-title, .ot-page-title { font-size: 24px; font-weight: 600; letter-spacing: -0.03em; color: #000; margin: 0; }
+.ot-actions { display: flex; gap: 8px; align-items: center; }
+.ot-body { flex: 1; min-height: 0; overflow: auto; padding: 28px 32px 40px; }
+
+.ot-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 36px; padding: 0 16px; border-radius: 100px; font-size: 13px; font-weight: 500;
+  letter-spacing: -0.01em; border: 1px solid transparent; cursor: pointer; background: #fff; color: #000;
+}
+.ot-btn-primary { background: #000; color: #fff; }
+.ot-btn-primary:hover:not(:disabled) { background: #18181b; }
+.ot-btn-secondary { background: #fff; color: #000; border-color: #efefef; }
+.ot-btn-secondary:hover:not(:disabled) { background: #fafafa; border-color: #e4e4e7; }
+.ot-btn-lg { height: 44px; padding: 0 20px; font-size: 14px; font-weight: 600; }
+.ot-btn-sm { height: 30px; padding: 0 12px; font-size: 12px; }
+.ot-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.ot-fee { font-weight: 400; opacity: 0.7; margin-left: 2px; }
+.ot-optional {
+  display: inline-flex; margin-left: 8px; font-size: 12px; font-weight: 600; color: #71717a;
+  background: #efefef; border-radius: 100px; padding: 2px 8px; vertical-align: middle;
+}
+.ot-cta-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+.ot-gs { border: 1px solid #efefef; border-radius: 12px; background: #fafafa; padding: 22px 24px; margin-bottom: 28px; }
+.ot-gs-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.ot-gs-title { font-size: 14px; font-weight: 600; color: #000; }
+.ot-gs-prog { font-size: 12px; font-weight: 500; color: #71717a; background: #fff; border: 1px solid #efefef; padding: 4px 10px; border-radius: 100px; }
+.ot-gs-steps { display: flex; flex-direction: column; gap: 4px; }
+.ot-gs-step { border-radius: 12px; background: #fff; border: 1px solid #efefef; overflow: hidden; }
+.ot-gs-h { display: flex; align-items: center; gap: 12px; padding: 12px 14px; width: 100%; border: 0; background: transparent; text-align: left; cursor: pointer; }
+.ot-gs-num {
+  width: 22px; height: 22px; border-radius: 50%; border: 1px solid #e4e4e7; font-size: 12px; font-weight: 600; color: #71717a;
+  display: flex; align-items: center; justify-content: center; flex: none;
+}
+.ot-gs-step.open .ot-gs-num { background: #000; border-color: #000; color: #fff; }
+.ot-gs-name { font-size: 13px; font-weight: 500; color: #000; flex: 1; }
+.ot-gs-chev { color: #e4e4e7; transition: transform 180ms ease; }
+.ot-gs-step.open .ot-gs-chev { transform: rotate(180deg); color: #71717a; }
+.ot-gs-body { display: none; padding: 0 14px 16px; }
+.ot-gs-step.open .ot-gs-body { display: block; }
+.ot-gs-split { display: grid; grid-template-columns: 1fr 1.15fr; gap: 18px; padding-left: 34px; }
+.ot-gs-left { display: flex; flex-direction: column; justify-content: center; gap: 12px; min-width: 0; }
+.ot-gs-left-title { font-size: 14px; font-weight: 600; color: #000; }
+.ot-gs-desc { font-size: 12px; color: #71717a; line-height: 1.5; margin: 0; max-width: 280px; }
+.ot-gs-right {
+  border-radius: 12px; border: 1px solid #efefef; background: #fafafa; min-height: 148px;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.ot-mock { width: 100%; max-width: 280px; }
+.ot-mock-product { display: flex; gap: 12px; background: #fff; border: 1px solid #e4e4e7; border-radius: 12px; padding: 12px; }
+.ot-mock-thumb {
+  width: 64px; height: 64px; border-radius: 12px; flex: none; position: relative;
+  background: linear-gradient(145deg, #e8eef4 0%, #d4dce6 45%, #c8b8b0 100%);
+}
+.ot-mock-thumb::after {
+  content: "主图"; position: absolute; bottom: 4px; left: 4px; font-size: 12px; font-weight: 600; color: #fff;
+  background: rgba(0,0,0,.5); padding: 1px 5px; border-radius: 100px;
+}
+.ot-mock-name { font-size: 12px; font-weight: 600; color: #000; }
+.ot-mock-line { height: 6px; border-radius: 3px; background: #eef1f4; width: 80%; margin-top: 6px; }
+.ot-mock-line.s { width: 55%; }
+.ot-mock-upload { margin-top: 8px; text-align: center; font-size: 12px; color: #71717a; }
+.ot-mock-upload span { display: inline-flex; border: 1px dashed #e4e4e7; border-radius: 8px; background: #fff; padding: 4px 8px; }
+.ot-mock-frame {
+  width: 100%; aspect-ratio: 1; border-radius: 12px; border: 1px solid #e4e4e7; position: relative;
+  background: linear-gradient(160deg, rgba(255,255,255,.35), transparent 40%), linear-gradient(145deg, #f0e6dc 0%, #e2c8b8 45%, #c8d0d8 100%);
+}
+.ot-mock-frame::after {
+  content: "图片广告"; position: absolute; bottom: 8px; left: 8px; font-size: 12px; font-weight: 600; color: #fff;
+  background: rgba(0,0,0,.55); padding: 3px 8px; border-radius: 100px;
+}
+.ot-mock-meta { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin-top: 10px; }
+.ot-mock-meta span { font-size: 12px; color: #71717a; background: #fff; border: 1px solid #e4e4e7; border-radius: 100px; padding: 3px 8px; }
+.ot-mock-studio { display: flex; gap: 10px; background: #fff; border: 1px solid #e4e4e7; border-radius: 12px; height: 120px; overflow: hidden; }
+.ot-mock-rail { width: 36px; background: #fafafa; border-right: 1px solid #efefef; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 0; }
+.ot-mock-rail i { width: 20px; height: 20px; border-radius: 6px; background: #e4e4e7; display: block; }
+.ot-mock-rail i.on { background: #000; }
+.ot-mock-main { flex: 1; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.ot-mock-label { font-size: 12px; font-weight: 500; color: #71717a; }
+.ot-mock-drop { flex: 1; border: 1px dashed #e4e4e7; border-radius: 12px; background: #fafafa; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.ot-mock-drop b { width: 36px; height: 48px; border-radius: 6px; background: linear-gradient(160deg, #e6f0ea, #c8ded0); display: block; }
+.ot-mock-drop span { font-size: 12px; color: #71717a; line-height: 1.35; }
+.ot-mock-publish { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.ot-mock-row { display: flex; gap: 10px; }
+.ot-mock-chip { height: 36px; padding: 0 14px; border-radius: 100px; border: 1px solid #e4e4e7; background: #fff; font-size: 12px; font-weight: 600; color: #000; display: inline-flex; align-items: center; }
+.ot-mock-chip.ghost { color: #71717a; font-weight: 500; border-style: dashed; }
+.ot-xhs { color: #ff2442; }
+
+.ot-section { font-size: 13px; font-weight: 500; color: #71717a; margin: 0 0 12px; }
+.ot-tools, .ot-wn { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 28px; }
+.ot-toolcard {
+  border: 1px solid #efefef; border-radius: 12px; background: #fff; padding: 0; overflow: hidden;
+  cursor: pointer; text-align: left; display: flex; flex-direction: column; position: relative; color: inherit;
+}
+.ot-toolcard:hover { border-color: #d4d4d8; }
+.ot-badge {
+  position: absolute; top: 12px; left: 12px; z-index: 1; font-size: 12px; font-weight: 600;
+  background: #000; color: #fff; padding: 3px 8px; border-radius: 100px;
+}
+.ot-art { height: 100px; background: #f4f4f5; display: flex; align-items: center; justify-content: center; color: rgba(0,0,0,.35); }
+.ot-toolbody { padding: 14px 16px 16px; }
+.ot-tool-name { font-size: 14px; font-weight: 600; color: #000; margin-bottom: 4px; }
+.ot-tool-desc { font-size: 12px; color: #71717a; line-height: 1.45; }
+.ot-mode { display: inline-block; margin-top: 8px; font-size: 12px; font-weight: 500; color: #71717a; background: #efefef; padding: 3px 8px; border-radius: 100px; }
+.ot-wn-card { border: 1px solid #efefef; border-radius: 12px; background: #fafafa; padding: 16px; }
+.ot-wn-thumb { height: 72px; border-radius: 12px; background: #f4f4f5; margin-bottom: 12px; }
+.ot-wn-title { font-size: 13px; font-weight: 600; color: #000; margin-bottom: 4px; }
+.ot-wn-desc { font-size: 12px; color: #71717a; line-height: 1.45; }
+
+.ot-image-layout { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 18px; align-items: start; }
+.ot-card { border: 1px solid #efefef; border-radius: 12px; background: #fff; padding: 18px; }
+.ot-card h2 { margin: 0 0 6px; font-size: 14px; font-weight: 600; color: #000; }
+.ot-card p { margin: 0 0 14px; font-size: 13px; color: #71717a; line-height: 1.5; }
+.ot-specs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.ot-specs button, .ot-spec {
+  font-size: 12px; font-weight: 500; padding: 6px 12px; border-radius: 100px; border: 1px solid #e4e4e7;
+  background: #fafafa; color: #000; cursor: pointer;
+}
+.ot-specs button.on, .ot-spec.on { background: #000; color: #fff; border-color: #000; }
+.ot-spec { cursor: default; }
+.ot-nine {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr));
+  gap: 8px; aspect-ratio: 1; width: 100%;
+}
+.ot-nine > [role="listitem"] { min-width: 0; min-height: 0; display: flex; }
+.ot-nine > [role="listitem"] > .ot-cell { flex: 1; width: 100%; height: 100%; min-height: 96px; }
+.ot-cell {
+  position: relative; border-radius: 12px; overflow: hidden; border: 1px solid #e4e4e7; min-height: 96px;
+  padding: 0; cursor: pointer; background: #eef1f4; text-align: left; display: block;
+}
+.ot-cell.on { border-color: #000; box-shadow: inset 0 0 0 1px #000; }
+.ot-cell-bg { position: absolute; inset: 0; }
+.ot-cell-tag {
+  position: absolute; top: 6px; left: 6px; font-size: 12px; font-weight: 500; color: #fff;
+  background: rgba(0,0,0,.55); padding: 2px 8px; border-radius: 100px;
+}
+.ot-cell-tag .dur { color: rgba(255,255,255,.75); font-weight: 400; margin-left: 4px; }
+.ot-cell-cap {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 8px 6px;
+  background: linear-gradient(transparent, rgba(0,0,0,.55)); font-size: 12px; font-weight: 500; color: #fff;
+}
+.ot-hint { margin-top: 10px; font-size: 12px; color: #71717a; }
+.ot-note {
+  margin-top: 16px; padding: 12px 14px; border-radius: 12px; background: #fafbfc; border: 1px solid #efefef;
+  font-size: 12px; color: #71717a; line-height: 1.55;
+}
+.ot-stack { display: flex; flex-direction: column; gap: 10px; }
+.g1 { background: linear-gradient(145deg, #e8eef4 0%, #d4dce6 45%, #c8b8b0 100%); }
+.g2 { background: linear-gradient(160deg, #e6f0ea 0%, #c8ded0 50%, #b8c8c0 100%); }
+.g3 { background: linear-gradient(135deg, #f2e8e0 0%, #e0c8b8 48%, #d0b8a8 100%); }
+.g4 { background: linear-gradient(150deg, #e4e8f2 0%, #c8c8e0 52%, #b8c0d0 100%); }
+.g5 { background: linear-gradient(140deg, #f0e4ec 0%, #e0c8d4 46%, #d0b8c4 100%); }
+.g6 { background: linear-gradient(155deg, #e4ecf0 0%, #c0d4e0 50%, #a8c0d0 100%); }
+.g7 { background: linear-gradient(145deg, #f2e8e8 0%, #e0c8c8 48%, #d0b8b8 100%); }
+.g8 { background: linear-gradient(160deg, #e8f0ec 0%, #c8dcd0 50%, #b0c8bc 100%); }
+.g9 { background: linear-gradient(135deg, #ece8f2 0%, #d4c8e0 45%, #c0b8d0 100%); }
+
+.ot-filters { display: flex; gap: 8px; margin-bottom: 20px; }
+.ot-pill {
+  height: 32px; padding: 0 12px; border-radius: 100px; border: 1px solid #efefef; background: #fff;
+  font-size: 12px; font-weight: 500; color: #3f3f46; display: inline-flex; align-items: center;
+}
+.ot-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 420px; text-align: center; }
+.ot-ghosts { display: flex; gap: 14px; width: 100%; max-width: 960px; margin-bottom: 28px; }
+.ot-ghost { flex: 1; aspect-ratio: 9/14; max-height: 280px; border-radius: 12px; background: #efefef; border: 1px solid #e4e4e7; }
+.ot-empty .strong { font-size: 14px; font-weight: 500; color: #3f3f46; margin-bottom: 6px; }
+.ot-empty p { font-size: 14px; color: #71717a; margin: 0; }
+.ot-proj-list { display: flex; flex-direction: column; gap: 10px; }
+.ot-proj {
+  border: 1px solid #efefef; border-radius: 12px; padding: 14px 16px; display: flex; justify-content: space-between;
+  gap: 12px; align-items: center; background: #fff;
+}
+.ot-proj b { display: block; font-size: 14px; color: #000; }
+.ot-proj small { color: #71717a; font-size: 12px; }
+.ot-proj-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.ot-brand-block { margin-bottom: 32px; }
+.ot-brand-h { font-size: 14px; font-weight: 600; color: #000; margin: 0 0 14px; }
+.ot-brand-grid { display: flex; gap: 14px; flex-wrap: wrap; }
+.ot-brand-card {
+  width: 200px; border-radius: 12px; border: 1px solid #efefef; background: #fff; overflow: hidden;
+  text-align: left; padding: 0; cursor: pointer; color: inherit;
+}
+.ot-brand-card.add {
+  background: #fafafa; border-style: dashed; border-color: #e4e4e7; min-height: 168px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 20px;
+}
+.ot-plus {
+  width: 36px; height: 36px; border-radius: 12px; background: #fff; border: 1px solid #efefef;
+  display: flex; align-items: center; justify-content: center; color: #3f3f46; font-size: 18px;
+}
+.ot-add-title { font-size: 13px; font-weight: 500; color: #000; }
+.ot-add-sub { font-size: 12px; color: #71717a; text-align: center; }
+.ot-brand-thumb { height: 100px; background: linear-gradient(145deg, #e8eef4, #d4dce6 45%, #c8b8b0); border-bottom: 1px solid #efefef; }
+.ot-brand-thumb.checker {
+  background:
+    linear-gradient(45deg, #efefef 25%, transparent 25%),
+    linear-gradient(-45deg, #efefef 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #efefef 75%),
+    linear-gradient(-45deg, transparent 75%, #efefef 75%);
+  background-size: 12px 12px;
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+  background-color: #fff;
+}
+.ot-brand-info { padding: 12px 14px 14px; }
+.ot-brand-name { font-size: 13px; font-weight: 600; color: #000; margin-bottom: 4px; }
+.ot-brand-status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #71717a; }
+.ot-dot { width: 6px; height: 6px; border-radius: 50%; background: #f5c542; display: block; }
+.ot-form { display: flex; flex-direction: column; gap: 8px; width: 200px; padding: 12px; border: 1px dashed #e4e4e7; border-radius: 12px; background: #fafafa; }
+.ot-input {
+  height: 36px; border-radius: 12px; border: 1px solid #e4e4e7; background: #fff; padding: 0 12px;
+  font: 13px/1.4 inherit; color: #000;
+}
+.ot-error { color: #b42318; font-size: 12px; margin: 8px 0 0; }
+
+.ot-placeholder { max-width: 520px; margin: 48px auto 0; border: 1px solid #efefef; border-radius: 12px; background: #fafafa; padding: 32px; text-align: center; }
+.ot-placeholder h2 { margin: 0 0 8px; font-size: 18px; font-weight: 600; color: #000; }
+.ot-placeholder p { margin: 0 0 20px; font-size: 13px; color: #71717a; line-height: 1.55; }
+.ot-channels { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 18px; }
+.ot-channel { height: 36px; padding: 0 14px; border-radius: 100px; border: 1px solid #efefef; background: #fff; font-size: 12px; color: #3f3f46; display: inline-flex; align-items: center; }
+
+.ot-studio { flex: 1; display: flex; flex-direction: column; min-height: 0; height: 100%; min-width: 0; }
+.ot-topbar {
+  height: 52px; flex: none; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 28px; border-bottom: 1px solid #efefef; gap: 12px;
+}
+.ot-topbar-left { display: flex; align-items: center; min-width: 0; }
+.ot-back { border: 0; background: transparent; color: #71717a; font-size: 12px; font-weight: 500; cursor: pointer; margin-right: 12px; }
+.ot-back:hover { color: #000; }
+.ot-stepper { display: flex; align-items: center; }
+.ot-step {
+  display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: #71717a;
+  padding: 0 10px; border: 0; background: transparent; cursor: pointer;
+}
+.ot-step:disabled { cursor: default; }
+.ot-step-no {
+  width: 20px; height: 20px; border-radius: 50%; border: 1px solid #e4e4e7; display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 600; color: #71717a; background: #fff;
+}
+.ot-step.done { color: #3f3f46; }
+.ot-step.done .ot-step-no { background: #efefef; border-color: #efefef; color: #3f3f46; }
+.ot-step.current { color: #000; }
+.ot-step.current .ot-step-no { background: #000; border-color: #000; color: #fff; }
+.ot-step-sep { width: 20px; height: 1px; background: #e4e4e7; }
+.ot-meta { font-size: 12px; color: #71717a; font-weight: 500; }
+.ot-content { flex: 1; min-height: 0; overflow: auto; padding: 20px 28px 24px; display: flex; flex-direction: column; gap: 14px; }
+.ot-page-sub { font-size: 13px; color: #3f3f46; margin: 4px 0 0; line-height: 1.45; }
+.ot-split { display: flex; gap: 14px; align-items: flex-start; }
+.ot-col { flex: 1.35; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.ot-side-col { width: 320px; flex: none; display: flex; flex-direction: column; gap: 12px; }
+.ot-panel { background: #fff; border: 1px solid #efefef; border-radius: 12px; padding: 16px; }
+.ot-label { font-size: 12px; font-weight: 500; color: #71717a; margin-bottom: 10px; }
+.ot-label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.ot-label-row .ot-label { margin: 0; }
+.ot-link { border: 0; background: none; padding: 0; font-size: 12px; font-weight: 500; color: #3f3f46; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.ot-product {
+  display: flex; gap: 14px; width: 100%; text-align: left; padding: 14px; border-radius: 12px;
+  border: 1px solid #efefef; background: #fff; cursor: pointer; color: inherit;
+}
+.ot-product { margin-bottom: 8px; }
+.ot-product.on { border-color: #000; }
+.ot-thumb {
+  width: 88px; height: 88px; border-radius: 12px; flex: none; position: relative;
+  background: linear-gradient(145deg, #e8eef4, #d4dce6 45%, #c8b8b0); border: 1px solid #e4e4e7;
+}
+.ot-ptag {
+  position: absolute; bottom: 6px; left: 6px; font-size: 12px; font-weight: 600; color: #fff;
+  background: rgba(0,0,0,.55); padding: 2px 7px; border-radius: 100px;
+}
+.ot-product-name { font-size: 14px; font-weight: 600; color: #000; }
+.ot-sel { display: inline-flex; margin-left: 8px; font-size: 12px; font-weight: 600; color: #000; background: #5bf0a5; border-radius: 100px; padding: 2px 8px; vertical-align: middle; }
+.ot-product-meta { font-size: 12px; color: #71717a; margin-top: 4px; }
+.ot-inline-hint { margin-top: 12px; font-size: 12px; color: #71717a; }
+.ot-tips { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ot-tipcard { border-radius: 12px; padding: 12px 14px; border: 1px solid #efefef; background: #fafafa; }
+.ot-tipcard h3 { margin: 0 0 8px; font-size: 12px; font-weight: 600; color: #000; display: flex; align-items: center; gap: 6px; }
+.ot-tipcard ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.ot-tipcard li { font-size: 12px; color: #3f3f46; padding-left: 12px; position: relative; }
+.ot-tipcard li::before { content: ""; position: absolute; left: 0; top: 6px; width: 4px; height: 4px; border-radius: 50%; background: #5bf0a5; }
+.ot-tipcard.dont li::before { background: #e4e4e7; }
+.ot-tipcard p { margin: 8px 0 0; font-size: 12px; color: #71717a; }
+.ot-mark {
+  width: 16px; height: 16px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; background: #5bf0a5; color: #000;
+}
+.ot-tipcard.dont .ot-mark { background: #e4e4e7; color: #71717a; }
+.ot-field { font-size: 12px; font-weight: 500; color: #3f3f46; margin-bottom: 6px; }
+.ot-seg { display: inline-flex; padding: 4px; background: #efefef; border-radius: 100px; gap: 2px; margin-bottom: 10px; }
+.ot-seg button { border: 0; background: transparent; border-radius: 100px; padding: 6px 14px; font-size: 12px; font-weight: 500; color: #71717a; cursor: pointer; }
+.ot-seg button.on { background: #fff; color: #000; }
+.ot-talent { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid #efefef; background: #fafafa; }
+.ot-talent b { display: block; font-size: 13px; color: #000; }
+.ot-talent span { font-size: 12px; color: #71717a; }
+.ot-cast { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.ot-cast button { text-align: left; border-radius: 12px; border: 1px solid #efefef; background: #fff; padding: 8px 10px; cursor: pointer; font-size: 12px; color: #000; }
+.ot-cast button.on { border-color: #000; }
+.ot-check {
+  display: flex; gap: 10px; width: 100%; text-align: left; padding: 10px 12px; border-radius: 12px;
+  border: 1px solid #efefef; background: #fff; cursor: pointer; color: inherit; margin-bottom: 8px;
+}
+.ot-check.on { border-color: #000; background: #fafafa; }
+.ot-box {
+  width: 16px; height: 16px; border-radius: 5px; border: 1px solid #e4e4e7; flex: none; margin-top: 1px;
+  display: flex; align-items: center; justify-content: center; color: #fff;
+}
+.ot-check.on .ot-box { background: #000; border-color: #000; }
+.ot-check b { display: block; font-size: 13px; font-weight: 500; color: #000; }
+.ot-check span { display: block; font-size: 12px; color: #71717a; margin-top: 2px; }
+
+.ot-sticky {
+  flex: none; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 14px 28px; border-top: 1px solid #efefef; background: #fff;
+}
+.ot-sticky-title { font-size: 13px; font-weight: 500; color: #000; }
+.ot-sticky-sub { font-size: 12px; color: #71717a; }
+.ot-sticky-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.ot-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.ot-chip { padding: 4px 10px; border-radius: 100px; font-size: 12px; font-weight: 500; background: #fff; color: #3f3f46; border: 1px solid #efefef; }
+.ot-chip.on { background: #000; color: #fff; border-color: #000; }
+.ot-context { padding: 8px 12px; border-radius: 100px; background: #efefef; font-size: 12px; color: #3f3f46; }
+.ot-context strong { color: #000; }
+.ot-headrow { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
+.ot-preview { border: 1px solid #efefef; border-radius: 12px; overflow: hidden; background: #fff; }
+.ot-preview-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 12px; border-bottom: 1px solid #efefef; background: #fafafa; }
+.ot-ptabs { display: inline-flex; padding: 4px; background: #efefef; border-radius: 100px; gap: 2px; }
+.ot-ptabs button { border: 0; background: transparent; border-radius: 100px; padding: 5px 12px; font-size: 12px; color: #71717a; cursor: pointer; }
+.ot-ptabs button.on { background: #fff; color: #000; }
+.ot-preview-body { padding: 12px; }
+.ot-filters-inline { display: flex; gap: 8px; margin-bottom: 10px; }
+.ot-filters-inline button { border: 0; background: #efefef; color: #71717a; border-radius: 100px; padding: 5px 12px; font-size: 12px; cursor: pointer; }
+.ot-filters-inline button.on { background: #fff; color: #000; box-shadow: inset 0 0 0 1px #efefef; }
+.ot-script { font-size: 12px; line-height: 1.65; color: #3f3f46; padding: 12px; background: #fafafa; border: 1px solid #efefef; border-radius: 12px; }
+.ot-audio { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: #fafafa; border: 1px solid #efefef; }
+.ot-play { width: 32px; height: 32px; border-radius: 50%; background: #000; color: #fff; display: flex; align-items: center; justify-content: center; flex: none; }
+.ot-wave { flex: 1; height: 20px; display: flex; align-items: center; gap: 2px; }
+.ot-wave i { width: 2px; border-radius: 1px; background: #e4e4e7; display: block; }
+.ot-fee-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 12px; color: #71717a; }
+.ot-fee-row b { color: #000; font-weight: 500; }
+.ot-fee-total { font-size: 18px; font-weight: 600; color: #000; }
+.ot-divider { height: 1px; background: #efefef; margin: 6px 0; }
+.ot-status { font-size: 12px; color: #3f3f46; margin-top: 8px; }
+.ot-checkline { font-size: 13px; color: #3f3f46; padding: 6px 0; }
+
+@media (max-width: 1100px) {
+  .ot-tools, .ot-wn, .ot-image-layout { grid-template-columns: 1fr 1fr; }
+  .ot-gs-split, .ot-split, .ot-tips { grid-template-columns: 1fr; display: grid; }
+  .ot-side-col { width: auto; }
+  .ot-split { display: grid; }
+}
+@media (max-width: 760px) {
+  .ot-side { display: none; }
+  .ot-tools, .ot-wn, .ot-image-layout { grid-template-columns: 1fr; }
+  .ot-step span.label { display: none; }
+}

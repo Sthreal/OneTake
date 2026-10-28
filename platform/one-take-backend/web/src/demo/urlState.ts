@@ -9,8 +9,16 @@
 import { DIRECTOR_STEPS, type DirectorStepKey } from "./director";
 
 // 「商品链接」不再占一个侧边栏入口：它是工作台内的一个 tab（同一页不必开两个门）。
-// 旧的 `?view=workbench-url` 链接会被解析成默认的工作台，不会白屏。
-export type UrlView = "workbench" | "director" | "projects" | "characters";
+// 旧的 `?view=workbench-url` 仍落到托管工作台，不会白屏。
+// 默认视图是首页（iter18）。图片广告、品牌空间、发布、工作室四步各自一个 view，
+// 不复用导演模式的 step，避免「出图」再变成视频的必经步骤。
+export const SHELL_VIEWS = ["home", "brand", "image", "projects", "connect", "prepare", "review", "generate", "delivery"] as const;
+export type ShellView = (typeof SHELL_VIEWS)[number];
+export type UrlView = ShellView | "workbench" | "director" | "characters";
+
+export function isShellView(view: UrlView): view is ShellView {
+  return (SHELL_VIEWS as readonly string[]).includes(view);
+}
 
 export interface UrlState {
   view: UrlView;
@@ -18,24 +26,28 @@ export interface UrlState {
   step: DirectorStepKey;
 }
 
-export const DEFAULT_URL_STATE: UrlState = { view: "workbench", projectId: null, step: "storyboard" };
+export const DEFAULT_URL_STATE: UrlState = { view: "home", projectId: null, step: "storyboard" };
 
-const VIEWS: UrlView[] = ["workbench", "director", "projects", "characters"];
+const VIEWS: UrlView[] = [...SHELL_VIEWS, "workbench", "director", "characters"];
 const STEPS: DirectorStepKey[] = DIRECTOR_STEPS.map((item) => item.key);
 
 /** 解析地址栏查询串；**不认识的值一律退回默认**（手改 URL 不该把页面弄崩）。 */
 export function parseUrlState(search: string): UrlState {
   const params = new URLSearchParams(search.startsWith("?") ? search : `?${search}`);
-  const view = params.get("view");
+  const rawView = params.get("view");
   const step = params.get("step");
+  const projectId = params.get("project") || null;
+  const parsedStep = STEPS.includes(step as DirectorStepKey) ? (step as DirectorStepKey) : DEFAULT_URL_STATE.step;
+  // 旧链接：商品链接曾单独占一个 view，入口删除后仍打开托管工作台。
+  if (rawView === "workbench-url") return { view: "workbench", projectId, step: parsedStep };
   return {
-    view: VIEWS.includes(view as UrlView) ? (view as UrlView) : DEFAULT_URL_STATE.view,
-    projectId: params.get("project") || null,
-    step: STEPS.includes(step as DirectorStepKey) ? (step as DirectorStepKey) : DEFAULT_URL_STATE.step,
+    view: VIEWS.includes(rawView as UrlView) ? (rawView as UrlView) : DEFAULT_URL_STATE.view,
+    projectId,
+    step: parsedStep,
   };
 }
 
-/** 生成查询串：默认值不写进 URL（工作台保持干净地址）；`step` 只在导演模式里有意义。 */
+/** 生成查询串：默认首页不写进 URL；`step` 只在导演模式里有意义。 */
 export function buildUrlSearch(state: UrlState): string {
   const params = new URLSearchParams();
   if (state.view !== DEFAULT_URL_STATE.view) params.set("view", state.view);

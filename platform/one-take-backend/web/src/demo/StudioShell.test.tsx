@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // 只验"外壳把哪个视图渲染出来"，所以把三个重页面与 API 全部替换成可识别的桩。
@@ -26,9 +26,10 @@ describe("StudioShell 视图路由（方案 §3.1：4 步独立 URL 的前提是
     open("/");
   });
 
-  it("默认（无参数）→ 工作台", async () => {
+  it("默认（无参数）→ 首页上手，而不是托管工作台", async () => {
     render(<StudioShell />);
-    expect(await screen.findByText(/MOCK_WORKBENCH/)).toBeInTheDocument();
+    expect(await screen.findByText("开始上手")).toBeInTheDocument();
+    expect(screen.queryByText(/MOCK_WORKBENCH/)).not.toBeInTheDocument();
   });
 
   it("?view=director&project=… → **导演模式**（而不是工作台）", async () => {
@@ -53,11 +54,12 @@ describe("StudioShell 视图路由（方案 §3.1：4 步独立 URL 的前提是
     expect(await screen.findByText("MOCK_WORKBENCH:prj_y")).toBeInTheDocument();
   });
 
-  it("侧边栏**不再**单开「商品链接」入口（它是工作台内的 tab）", async () => {
+  it("侧边栏创作组有图片广告和快速出片，不再单开「商品链接」", async () => {
     render(<StudioShell />);
     expect(screen.queryByRole("button", { name: "商品链接" })).not.toBeInTheDocument();
-    for (const label of ["出片", "导演模式", "项目", "出镜人"]) {
-      expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
+    const nav = screen.getByRole("complementary", { name: "主导航" });
+    for (const label of ["首页", "项目", "品牌空间", "图片广告", "快速出片"]) {
+      expect(within(nav).getByRole("button", { name: label })).toBeInTheDocument();
     }
   });
 

@@ -20,10 +20,23 @@ describe("导演模式 URL 状态（方案 §3.1：4 步独立 URL）", () => {
     });
   });
 
-  it("默认值不写进 URL（工作台保持干净地址）", () => {
+  it("默认值不写进 URL（首页保持干净地址；托管工作台要显式写出）", () => {
+    expect(DEFAULT_URL_STATE.view).toBe("home");
     expect(buildUrlSearch(DEFAULT_URL_STATE)).toBe("");
+    expect(buildUrlSearch({ view: "workbench", projectId: null, step: "storyboard" })).toBe("view=workbench");
     expect(buildUrlSearch({ view: "director", projectId: "prj_1", step: "storyboard" })).toBe("view=director&project=prj_1");
     expect(buildUrlSearch({ view: "director", projectId: "prj_1", step: "delivery" })).toContain("step=delivery");
+  });
+
+  it("图片广告和工作室四步各自有 view，不占用导演模式的 step", () => {
+    expect(parseUrlState("?view=image").view).toBe("image");
+    expect(parseUrlState("?view=prepare&project=prj_1")).toEqual({
+      view: "prepare",
+      projectId: "prj_1",
+      step: "storyboard",
+    });
+    expect(buildUrlSearch({ view: "delivery", projectId: "prj_1", step: "compose" })).toBe("view=delivery&project=prj_1");
+    expect(parseUrlState("?view=review&project=prj_1&step=compose").step).toBe("compose");
   });
 
   it("step 只在导演模式里进 URL（其它视图不该带它）", () => {
