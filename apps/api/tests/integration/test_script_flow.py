@@ -13,6 +13,7 @@ from onetake_api.modules.main_image.repository import MainImageRepository
 from onetake_api.modules.pipeline.public import PipelinePublicService
 from onetake_api.modules.project.public import ProjectPublicService
 from onetake_api.modules.script.content import ScriptGenerationError
+from onetake_api.modules.script.repository import ScriptRepository
 from onetake_api.modules.script.service import ScriptApplicationService
 
 
@@ -94,6 +95,8 @@ def test_script_flow_success_and_edit(
     assert job is not None
     ready = service.process_job(db_session, job.id)
     assert ready.status == "ready"
+    assert ready.facts.get("angle") == "pain_point"
+    assert ready.facts.get("selected") is True
     assert 45 <= ready.character_count <= 72
     assert ready.full_text
     assert PipelinePublicService().get_or_create(db_session, project_id).status == "script_ready"
@@ -142,4 +145,7 @@ def test_script_failure_does_not_mark_complete(
     failed = service.process_job(db_session, job.id)
     assert failed.status == "failed"
     assert failed.error_code == "SCRIPT_GENERATION_ERROR"
+    versions = ScriptRepository().list_for_project(db_session, project_id)
+    assert len(versions) >= 3
+    assert {item.status for item in versions} == {"failed"}
     assert PipelinePublicService().get_or_create(db_session, project_id).status == "failed"
