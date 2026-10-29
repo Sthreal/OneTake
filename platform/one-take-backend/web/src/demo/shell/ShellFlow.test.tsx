@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../../shared/api/projectApi", () => ({
   listProjects: vi.fn(),
   createProject: vi.fn(),
+  updateProject: vi.fn(),
 }));
 vi.mock("../../shared/api/characterApi", () => ({
   listCharacters: vi.fn(),
@@ -22,7 +23,7 @@ vi.mock("../../shared/api/scriptApi", () => ({
 import type { ScriptReviewResult, ScriptState, ScriptVersion } from "../../features/script/types";
 import { ApiError } from "../../shared/api/client";
 import { listCharacters } from "../../shared/api/characterApi";
-import { listProjects } from "../../shared/api/projectApi";
+import { listProjects, updateProject } from "../../shared/api/projectApi";
 import {
   applyScriptReview,
   confirmScript,
@@ -33,7 +34,7 @@ import {
   selectScript,
 } from "../../shared/api/scriptApi";
 import { StudioShell } from "../StudioShell";
-import { writeSkuEnrichment } from "./model";
+import { DEFAULT_STUDIO_DRAFT, PRESENTER_CLEAR_FAILED, writeSkuEnrichment, writeStudioDraft } from "./model";
 
 const product = {
   project_id: "prj_skin",
@@ -252,6 +253,8 @@ describe("iter18 图片广告与工作室解耦", () => {
     installScriptBackend();
     vi.mocked(listProjects).mockResolvedValue([product]);
     vi.mocked(generateScript).mockClear();
+    vi.mocked(updateProject).mockReset();
+    vi.mocked(updateProject).mockResolvedValue(product);
     vi.mocked(listCharacters).mockResolvedValue({
       characters: [{
         character_id: "chr_zhou",
@@ -306,6 +309,9 @@ describe("iter18 图片广告与工作室解耦", () => {
     expect(screen.getByText("请填写使用场景")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "从出镜人库更换 →" }));
+    const castButtons = within(document.querySelector(".ot-cast") as HTMLElement).getAllByRole("button");
+    expect(castButtons[0]).toHaveTextContent("无出镜人");
+    expect(castButtons[0]).toHaveTextContent("商品镜头为主，不出现人物");
     expect(screen.getByRole("button", { name: /周予/ })).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: /提示词|描述出镜人|prompt/ })).not.toBeInTheDocument();
 
@@ -551,5 +557,73 @@ describe("iter18 图片广告与工作室解耦", () => {
     expect(screen.getByText("抖音 · 未接入")).toBeInTheDocument();
     expect(screen.getByText("小红书 · 未接入")).toBeInTheDocument();
     expect(screen.getByText(/尚未接线/)).toBeInTheDocument();
+  });
+
+  it("无出镜人会清空 character_id，审稿生成交付都不展示人才卡", async () => {
+    const user = userEvent.setup();
+    open("/?view=prepare&project=prj_skin");
+    render(<StudioShell />);
+    await user.click(await screen.findByRole("button", { name: "从出镜人库更换 →" }));
+    await user.click(screen.getByRole("button", { name: /无出镜人/ }));
+    expect(document.querySelector(".ot-talent")).toBeNull();
+    expect(document.querySelector(".ot-cast-picked")).toHaveTextContent("商品镜头为主，不出现人物");
+
+    await fillPrepare(user);
+    await waitFor(() => expect(updateProject).toHaveBeenCalledWith("prj_skin", { characterId: null }));
+    expect(await screen.findByRole("heading", { name: "审稿确认" })).toBeInTheDocument();
+    expect(screen.getByText("确认前不扣积分。本场无出镜人 · 口播将以配音/字幕呈现。未过闸不会进入付费生成。")).toBeInTheDocument();
+    expect(screen.queryByText("林晓")).not.toBeInTheDocument();
+    expect(screen.queryByText(/演示数字人|数字人预览/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "审稿" }));
+    expect(await screen.findByText("审稿闸：已审，还没过闸")).toBeInTheDocument();
+    expect(within(screen.getByRole("list", { name: "四维审稿" })).getByText("节奏")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "保留原稿" }));
+    expect(await screen.findByText("审稿闸：已通过（保留原稿）")).toBeInTheDocument();
+    expect(applyScriptReview).toHaveBeenCalledWith("prj_skin", "ack");
+    await user.click(screen.getByRole("button", { name: /确认并生成视频/ }));
+
+    expect(await screen.findByRole("heading", { name: "编排预览" })).toBeInTheDocument();
+    expect(screen.getByText("出镜：无（纯商品）")).toBeInTheDocument();
+    expect(document.querySelector(".ot-talent")).toBeNull();
+    expect(screen.queryByText(/演示数字人|数字人预览/)).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "查看交付说明" })).toBeEnabled());
+    expect(screen.getByText(/审稿闸已通过/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "查看交付说明" }));
+
+    expect(await screen.findByRole("heading", { name: "交付说明" })).toBeInTheDocument();
+    expect(screen.getByText("纯商品镜头 · 无人出镜")).toBeInTheDocument();
+    expect(screen.queryByText("林晓")).not.toBeInTheDocument();
+    expect(document.querySelector(".ot-talent")).toBeNull();
+    expect(screen.queryByText(/演示数字人|数字人预览/)).not.toBeInTheDocument();
+  });
+
+  it("清空出镜人失败时停在准备步，不会改用预制人", async () => {
+    vi.mocked(updateProject).mockRejectedValueOnce(new Error("network"));
+    const user = userEvent.setup();
+    open("/?view=prepare&project=prj_skin");
+    render(<StudioShell />);
+    await user.click(await screen.findByRole("button", { name: "从出镜人库更换 →" }));
+    await user.click(screen.getByRole("button", { name: /无出镜人/ }));
+    await fillPrepare(user);
+    expect(await screen.findByRole("alert")).toHaveTextContent(PRESENTER_CLEAR_FAILED);
+    expect(screen.getByRole("heading", { name: "准备" })).toBeInTheDocument();
+    expect(document.querySelector(".ot-cast-picked")).toHaveTextContent("无出镜人");
+    expect(screen.queryByText("出镜人：林晓")).not.toBeInTheDocument();
+  });
+
+  it("直接打开生成步时，无人仍清空 character_id，失败则拦住且不注入预制人", async () => {
+    writeStudioDraft({ ...DEFAULT_STUDIO_DRAFT, projectId: "prj_skin", presenterId: null });
+    vi.mocked(updateProject).mockRejectedValueOnce(new Error("network"));
+    open("/?view=generate&project=prj_skin");
+    render(<StudioShell />);
+    expect(await screen.findByRole("heading", { name: "编排预览" })).toBeInTheDocument();
+    expect(screen.getByText("出镜：无（纯商品）")).toBeInTheDocument();
+    expect(await screen.findByText(PRESENTER_CLEAR_FAILED)).toBeInTheDocument();
+    await waitFor(() => expect(updateProject).toHaveBeenCalledWith("prj_skin", { characterId: null }));
+    expect(screen.getByRole("button", { name: "查看交付说明" })).toBeDisabled();
+    expect(screen.queryByText("林晓")).not.toBeInTheDocument();
+    expect(document.querySelector(".ot-talent")).toBeNull();
+    expect(await screen.findByText(/SCRIPT_REVIEW_REQUIRED/)).toBeInTheDocument();
   });
 });

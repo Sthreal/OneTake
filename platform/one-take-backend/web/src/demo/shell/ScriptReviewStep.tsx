@@ -16,7 +16,9 @@ import {
 import {
   DEMO_FEE,
   REVIEW_FILTERS,
+  reviewFeeHint,
   visibleReviewCells,
+  type PresenterOption,
   type StudioDraft,
 } from "./model";
 import {
@@ -53,7 +55,7 @@ export function ScriptReviewStep({
   onAdvance,
 }: {
   product: Project | null;
-  presenter: { name: string };
+  presenter: Pick<PresenterOption, "name" | "source">;
   draft: StudioDraft;
   onAdvance: () => void;
 }) {
@@ -368,7 +370,7 @@ export function ScriptReviewStep({
               <div className="ot-fee-row"><span>视频生成 · {draft.duration}</span><b>10 积分</b></div>
               <div className="ot-divider" />
               <div className="ot-fee-row"><span>合计</span><span className="ot-fee-total">{DEMO_FEE} 积分</span></div>
-              <div className="ot-hint">确认前不扣积分。配音人 {presenter.name}。未过闸不会进入付费生成。</div>
+              <div className="ot-hint">{reviewFeeHint(presenter)}</div>
             </section>
           </div>
         </div>

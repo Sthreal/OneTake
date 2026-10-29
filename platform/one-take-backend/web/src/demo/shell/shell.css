@@ -373,8 +373,13 @@ body:has(.ot-light) { background: #f4f4f5; }
 .ot-talent { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid #efefef; background: #fafafa; }
 .ot-talent b { display: block; font-size: 13px; color: #000; }
 .ot-talent span { font-size: 12px; color: #71717a; }
+.ot-cast-picked { padding: 10px 12px; border-radius: 12px; border: 1px solid #efefef; background: #fafafa; }
+.ot-cast-picked b { display: block; font-size: 13px; font-weight: 500; color: #000; }
+.ot-cast-picked span { display: block; margin-top: 2px; font-size: 12px; color: #71717a; }
 .ot-cast { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 .ot-cast button { text-align: left; border-radius: 12px; border: 1px solid #efefef; background: #fff; padding: 8px 10px; cursor: pointer; font-size: 12px; color: #000; }
+.ot-cast button b { display: block; font-weight: 500; }
+.ot-cast button span { display: block; margin-top: 2px; color: #71717a; }
 .ot-cast button.on { border-color: #000; }
 .ot-check {
   display: flex; gap: 10px; width: 100%; text-align: left; padding: 10px 12px; border-radius: 12px;
