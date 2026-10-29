@@ -121,6 +121,14 @@ describe("壳层声线文案", () => {
     expect(absent.label).toBe("旁白字幕");
     expect(absent.detail).toContain("旁白加字幕");
     expect(shellVoiceCopy("无人").label).toBe("旁白字幕");
+
+    expect(shellVoiceCopy("premade:linxiao", "talking_head").label).toBe("TTS + 库选数字人");
+    expect(shellVoiceCopy("chr_zhou", "multi_angle").label).toBe("TTS + 库选数字人");
+    expect(shellVoiceCopy(null, "talking_head").label).toBe("旁白字幕");
+    expect(shellVoiceCopy(null, "multi_angle").label).toBe("旁白字幕");
+    expect(shellVoiceCopy("premade:linxiao", "product_only").label).toBe("旁白字幕");
+    expect(shellVoiceCopy("premade:linxiao", "product_only").detail).toContain("旁白加字幕");
+    expect(shellVoiceCopy("premade:linxiao", "product_only").detail).not.toMatch(/唇形已同步|克隆声驱动|live Wan/);
   });
 });
 

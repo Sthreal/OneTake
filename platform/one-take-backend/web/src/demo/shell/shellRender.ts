@@ -28,6 +28,7 @@
  * 再 `POST /audio-subtitle/confirm`。不跑自动链后半段，也不调用关键帧接口。
  */
 import type { SubtitleState, SubtitleVersion, VoiceRequestInput, VoiceRun, VoiceState } from "../../features/audio-subtitle/types";
+import type { StudioCreationPath } from "./model";
 import type { VideoPlan } from "../../features/video/types";
 import { confirmContentPlan, generateContentPlan, getContentPlan } from "../../shared/api/contentPlanApi";
 import { confirmAudioSubtitle, getSubtitle, requestSubtitle } from "../../shared/api/subtitleApi";
@@ -102,9 +103,12 @@ export function presenterIsAbsent(presenterId: string | null | undefined): boole
   return trimmed.length === 0 || trimmed === "none" || trimmed === "无人";
 }
 
-/** 有出镜人：TTS + 库选。没有人：旁白字幕。两边都不承诺克隆或原声对口型。 */
-export function shellVoiceCopy(presenterId: string | null | undefined): ShellVoiceCopy {
-  if (presenterIsAbsent(presenterId)) {
+/** 有出镜人：TTS + 库选。没有人，或纯商品路径：旁白字幕。两边都不承诺克隆或原声对口型。 */
+export function shellVoiceCopy(
+  presenterId: string | null | undefined,
+  path?: StudioCreationPath | null,
+): ShellVoiceCopy {
+  if (path === "product_only" || presenterIsAbsent(presenterId)) {
     return {
       label: "旁白字幕",
       detail: "没有出镜人。成片是旁白加字幕，不是克隆声，也不做原声对口型。",

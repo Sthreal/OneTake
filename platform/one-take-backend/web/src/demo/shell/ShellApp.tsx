@@ -1000,17 +1000,24 @@ function useShellRender(projectId: string | null, enabled: boolean) {
   };
 }
 
+function VoiceLine({ draft }: { draft: Pick<StudioDraft, "presenterId" | "path"> }) {
+  const voice = shellVoiceCopy(draft.presenterId, draft.path);
+  return (
+    <>
+      <div className="ot-checkline">声线：{voice.label}</div>
+      <p className="ot-hint">{voice.detail}</p>
+    </>
+  );
+}
+
 function RenderSlot({
   projectId,
-  presenterId,
   enabled,
 }: {
   projectId: string | null;
-  presenterId: string | null;
   enabled: boolean;
 }) {
   const renderJob = useShellRender(enabled ? projectId : null, enabled);
-  const voice = shellVoiceCopy(presenterId);
   const { view } = renderJob;
   return (
     <section className="ot-panel" aria-label="成片">
@@ -1022,8 +1029,6 @@ function RenderSlot({
       {view.playableUrl ? (
         <video className="ot-player" controls playsInline src={view.playableUrl} aria-label="成片播放" />
       ) : null}
-      <div className="ot-checkline">声线：{voice.label}</div>
-      <p className="ot-hint">{voice.detail}</p>
       {view.phase === "failed" ? (
         <button type="button" className="ot-btn ot-btn-primary ot-btn-sm" disabled={renderJob.busy} onClick={() => void renderJob.retry()}>
           重试渲染
@@ -1090,6 +1095,7 @@ function Generate({
           <div className="ot-checkline">商品：{product?.product_name ?? "未选择"}</div>
           <div className="ot-checkline">{generatePresenterCheck(presenter)}</div>
           <div className="ot-checkline">规格：{draft.ratio} · {draft.duration}</div>
+          <VoiceLine draft={draft} />
           <div className="ot-checkline">图片广告：未使用，也不是本步的前置条件</div>
         </section>
         {syncError ? <p className="ot-error" role="alert">{syncError}</p> : null}
@@ -1101,7 +1107,7 @@ function Generate({
             <button type="button" className="ot-btn ot-btn-primary" onClick={onReview}>回到审稿过闸</button>
           </section>
         ) : null}
-        {ready ? <RenderSlot projectId={projectId} presenterId={presenter.id} enabled /> : null}
+        {ready ? <RenderSlot projectId={projectId} enabled /> : null}
       </div>
       <footer className="ot-sticky">
         <div>
@@ -1144,11 +1150,12 @@ function Delivery({
             <p className="ot-page-sub">{guard.message}</p>
           </section>
         ) : null}
-        {ready ? <RenderSlot projectId={projectId} presenterId={presenter.id} enabled /> : null}
+        {ready ? <RenderSlot projectId={projectId} enabled /> : null}
         <section className="ot-panel">
           <div className="ot-checkline">商品：{product?.product_name ?? "未选择"}</div>
           <div className="ot-checkline">{deliveryPresenterCheck(presenter)}</div>
           <div className="ot-checkline">规格：{draft.ratio} · {draft.duration}</div>
+          <VoiceLine draft={draft} />
           <div className="ot-checkline">发布：有机发布尚未接线，去了也发不出去</div>
         </section>
       </div>
