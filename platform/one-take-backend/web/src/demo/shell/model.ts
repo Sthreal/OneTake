@@ -8,8 +8,8 @@ import type { ShellView } from "../urlState";
 export const STUDIO_STEPS = [
   { view: "prepare", label: "准备素材", short: "准备" },
   { view: "review", label: "审稿确认", short: "审稿" },
-  { view: "generate", label: "编排预览", short: "编排" },
-  { view: "delivery", label: "交付说明", short: "说明" },
+  { view: "generate", label: "生成成片", short: "生成" },
+  { view: "delivery", label: "成片交付", short: "交付" },
 ] as const;
 
 export type StudioView = (typeof STUDIO_STEPS)[number]["view"];
@@ -59,7 +59,7 @@ export const GS_STEPS: readonly GsStep[] = [
     dest: "prepare",
     cta: "进入工作室",
     title: "生成视频",
-    description: "打开工作室做编排预览。付费成片在托管工作台，外壳单独走完不会出视频。",
+    description: "打开工作室：选角、过审稿闸，确认后提交渲染。不必先打开导演页。",
   },
   {
     id: 4,

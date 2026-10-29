@@ -1,10 +1,11 @@
 /** iter18 外壳：首页上手、图片广告、品牌空间、有机发布、工作室四步。
  *
- * 工作室只走 准备 → 审稿 → 生成 → 成片。图片广告页的「另开工作室」是可选出口，
- * 不把选中的静图写进工作室草稿。
+ * 工作室只走 准备 → 审稿 → 生成成片 → 交付。确认过闸后，生成步提交与托管工作台
+ * 相同的渲染任务。图片广告页的「另开工作室」是可选出口，不把选中的静图写进工作室草稿。
  */
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
+import { ApiError } from "../../shared/api/client";
 import { listCharacters, type Character } from "../../shared/api/characterApi";
 import { createProject, listProjects, updateProject } from "../../shared/api/projectApi";
 import { getScript } from "../../shared/api/scriptApi";
@@ -42,6 +43,12 @@ import {
 import { PrepareStep } from "./PrepareStep";
 import { ScriptReviewStep, useScriptGateGuard } from "./ScriptReviewStep";
 import { hasReusableScript } from "./scriptGate";
+import {
+  enqueueShellRender,
+  readShellRender,
+  shellVoiceCopy,
+  type ShellRenderView,
+} from "./shellRender";
 import "./shell.css";
 
 export function ShellApp({
@@ -363,7 +370,7 @@ function Home({
         <h1 className="ot-title">首页</h1>
         <button type="button" className="ot-btn ot-btn-primary" onClick={() => onNavigate("prepare", recentProjectId)}>
           <Ico size={14}><path d="M12 5v14M5 12h14" /></Ico>
-          新建
+          开始出片
         </button>
       </header>
       <div className="ot-body">
@@ -411,15 +418,20 @@ function Home({
         </section>
         <h2 className="ot-section">创作工具</h2>
         <div className="ot-tools" role="region" aria-label="创作工具">
-          <ToolCard badge="主路径" name="快速出片" mode="模式 · 工作台" desc="选用商品与出镜人，走编排预览。付费成片在托管工作台，不经过图片广告。" onClick={() => onNavigate("prepare", recentProjectId)} icon={<Ico size={20}><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M10 10l5 2-5 2v-4z" /></Ico>} />
+          <ToolCard badge="主路径" name="快速出片" mode="模式 · 工作室" desc="选商品、审稿过闸，确认后提交渲染。不必打开导演页，也不经过图片广告。" onClick={() => onNavigate("prepare", recentProjectId)} icon={<Ico size={20}><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M10 10l5 2-5 2v-4z" /></Ico>} />
           <ToolCard name="图片广告" mode="模式 · 图片" desc="演示预览：九宫格是占位，不是真实出图。与视频工作室解耦。" onClick={() => onNavigate("image")} icon={<Ico size={20}><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></Ico>} />
           <ToolCard name="品牌空间" mode="模式 · 素材库" desc="管理品牌 DNA、商品主图与卖点，供工作室与图片广告复用。" onClick={() => onNavigate("brand")} icon={<Ico size={20}><path d="M12 2 2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></Ico>} />
           <ToolCard name="有机种草" mode="模式 · 发布" desc="入口保留。抖音 / 小红书有机发布尚未接线。" onClick={() => onNavigate("connect")} icon={<Ico size={20}><path d="M4 12c2-4 6-6 8-6s6 2 8 6c-2 4-6 6-8 6s-6-2-8-6z" /><circle cx="12" cy="12" r="2.5" /></Ico>} />
         </div>
+        <div className="ot-advanced">
+          <span className="ot-section">高级</span>
+          <button type="button" className="ot-btn ot-btn-secondary ot-btn-sm" onClick={() => onNavigate("director", recentProjectId)}>高级 · 导演模式</button>
+          <button type="button" className="ot-btn ot-btn-secondary ot-btn-sm" onClick={() => onNavigate("workbench", recentProjectId)}>高级 · 托管工作台</button>
+        </div>
         <h2 className="ot-section">最近动态</h2>
         <div className="ot-wn">
           <article className="ot-wn-card"><div className="ot-wn-thumb" /><div className="ot-wn-title">图片广告独立成能力</div><div className="ot-wn-desc">静图广告与工作室出片解耦；出片不必先出图。</div></article>
-          <article className="ot-wn-card"><div className="ot-wn-thumb" /><div className="ot-wn-title">主按钮写清积分</div><div className="ot-wn-desc">「确认并生成视频 · 12 积分」，生成前不扣费。</div></article>
+          <article className="ot-wn-card"><div className="ot-wn-thumb" /><div className="ot-wn-title">确认后提交渲染</div><div className="ot-wn-desc">「确认并生成成片 · 12 积分」。过闸后进入排队、可播或失败重试。</div></article>
           <article className="ot-wn-card"><div className="ot-wn-thumb" /><div className="ot-wn-title">聚焦有机种草</div><div className="ot-wn-desc">入口在，发布还没接线。不做 Meta 投放主路径。</div></article>
         </div>
       </div>
@@ -711,8 +723,8 @@ function Projects({
                 </div>
                 <div className="ot-proj-actions">
                   <button type="button" className="ot-btn ot-btn-primary ot-btn-sm" onClick={() => onNavigate("prepare", product.project_id)}>快速出片</button>
-                  <button type="button" className="ot-btn ot-btn-secondary ot-btn-sm" onClick={() => onNavigate("director", product.project_id)}>进导演模式</button>
-                  <button type="button" className="ot-btn ot-btn-secondary ot-btn-sm" onClick={() => onNavigate("workbench", product.project_id)}>托管工作台</button>
+                  <button type="button" className="ot-btn ot-btn-secondary ot-btn-sm" onClick={() => onNavigate("director", product.project_id)}>高级 · 导演模式</button>
+                  <button type="button" className="ot-btn ot-btn-secondary ot-btn-sm" onClick={() => onNavigate("workbench", product.project_id)}>高级 · 托管工作台</button>
                 </div>
               </li>
             ))}
@@ -916,6 +928,113 @@ function Studio({
 }
 
 
+const SUBMITTING_RENDER: ShellRenderView = {
+  phase: "queued",
+  headline: "排队中",
+  detail: "正在提交与托管工作台相同的渲染任务。",
+  playableUrl: null,
+  mockReady: false,
+  errorCode: null,
+};
+
+function useShellRender(projectId: string | null, enabled: boolean) {
+  const [view, setView] = useState<ShellRenderView>({
+    phase: "idle",
+    headline: "尚未提交渲染",
+    detail: "确认过闸后会提交渲染。",
+    playableUrl: null,
+    mockReady: false,
+    errorCode: null,
+  });
+  const [busy, setBusy] = useState(false);
+  const submitted = useRef<string | null>(null);
+
+  const submit = useCallback(async (force = false) => {
+    if (!projectId) return;
+    setBusy(true);
+    try {
+      setView(await enqueueShellRender(projectId, undefined, { force }));
+    } catch (error) {
+      const code = error instanceof ApiError ? error.code : null;
+      const message = error instanceof Error && error.message ? error.message : "渲染提交失败";
+      setView({
+        phase: "failed",
+        headline: "失败可重试",
+        detail: code === "COST_APPROVAL_REQUIRED" ? `${message} 费用闸没有放行，不能当成片。` : message,
+        playableUrl: null,
+        mockReady: false,
+        errorCode: code,
+      });
+    } finally {
+      setBusy(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!enabled || !projectId) return;
+    if (submitted.current === projectId) return;
+    submitted.current = projectId;
+    void submit(false);
+  }, [enabled, projectId, submit]);
+
+  useEffect(() => {
+    if (!enabled || !projectId || view.phase !== "queued") return;
+    let cancelled = false;
+    const timer = window.setInterval(() => {
+      void readShellRender(projectId)
+        .then((next) => {
+          if (!cancelled) setView(next);
+        })
+        .catch(() => {
+          /* 下一轮再读，不把轮询失败说成成片 */
+        });
+    }, 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [enabled, projectId, view.phase]);
+
+  return {
+    view: busy && view.phase === "idle" ? SUBMITTING_RENDER : view,
+    busy,
+    retry: () => submit(true),
+  };
+}
+
+function RenderSlot({
+  projectId,
+  presenterId,
+  enabled,
+}: {
+  projectId: string | null;
+  presenterId: string | null;
+  enabled: boolean;
+}) {
+  const renderJob = useShellRender(enabled ? projectId : null, enabled);
+  const voice = shellVoiceCopy(presenterId);
+  const { view } = renderJob;
+  return (
+    <section className="ot-panel" aria-label="成片">
+      <p role="status">
+        {view.headline}
+        {view.mockReady ? " · Mock 成片就绪" : ""}
+      </p>
+      <p className="ot-page-sub">{view.detail}</p>
+      {view.playableUrl ? (
+        <video className="ot-player" controls playsInline src={view.playableUrl} aria-label="成片预览" />
+      ) : null}
+      <div className="ot-checkline">声线：{voice.label}</div>
+      <p className="ot-hint">{voice.detail}</p>
+      {view.phase === "failed" ? (
+        <button type="button" className="ot-btn ot-btn-primary ot-btn-sm" disabled={renderJob.busy} onClick={() => void renderJob.retry()}>
+          重试渲染
+        </button>
+      ) : null}
+    </section>
+  );
+}
+
 function Generate({
   product,
   presenter,
@@ -929,21 +1048,21 @@ function Generate({
   onNext: () => void;
   onReview: () => void;
 }) {
-  const guard = useScriptGateGuard(product?.project_id ?? null);
-  const projectKey = product?.project_id ?? null;
-  const [syncing, setSyncing] = useState(() => projectCharacterSync(draft.presenterId) !== null && projectKey !== null);
+  const projectId = product?.project_id ?? null;
+  const guard = useScriptGateGuard(projectId);
+  const [syncing, setSyncing] = useState(() => projectCharacterSync(draft.presenterId) !== null && projectId !== null);
   const [syncError, setSyncError] = useState<string | null>(null);
 
   useEffect(() => {
     const sync = projectCharacterSync(draft.presenterId);
-    if (!sync || !projectKey) {
+    if (!sync || !projectId) {
       setSyncing(false);
       return;
     }
     let cancelled = false;
     setSyncing(true);
     setSyncError(null);
-    void updateProject(projectKey, { characterId: sync.characterId })
+    void updateProject(projectId, { characterId: sync.characterId })
       .then(() => {
         if (!cancelled) setSyncError(null);
       })
@@ -958,15 +1077,16 @@ function Generate({
     return () => {
       cancelled = true;
     };
-  }, [projectKey, draft.presenterId]);
+  }, [projectId, draft.presenterId]);
 
   const held = guard.loading || guard.blocked || syncing || syncError !== null;
+  const ready = !held;
   return (
     <>
       <div className="ot-content">
         <div>
-          <h1 className="ot-page-title">编排预览</h1>
-          <p className="ot-page-sub">外壳只核对审稿并展示编排，不会在这里跑完付费视频。成片请到托管工作台。不经过图片广告，本页也不出图。</p>
+          <h1 className="ot-page-title">生成成片</h1>
+          <p className="ot-page-sub">过闸后提交与托管工作台相同的渲染。这里只显示排队、可播预览或失败重试。不经过图片广告。</p>
         </div>
         <section className="ot-panel">
           <div className="ot-checkline">商品：{product?.product_name ?? "未选择"}</div>
@@ -983,16 +1103,16 @@ function Generate({
             <button type="button" className="ot-btn ot-btn-primary" onClick={onReview}>回到审稿过闸</button>
           </section>
         ) : null}
-        {!guard.loading && !guard.blocked ? <p role="status">{guard.message}</p> : null}
+        {ready ? <RenderSlot projectId={projectId} presenterId={presenter.id} enabled /> : null}
       </div>
       <footer className="ot-sticky">
         <div>
-          <div className="ot-sticky-title">{guard.blocked ? "生成前要先过审稿闸" : "这是编排预览，还没有成片"}</div>
+          <div className="ot-sticky-title">{guard.blocked ? "生成前要先过审稿闸" : "渲染提交后才能看到成片"}</div>
           <div className="ot-sticky-sub">
-            {guard.blocked ? "未 apply / ack 不会进入下一步" : "付费渲染在托管工作台。外壳单独走完不会出视频。"}
+            {guard.blocked ? "未 apply / ack 不会提交渲染，付费视频会 409 SCRIPT_REVIEW_REQUIRED" : "排队中还不是成片。可播后再进交付。"}
           </div>
         </div>
-        <button type="button" className="ot-btn ot-btn-primary ot-btn-lg" disabled={held} onClick={onNext}>查看交付说明</button>
+        <button type="button" className="ot-btn ot-btn-primary ot-btn-lg" disabled={held} onClick={onNext}>查看成片</button>
       </footer>
     </>
   );
@@ -1009,13 +1129,24 @@ function Delivery({
   draft: StudioDraft;
   onNavigate: (view: UrlView, projectId?: string | null) => void;
 }) {
+  const projectId = product?.project_id ?? null;
+  const guard = useScriptGateGuard(projectId);
+  const ready = !guard.loading && !guard.blocked;
   return (
     <>
       <div className="ot-content">
         <div>
-          <h1 className="ot-page-title">交付说明</h1>
-          <p className="ot-page-sub">工作室外壳走到这里只是预览编排（准备 → 审稿 → 编排 → 说明），没有生成付费成片，也没有经过图片广告。</p>
+          <h1 className="ot-page-title">成片交付</h1>
+          <p className="ot-page-sub">这里是已提交的渲染：排队、可播预览，或失败后重试。有机发布尚未接线。不经过图片广告。</p>
         </div>
+        {guard.loading ? <p className="ot-hint" role="status">正在核对审稿闸…</p> : null}
+        {!guard.loading && guard.blocked ? (
+          <section className="ot-panel" role="alert">
+            <h2 className="ot-gate">付费生成已拦住</h2>
+            <p className="ot-page-sub">{guard.message}</p>
+          </section>
+        ) : null}
+        {ready ? <RenderSlot projectId={projectId} presenterId={presenter.id} enabled /> : null}
         <section className="ot-panel">
           <div className="ot-checkline">商品：{product?.product_name ?? "未选择"}</div>
           <div className="ot-checkline">{deliveryPresenterCheck(presenter)}</div>
@@ -1025,12 +1156,12 @@ function Delivery({
       </div>
       <footer className="ot-sticky">
         <div>
-          <div className="ot-sticky-title">{product?.product_name ?? "还没有成片"}</div>
-          <div className="ot-sticky-sub">外壳没有出片。要渲染请打开托管工作台。这条路径不依赖图片广告。</div>
+          <div className="ot-sticky-title">{ready ? "成片以渲染结果为准" : "还没有成片"}</div>
+          <div className="ot-sticky-sub">导演模式和托管工作台仍可进入，但不是这条路径的必经步骤。</div>
         </div>
         <div className="ot-sticky-right">
           {product ? (
-            <button type="button" className="ot-btn ot-btn-secondary" onClick={() => onNavigate("workbench", product.project_id)}>去托管工作台渲染</button>
+            <button type="button" className="ot-btn ot-btn-secondary" onClick={() => onNavigate("workbench", product.project_id)}>高级 · 托管工作台</button>
           ) : null}
           <button type="button" className="ot-btn ot-btn-secondary" onClick={() => onNavigate("connect")}>打开发布入口（未接线）</button>
           <button type="button" className="ot-btn ot-btn-primary ot-btn-lg" onClick={() => onNavigate("home")}>回到首页</button>

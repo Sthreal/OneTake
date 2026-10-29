@@ -52,8 +52,8 @@ export function StudioShell() {
         <div className="studio-section">创作</div>
         <button className="studio-item" onClick={() => navigate("image")}>图片广告</button>
         <button className="studio-item" onClick={() => navigate("prepare", openProjectId)}>快速出片</button>
-        <button className={"studio-item" + (view === "director" ? " on" : "")} onClick={() => navigate("director", openProjectId)}>导演模式</button>
-        <button className={"studio-item" + (view === "workbench" ? " on" : "")} onClick={() => navigate("workbench", openProjectId)}>托管工作台</button>
+        <button className={"studio-item" + (view === "director" ? " on" : "")} onClick={() => navigate("director", openProjectId)}>高级 · 导演模式</button>
+        <button className={"studio-item" + (view === "workbench" ? " on" : "")} onClick={() => navigate("workbench", openProjectId)}>高级 · 托管工作台</button>
         <div className="studio-section">库</div>
         <button className="studio-item" onClick={() => navigate("projects")}>项目</button>
         <button className="studio-item" onClick={() => navigate("brand")}>品牌空间</button>

@@ -515,7 +515,7 @@ function PrepareFooter({
     <footer className="ot-sticky">
       <div>
         <div className="ot-sticky-title">{productName ?? "请先选择商品"}</div>
-        <div className="ot-sticky-sub">下一步审稿九宫格 · 本步不扣费</div>
+        <div className="ot-sticky-sub">下一步：选角并过审稿闸 · 本步不扣费</div>
         {errors.length > 0 ? (
           <ul id={errorId} className="ot-prepare-errors" aria-label="还不能开始制作">
             {errors.map((item) => <li key={item}>{item}</li>)}
