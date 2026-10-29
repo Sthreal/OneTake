@@ -117,12 +117,6 @@ export const STUDIO_DURATIONS = ["15s", "30s", "60s"] as const;
 export type StudioRatio = (typeof STUDIO_RATIOS)[number];
 export type StudioDuration = (typeof STUDIO_DURATIONS)[number];
 
-export const SELLING_POINTS = [
-  { id: "texture", title: "突出材质与质感", desc: "轻薄不粘腻、一抹吸收" },
-  { id: "sensitive", title: "强调敏感肌友好", desc: "三重保湿 · 安心配方" },
-  { id: "promo", title: "限时促销话术", desc: "下单赠小样 · 可选" },
-] as const;
-
 export const PREMADE_PRESENTER = {
   id: "premade:linxiao",
   name: "林晓",
@@ -161,10 +155,10 @@ export interface ShelfProduct {
   product_name: string;
 }
 
-/** 没有指定 id 时用品牌库第一条；指定了但库里没有，就不偷换另一件商品。 */
+/** 没有 project id，或 id 不在库里，都不偷换另一件商品（包括不拿 products[0]）。 */
 export function resolveSelectedProduct<T extends ShelfProduct>(projectId: string | null, products: T[]): T | null {
-  if (projectId) return products.find((item) => item.project_id === projectId) ?? null;
-  return products[0] ?? null;
+  if (!projectId) return null;
+  return products.find((item) => item.project_id === projectId) ?? null;
 }
 
 export interface StudioDraft {
@@ -172,10 +166,18 @@ export interface StudioDraft {
   presenterId: string;
   ratio: StudioRatio;
   duration: StudioDuration;
-  points: string[];
+  /** 勾选后，下面的文本只覆盖这一次出片，不写回商品草稿。 */
+  sessionOnly: boolean;
+  /** null = 没有本场覆盖，用商品草稿。空字符串 = 本场明确清空。 */
+  pain_point: string | null;
+  selling_points: string[] | null;
+  usage_scenario: string | null;
+  offer: string | null;
+  specs: string | null;
 }
 
-const DRAFT_KEY = "onetake.studioDraft.v1";
+const DRAFT_KEY_V2 = "onetake.studioDraft.v2";
+const DRAFT_KEY_V1 = "onetake.studioDraft.v1";
 const GS_KEY = "onetake.gsDone.v1";
 const BRAND_KEY = "onetake.brands.v1";
 
@@ -184,7 +186,12 @@ export const DEFAULT_STUDIO_DRAFT: StudioDraft = {
   presenterId: PREMADE_PRESENTER.id,
   ratio: "9:16",
   duration: "30s",
-  points: ["texture", "sensitive"],
+  sessionOnly: false,
+  pain_point: null,
+  selling_points: null,
+  usage_scenario: null,
+  offer: null,
+  specs: null,
 };
 
 function isRatio(value: unknown): value is StudioRatio {
@@ -195,37 +202,285 @@ function isDuration(value: unknown): value is StudioDuration {
   return STUDIO_DURATIONS.includes(value as StudioDuration);
 }
 
-export function normalizeStudioDraft(raw: Partial<StudioDraft> | null | undefined): StudioDraft {
-  const pointIds = new Set(SELLING_POINTS.map((item) => item.id));
-  const points = Array.isArray(raw?.points)
-    ? raw.points.filter((id): id is string => typeof id === "string" && pointIds.has(id as (typeof SELLING_POINTS)[number]["id"]))
-    : [...DEFAULT_STUDIO_DRAFT.points];
+function nullableText(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function nullablePoints(value: unknown): string[] | null {
+  if (value == null) return null;
+  if (!Array.isArray(value)) return null;
+  return value.filter((item): item is string => typeof item === "string").slice(0, 5);
+}
+
+/** 旧 v1 的 `points`（checkbox id）直接丢掉，不映射成卖点文案。 */
+export function normalizeStudioDraft(raw: (Partial<StudioDraft> & { points?: unknown }) | null | undefined): StudioDraft {
   return {
     projectId: typeof raw?.projectId === "string" && raw.projectId ? raw.projectId : null,
     presenterId: typeof raw?.presenterId === "string" && raw.presenterId ? raw.presenterId : PREMADE_PRESENTER.id,
     ratio: isRatio(raw?.ratio) ? raw.ratio : DEFAULT_STUDIO_DRAFT.ratio,
     duration: isDuration(raw?.duration) ? raw.duration : DEFAULT_STUDIO_DRAFT.duration,
-    points,
+    sessionOnly: raw?.sessionOnly === true,
+    pain_point: nullableText(raw?.pain_point),
+    selling_points: nullablePoints(raw?.selling_points),
+    usage_scenario: nullableText(raw?.usage_scenario),
+    offer: nullableText(raw?.offer),
+    specs: nullableText(raw?.specs),
   };
 }
 
 export function readStudioDraft(urlProjectId: string | null): StudioDraft {
-  let stored: Partial<StudioDraft> | null = null;
+  let stored: unknown = null;
+  let migrated = false;
   try {
-    const raw = localStorage.getItem(DRAFT_KEY);
-    stored = raw ? (JSON.parse(raw) as Partial<StudioDraft>) : null;
+    const current = localStorage.getItem(DRAFT_KEY_V2);
+    if (current) {
+      stored = JSON.parse(current) as unknown;
+    } else {
+      const legacy = localStorage.getItem(DRAFT_KEY_V1);
+      if (legacy) {
+        stored = JSON.parse(legacy) as unknown;
+        migrated = true;
+      }
+    }
   } catch {
     stored = null;
   }
-  const draft = normalizeStudioDraft(stored);
+  const record = stored && typeof stored === "object" ? (stored as Partial<StudioDraft> & { points?: unknown }) : null;
+  const draft = normalizeStudioDraft(record);
+  if (urlProjectId && draft.projectId !== urlProjectId) {
+    draft.pain_point = null;
+    draft.selling_points = null;
+    draft.usage_scenario = null;
+    draft.offer = null;
+    draft.specs = null;
+  }
   if (urlProjectId) draft.projectId = urlProjectId;
+  if (migrated) writeStudioDraft(draft);
   return draft;
 }
 
 export function writeStudioDraft(draft: StudioDraft): StudioDraft {
   const next = normalizeStudioDraft(draft);
-  localStorage.setItem(DRAFT_KEY, JSON.stringify(next));
+  localStorage.setItem(DRAFT_KEY_V2, JSON.stringify(next));
+  localStorage.removeItem(DRAFT_KEY_V1);
   return next;
+}
+
+/** 商品富化还没进 Product API。文本记在本机；图片只活在本次页面内存里。PR-B 再换成真正的商品字段。 */
+const SKU_KEY = "onetake.skuEnrichment.v1";
+
+export const PREPARE_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
+export const PREPARE_IMAGE_ACCEPT = ".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp";
+
+export const PREPARE_REQUIRED_COPY = {
+  image: "请至少上传 1 张商品图",
+  pain: "请填写痛点",
+  points: "请至少添加 1 条卖点（最多 5 条）",
+  scene: "请填写使用场景",
+} as const;
+
+export interface PrepareImage {
+  id: string;
+  name: string;
+  mime: string;
+  size: number;
+  preview: string;
+}
+
+export interface SkuEnrichment {
+  pain_point: string;
+  selling_points: string[];
+  usage_scenario: string;
+  specs: string;
+  offer: string;
+  images: PrepareImage[];
+}
+
+interface StoredSkuText {
+  pain_point: string;
+  selling_points: string[];
+  usage_scenario: string;
+  specs: string;
+  offer: string;
+}
+
+const EMPTY_SKU_TEXT: StoredSkuText = {
+  pain_point: "",
+  selling_points: [],
+  usage_scenario: "",
+  specs: "",
+  offer: "",
+};
+
+let skuTextCache: Map<string, StoredSkuText> | null = null;
+const skuImages = new Map<string, PrepareImage[]>();
+const sessionImages = new Map<string, PrepareImage[]>();
+
+export function resetPrepareMemory(): void {
+  skuTextCache = null;
+  skuImages.clear();
+  sessionImages.clear();
+}
+
+function loadSkuText(): Map<string, StoredSkuText> {
+  const map = new Map<string, StoredSkuText>();
+  try {
+    const raw = localStorage.getItem(SKU_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : null;
+    if (!parsed || typeof parsed !== "object") return map;
+    for (const [id, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (!value || typeof value !== "object") continue;
+      const record = value as Partial<StoredSkuText>;
+      map.set(id, {
+        pain_point: typeof record.pain_point === "string" ? record.pain_point : "",
+        selling_points: Array.isArray(record.selling_points)
+          ? record.selling_points.filter((item): item is string => typeof item === "string").slice(0, 5)
+          : [],
+        usage_scenario: typeof record.usage_scenario === "string" ? record.usage_scenario : "",
+        specs: typeof record.specs === "string" ? record.specs : "",
+        offer: typeof record.offer === "string" ? record.offer : "",
+      });
+    }
+  } catch {
+    /* 坏草稿就当没有 */
+  }
+  return map;
+}
+
+function skuTexts(): Map<string, StoredSkuText> {
+  if (!skuTextCache) skuTextCache = loadSkuText();
+  return skuTextCache;
+}
+
+function persistSkuText(): void {
+  const payload: Record<string, StoredSkuText> = {};
+  for (const [id, value] of skuTexts()) payload[id] = value;
+  try {
+    localStorage.setItem(SKU_KEY, JSON.stringify(payload));
+  } catch {
+    /* 配额不够就只留内存，刷新后要重填 */
+  }
+}
+
+function cloneImages(images: PrepareImage[]): PrepareImage[] {
+  return images.map((image) => ({ ...image }));
+}
+
+export function emptySkuEnrichment(): SkuEnrichment {
+  return { ...EMPTY_SKU_TEXT, selling_points: [], images: [] };
+}
+
+export function readSkuEnrichment(projectId: string): SkuEnrichment {
+  const text = skuTexts().get(projectId) ?? EMPTY_SKU_TEXT;
+  return {
+    pain_point: text.pain_point,
+    selling_points: [...text.selling_points],
+    usage_scenario: text.usage_scenario,
+    specs: text.specs,
+    offer: text.offer,
+    images: cloneImages(skuImages.get(projectId) ?? []),
+  };
+}
+
+export function writeSkuEnrichment(projectId: string, fields: SkuEnrichment): SkuEnrichment {
+  const selling = fields.selling_points.map((item) => item.trim()).filter(Boolean).slice(0, 5);
+  const text: StoredSkuText = {
+    pain_point: fields.pain_point,
+    selling_points: selling,
+    usage_scenario: fields.usage_scenario,
+    specs: fields.specs,
+    offer: fields.offer,
+  };
+  skuTexts().set(projectId, text);
+  skuImages.set(projectId, cloneImages(fields.images));
+  persistSkuText();
+  return readSkuEnrichment(projectId);
+}
+
+export function clearSessionImages(projectId?: string): void {
+  if (projectId) sessionImages.delete(projectId);
+  else sessionImages.clear();
+}
+
+export function effectivePrepareFields(projectId: string, draft: StudioDraft): SkuEnrichment {
+  const sku = readSkuEnrichment(projectId);
+  const session = draft.sessionOnly && draft.projectId === projectId;
+  if (!session) return sku;
+  return {
+    pain_point: draft.pain_point ?? sku.pain_point,
+    selling_points: draft.selling_points ?? sku.selling_points,
+    usage_scenario: draft.usage_scenario ?? sku.usage_scenario,
+    specs: draft.specs ?? sku.specs,
+    offer: draft.offer ?? sku.offer,
+    images: sessionImages.has(projectId) ? cloneImages(sessionImages.get(projectId) ?? []) : sku.images,
+  };
+}
+
+/** 默认写回商品草稿；勾了「仅用于本次出片」就只改本场覆盖。 */
+export function applyPrepareEdit(projectId: string, draft: StudioDraft, fields: SkuEnrichment): StudioDraft {
+  const selling = fields.selling_points.map((item) => item.trim()).filter(Boolean).slice(0, 5);
+  if (draft.sessionOnly) {
+    sessionImages.set(projectId, cloneImages(fields.images));
+    return {
+      ...draft,
+      projectId,
+      pain_point: fields.pain_point,
+      selling_points: selling,
+      usage_scenario: fields.usage_scenario,
+      specs: fields.specs,
+      offer: fields.offer,
+    };
+  }
+  sessionImages.delete(projectId);
+  writeSkuEnrichment(projectId, { ...fields, selling_points: selling });
+  return {
+    ...draft,
+    projectId,
+    pain_point: null,
+    selling_points: null,
+    usage_scenario: null,
+    offer: null,
+    specs: null,
+  };
+}
+
+export function setPrepareSessionOnly(projectId: string, draft: StudioDraft, sessionOnly: boolean, fields: SkuEnrichment): StudioDraft {
+  return applyPrepareEdit(projectId, { ...draft, projectId, sessionOnly }, fields);
+}
+
+const IMAGE_EXT = /\.(png|jpe?g|webp)$/i;
+
+function imageMimeAllowed(type: string): boolean {
+  return type === "image/png" || type === "image/jpeg" || type === "image/webp";
+}
+
+/** PNG / JPEG / JPG / WEBP，单张 ≤10MB。HEIC 先不收。 */
+export function prepareImageRejection(file: { name: string; type: string; size: number }): string | null {
+  const type = file.type.trim().toLowerCase();
+  const name = file.name.trim();
+  const extOk = IMAGE_EXT.test(name);
+  const heic = type === "image/heic" || type === "image/heif" || /\.heic$/i.test(name) || /\.heif$/i.test(name);
+  if (heic || (!imageMimeAllowed(type) && !(type === "" && extOk)) || (imageMimeAllowed(type) && name.includes(".") && !extOk)) {
+    return "仅支持 PNG / JPEG / JPG / WEBP";
+  }
+  if (file.size > PREPARE_IMAGE_MAX_BYTES) return "单张不能超过 10MB";
+  if (file.size <= 0) return "图片不能为空";
+  return null;
+}
+
+export function prepareSubmitErrors(input: {
+  imageCount: number;
+  painPoint: string;
+  sellingPoints: string[];
+  usageScenario: string;
+}): string[] {
+  const errors: string[] = [];
+  if (input.imageCount < 1) errors.push(PREPARE_REQUIRED_COPY.image);
+  if (input.painPoint.trim().length < 2) errors.push(PREPARE_REQUIRED_COPY.pain);
+  const points = input.sellingPoints.map((item) => item.trim()).filter(Boolean);
+  if (points.length < 1 || points.length > 5) errors.push(PREPARE_REQUIRED_COPY.points);
+  if (input.usageScenario.trim().length < 2) errors.push(PREPARE_REQUIRED_COPY.scene);
+  return errors;
 }
 
 export function readGsDone(): number[] {

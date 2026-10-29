@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -33,6 +33,7 @@ import {
   selectScript,
 } from "../../shared/api/scriptApi";
 import { StudioShell } from "../StudioShell";
+import { writeSkuEnrichment } from "./model";
 
 const product = {
   project_id: "prj_skin",
@@ -234,11 +235,23 @@ function installScriptBackend() {
   };
 }
 
+async function fillPrepare(user: ReturnType<typeof userEvent.setup>) {
+  await user.type(await screen.findByRole("textbox", { name: "痛点" }), "清洗麻烦");
+  await user.type(screen.getByRole("textbox", { name: "卖点 1" }), "杯身可拆");
+  await user.type(screen.getByRole("textbox", { name: "使用场景" }), "通勤路上");
+  const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+  await user.upload(input, new File([Uint8Array.from([1, 2, 3, 4])], "main.png", { type: "image/png" }));
+  const start = screen.getByRole("button", { name: "开始制作" });
+  await waitFor(() => expect(start).toBeEnabled());
+  await user.click(start);
+}
+
 describe("iter18 图片广告与工作室解耦", () => {
   beforeEach(() => {
     open("/");
     installScriptBackend();
     vi.mocked(listProjects).mockResolvedValue([product]);
+    vi.mocked(generateScript).mockClear();
     vi.mocked(listCharacters).mockResolvedValue({
       characters: [{
         character_id: "chr_zhou",
@@ -268,29 +281,35 @@ describe("iter18 图片广告与工作室解耦", () => {
     expect(screen.getByRole("heading", { name: "图片广告" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "可选 · 另开工作室出片" }));
-    expect(await screen.findByRole("heading", { name: "准备素材" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "准备" })).toBeInTheDocument();
     expect(screen.getByText(/无需先做图片广告/)).toBeInTheDocument();
   });
 
   it("准备 → 审稿 → 生成 → 成片可以不打开图片广告", async () => {
     const user = userEvent.setup();
-    open("/?view=prepare");
+    open("/?view=prepare&project=prj_skin");
     render(<StudioShell />);
 
-    expect(await screen.findByRole("heading", { name: "准备素材" })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "已选商品" })).toHaveTextContent("春季护肤精华液 30ml");
+    expect(screen.getByRole("heading", { name: "准备" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "图片广告" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "添加商品" })).not.toBeInTheDocument();
-    expect(document.querySelector('input[type="file"]')).toBeNull();
-    expect(document.querySelector("textarea")).toBeNull();
+    expect(screen.queryByText("突出材质与质感")).not.toBeInTheDocument();
+    expect(screen.queryByText("强调敏感肌友好")).not.toBeInTheDocument();
+    expect(screen.queryByText("限时促销话术")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "更换 →" })).toBeInTheDocument();
     expect(screen.getByText("林晓")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "开始制作" })).toBeDisabled();
+    expect(screen.getByText("请至少上传 1 张商品图")).toBeInTheDocument();
+    expect(screen.getByText("请填写痛点")).toBeInTheDocument();
+    expect(screen.getByText("请至少添加 1 条卖点（最多 5 条）")).toBeInTheDocument();
+    expect(screen.getByText("请填写使用场景")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "从出镜人库更换 →" }));
     expect(screen.getByRole("button", { name: /周予/ })).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: /提示词|描述出镜人|prompt/ })).not.toBeInTheDocument();
 
-    const start = screen.getByRole("button", { name: "开始制作" });
-    await waitFor(() => expect(start).toBeEnabled());
-    await user.click(start);
+    await fillPrepare(user);
 
     expect(await screen.findByRole("heading", { name: "审稿确认" })).toBeInTheDocument();
     expect(screen.getByText(/无需先做图片广告/)).toBeInTheDocument();
@@ -298,9 +317,9 @@ describe("iter18 图片广告与工作室解耦", () => {
     const angles = within(await screen.findByRole("group", { name: "口播角度" })).getAllByRole("button");
     expect(angles.map((item) => item.getAttribute("aria-label"))).toEqual(["痛点种草", "场景安利", "对比测评"]);
     expect(generateScript).toHaveBeenCalledWith("prj_skin", {
-      painPoint: "轻薄不粘腻、一抹吸收",
-      sellingPoints: ["突出材质与质感", "强调敏感肌友好"],
-      usageScenario: "主图已就绪",
+      painPoint: "清洗麻烦",
+      sellingPoints: ["杯身可拆"],
+      usageScenario: "通勤路上",
       offer: null,
     });
     expect(screen.getByRole("button", { name: /确认并生成视频/ })).toBeDisabled();
@@ -339,10 +358,9 @@ describe("iter18 图片广告与工作室解耦", () => {
     const backend = installScriptBackend();
     backend.failLength();
     const user = userEvent.setup();
-    open("/?view=prepare");
+    open("/?view=prepare&project=prj_skin");
     render(<StudioShell />);
-    await waitFor(() => expect(screen.getByRole("button", { name: "开始制作" })).toBeEnabled());
-    await user.click(screen.getByRole("button", { name: "开始制作" }));
+    await fillPrepare(user);
     await user.click(await screen.findByRole("button", { name: "审稿" }));
     expect(await screen.findByText(/等长未通过（hook）/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "应用改写" })).toBeDisabled();
@@ -354,10 +372,9 @@ describe("iter18 图片广告与工作室解耦", () => {
 
   it("手改文案会清闸，要重新审稿", async () => {
     const user = userEvent.setup();
-    open("/?view=prepare");
+    open("/?view=prepare&project=prj_skin");
     render(<StudioShell />);
-    await waitFor(() => expect(screen.getByRole("button", { name: "开始制作" })).toBeEnabled());
-    await user.click(screen.getByRole("button", { name: "开始制作" }));
+    await fillPrepare(user);
     await user.click(await screen.findByRole("button", { name: "审稿" }));
     expect(await screen.findByText("审稿闸：已审，还没过闸")).toBeInTheDocument();
     const hook = screen.getByRole("textbox", { name: "钩子" });
@@ -372,10 +389,9 @@ describe("iter18 图片广告与工作室解耦", () => {
 
   it("已确认后再切角度会展示 409，生成步在过闸前拦住", async () => {
     const user = userEvent.setup();
-    open("/?view=prepare");
+    open("/?view=prepare&project=prj_skin");
     render(<StudioShell />);
-    await waitFor(() => expect(screen.getByRole("button", { name: "开始制作" })).toBeEnabled());
-    await user.click(screen.getByRole("button", { name: "开始制作" }));
+    await fillPrepare(user);
     await user.click(await screen.findByRole("button", { name: "审稿" }));
     await screen.findByText("审稿闸：已审，还没过闸");
     await user.click(screen.getByRole("button", { name: "保留原稿" }));
@@ -404,10 +420,108 @@ describe("iter18 图片广告与工作室解耦", () => {
     vi.mocked(listProjects).mockResolvedValue([]);
     open("/?view=prepare");
     render(<StudioShell />);
-    expect(await screen.findByText(/品牌空间里还没有可选用的商品/)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "请先在品牌空间选择一件商品" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "开始制作" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "去品牌空间添加" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "去品牌空间选商品" })).toBeInTheDocument();
+    expect(screen.queryByText("突出材质与质感")).not.toBeInTheDocument();
     expect(document.querySelector('input[type="file"]')).toBeNull();
+  });
+
+  it("没有 project 不拿库里第一件；无效 id 提示商品已不存在", async () => {
+    open("/?view=prepare");
+    const first = render(<StudioShell />);
+    expect(await screen.findByRole("heading", { name: "请先在品牌空间选择一件商品" })).toBeInTheDocument();
+    expect(screen.queryByText("春季护肤精华液 30ml")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "开始制作" })).toBeDisabled();
+    first.unmount();
+
+    open("/?view=prepare&project=missing");
+    render(<StudioShell />);
+    expect(await screen.findByRole("heading", { name: "商品已不存在，回品牌空间" })).toBeInTheDocument();
+    expect(screen.queryByText("春季护肤精华液 30ml")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "去品牌空间选商品" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "开始制作" })).toBeDisabled();
+  });
+
+  it("两件 SKU 的卖点跟着商品走，不串到另一件", async () => {
+    const user = userEvent.setup();
+    const first = { ...product, project_id: "prj_a", product_name: "甲精华" };
+    const second = { ...product, project_id: "prj_b", product_name: "乙水杯" };
+    vi.mocked(listProjects).mockResolvedValue([first, second]);
+    writeSkuEnrichment("prj_a", {
+      pain_point: "甲的痛点",
+      selling_points: ["甲的卖点"],
+      usage_scenario: "甲的场景",
+      specs: "甲规格",
+      offer: "",
+      images: [],
+    });
+    writeSkuEnrichment("prj_b", {
+      pain_point: "乙的痛点",
+      selling_points: ["乙的卖点"],
+      usage_scenario: "乙的场景",
+      specs: "",
+      offer: "",
+      images: [],
+    });
+    open("/?view=prepare&project=prj_a");
+    render(<StudioShell />);
+    expect(await screen.findByRole("textbox", { name: "痛点" })).toHaveValue("甲的痛点");
+    expect(screen.getByRole("textbox", { name: "卖点 1" })).toHaveValue("甲的卖点");
+    expect(screen.getByRole("textbox", { name: "规格要点" })).toHaveValue("甲规格");
+    expect(screen.queryByDisplayValue("乙的卖点")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("checkbox", { name: "仅用于本次出片" }));
+    const pain = screen.getByRole("textbox", { name: "痛点" });
+    await user.clear(pain);
+    await user.type(pain, "只在这一次");
+    await user.click(screen.getByRole("button", { name: "更换 →" }));
+    expect(await screen.findByRole("heading", { name: "品牌空间" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /乙水杯/ }));
+    expect(await screen.findByRole("textbox", { name: "痛点" })).toHaveValue("乙的痛点");
+    expect(screen.getByRole("textbox", { name: "卖点 1" })).toHaveValue("乙的卖点");
+    expect(screen.queryByDisplayValue("只在这一次")).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("甲的卖点")).not.toBeInTheDocument();
+  });
+
+  it("非白名单图片不能上传，开始制作保持禁用", async () => {
+    open("/?view=prepare&project=prj_skin");
+    render(<StudioShell />);
+    const input = await screen.findByLabelText("选择商品图片");
+    fireEvent.change(input, { target: { files: [new File(["gif"], "anim.gif", { type: "image/gif" })] } });
+    expect(await screen.findByRole("alert")).toHaveTextContent("仅支持 PNG / JPEG / JPG / WEBP");
+    expect(screen.getByRole("button", { name: "开始制作" })).toBeDisabled();
+    expect(screen.getByText("请至少上传 1 张商品图")).toBeInTheDocument();
+  });
+
+  it("已有 ready 稿时，准备步是空的也不会重新 generate", async () => {
+    const ready = makeVersion({ hook: "已经写好的钩子" });
+    vi.mocked(getScript).mockResolvedValue({
+      version: ready,
+      candidates: [ready],
+      selected_version_id: ready.version_id,
+    });
+    open("/?view=review&project=prj_skin");
+    render(<StudioShell />);
+    expect(await screen.findByRole("textbox", { name: "钩子" })).toHaveValue("已经写好的钩子");
+    expect(generateScript).not.toHaveBeenCalled();
+  });
+
+  it("已有稿后再改准备步卖点不会悄悄重新 generate", async () => {
+    const user = userEvent.setup();
+    open("/?view=prepare&project=prj_skin");
+    render(<StudioShell />);
+    await fillPrepare(user);
+    expect(await screen.findByRole("heading", { name: "审稿确认" })).toBeInTheDocument();
+    const generated = vi.mocked(generateScript).mock.calls.length;
+    expect(generated).toBeGreaterThan(0);
+    await user.click(screen.getByRole("button", { name: /准备素材/ }));
+    const point = await screen.findByRole("textbox", { name: "卖点 1" });
+    await user.clear(point);
+    await user.type(point, "换成新卖点");
+    await user.click(screen.getByRole("button", { name: "开始制作" }));
+    expect(await screen.findByRole("heading", { name: "审稿确认" })).toBeInTheDocument();
+    expect(generateScript).toHaveBeenCalledTimes(generated);
   });
 
   it("上手四步按钮去四个不同页面", async () => {
@@ -427,7 +541,7 @@ describe("iter18 图片广告与工作室解耦", () => {
     await user.click(screen.getByRole("button", { name: "返回首页" }));
     await user.click(within(gs()).getByRole("button", { name: "生成视频" }));
     await user.click(within(gs()).getByRole("button", { name: "进入工作室" }));
-    expect(await screen.findByRole("heading", { name: "准备素材" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "准备" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "← 首页" }));
     await user.click(within(gs()).getByRole("button", { name: /发布广告/ }));

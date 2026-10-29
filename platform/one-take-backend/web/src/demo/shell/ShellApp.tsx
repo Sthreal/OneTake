@@ -14,17 +14,13 @@ import {
   GS_STEPS,
   IMAGE_AD_CELLS,
   IMAGE_AD_RATIOS,
-  PREMADE_PRESENTER,
-  SELLING_POINTS,
-  STUDIO_DURATIONS,
-  STUDIO_RATIOS,
   STUDIO_STEPS,
+  clearSessionImages,
   imageAdExportPayload,
   isStudioView,
   markGsDone,
   nextStudioView,
   presenterById,
-  presenterOptions,
   readBrands,
   readGsDone,
   readStudioDraft,
@@ -34,6 +30,7 @@ import {
   type ImageAdRatio,
   type StudioDraft,
 } from "./model";
+import { PrepareStep } from "./PrepareStep";
 import { ScriptReviewStep, useScriptGateGuard } from "./ScriptReviewStep";
 import "./shell.css";
 
@@ -85,7 +82,19 @@ export function ShellApp({
 
   useEffect(() => {
     if (!projectId) return;
-    setDraft((current) => (current.projectId === projectId ? current : writeStudioDraft({ ...current, projectId })));
+    setDraft((current) => {
+      if (current.projectId === projectId) return current;
+      clearSessionImages();
+      return writeStudioDraft({
+        ...current,
+        projectId,
+        pain_point: null,
+        selling_points: null,
+        usage_scenario: null,
+        offer: null,
+        specs: null,
+      });
+    });
   }, [projectId]);
 
   useEffect(() => {
@@ -109,26 +118,27 @@ export function ShellApp({
 
   function goGs(id: number, dest: UrlView) {
     setGsDone(markGsDone(id));
-    onNavigate(dest);
+    onNavigate(dest, dest === "prepare" ? draft.projectId : null);
   }
 
-  const studioProduct = resolveSelectedProduct(draft.projectId, products);
+  const studioProduct = resolveSelectedProduct(projectId, products);
   const presenter = presenterById(draft.presenterId, characters);
-  const imageProduct = resolveSelectedProduct(draft.projectId, products);
-  const imageName = imageProduct?.product_name ?? "春季护肤精华液";
+  const explicitImageProduct = resolveSelectedProduct(draft.projectId, products);
+  const imageName = (explicitImageProduct ?? products[0])?.product_name ?? "春季护肤精华液";
 
   return (
     <div className="ot" data-view={view}>
       {isStudioView(view) ? (
-        <StudioRail onNavigate={onNavigate} />
+        <StudioRail projectId={projectId} onNavigate={onNavigate} />
       ) : (
-        <Sidebar view={view} onNavigate={onNavigate} />
+        <Sidebar view={view} recentProjectId={draft.projectId} onNavigate={onNavigate} />
       )}
       <div className="ot-main">
         {view === "home" ? (
           <Home
             openGs={openGs}
             done={gsDone.length}
+            recentProjectId={draft.projectId}
             onOpen={setOpenGs}
             onGo={goGs}
             onNavigate={onNavigate}
@@ -148,7 +158,7 @@ export function ShellApp({
               downloadText(payload.filename, payload.text);
               setExportNote(`已下载预览说明（不是图片）：${cell.caption}`);
             }}
-            onNavigate={(next) => onNavigate(next, next === "prepare" ? imageProduct?.project_id ?? null : null)}
+            onNavigate={(next) => onNavigate(next, next === "prepare" ? explicitImageProduct?.project_id ?? null : null)}
           />
         ) : null}
         {view === "brand" ? (
@@ -188,6 +198,7 @@ export function ShellApp({
             products={products}
             loading={productsLoading}
             error={productsError}
+            recentProjectId={draft.projectId}
             onNavigate={onNavigate}
           />
         ) : null}
@@ -196,7 +207,7 @@ export function ShellApp({
           <Studio
             view={view}
             draft={draft}
-            products={products}
+            requestedProjectId={projectId}
             loading={productsLoading}
             error={productsError}
             product={studioProduct}
@@ -229,7 +240,15 @@ function Ico({ children, size = 18, className }: { children: ReactNode; size?: n
   );
 }
 
-function Sidebar({ view, onNavigate }: { view: ShellView; onNavigate: (view: UrlView, projectId?: string | null) => void }) {
+function Sidebar({
+  view,
+  recentProjectId,
+  onNavigate,
+}: {
+  view: ShellView;
+  recentProjectId: string | null;
+  onNavigate: (view: UrlView, projectId?: string | null) => void;
+}) {
   return (
     <aside className="ot-side" aria-label="主导航">
       <button type="button" className="ot-brand" onClick={() => onNavigate("home")}>
@@ -256,7 +275,7 @@ function Sidebar({ view, onNavigate }: { view: ShellView; onNavigate: (view: Url
           <Ico><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></Ico>
           图片广告
         </button>
-        <button type="button" className="ot-tool" onClick={() => onNavigate("prepare")}>
+        <button type="button" className="ot-tool" onClick={() => onNavigate("prepare", recentProjectId)}>
           <Ico><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M10 10l5 2-5 2v-4z" /></Ico>
           快速出片
         </button>
@@ -284,13 +303,19 @@ function Sidebar({ view, onNavigate }: { view: ShellView; onNavigate: (view: Url
   );
 }
 
-function StudioRail({ onNavigate }: { onNavigate: (view: UrlView, projectId?: string | null) => void }) {
+function StudioRail({
+  projectId,
+  onNavigate,
+}: {
+  projectId: string | null;
+  onNavigate: (view: UrlView, projectId?: string | null) => void;
+}) {
   return (
     <aside className="ot-rail" aria-label="工作室导航">
       <button type="button" className="ot-rail-brand" aria-label="返回首页" onClick={() => onNavigate("home")}>
         <Logo size={12} />
       </button>
-      <button type="button" className="ot-rail-item on" onClick={() => onNavigate("prepare")}>
+      <button type="button" className="ot-rail-item on" onClick={() => onNavigate("prepare", projectId)}>
         <Ico><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></Ico>
         <span className="ot-tip">制作</span>
       </button>
@@ -310,12 +335,14 @@ function StudioRail({ onNavigate }: { onNavigate: (view: UrlView, projectId?: st
 function Home({
   openGs,
   done,
+  recentProjectId,
   onOpen,
   onGo,
   onNavigate,
 }: {
   openGs: number;
   done: number;
+  recentProjectId: string | null;
   onOpen: (id: number) => void;
   onGo: (id: number, dest: UrlView) => void;
   onNavigate: (view: UrlView, projectId?: string | null) => void;
@@ -324,7 +351,7 @@ function Home({
     <>
       <header className="ot-top">
         <h1 className="ot-title">首页</h1>
-        <button type="button" className="ot-btn ot-btn-primary" onClick={() => onNavigate("prepare")}>
+        <button type="button" className="ot-btn ot-btn-primary" onClick={() => onNavigate("prepare", recentProjectId)}>
           <Ico size={14}><path d="M12 5v14M5 12h14" /></Ico>
           新建
         </button>
@@ -374,7 +401,7 @@ function Home({
         </section>
         <h2 className="ot-section">创作工具</h2>
         <div className="ot-tools" role="region" aria-label="创作工具">
-          <ToolCard badge="主路径" name="快速出片" mode="模式 · 工作台" desc="选用商品与出镜人，走编排预览。付费成片在托管工作台，不经过图片广告。" onClick={() => onNavigate("prepare")} icon={<Ico size={20}><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M10 10l5 2-5 2v-4z" /></Ico>} />
+          <ToolCard badge="主路径" name="快速出片" mode="模式 · 工作台" desc="选用商品与出镜人，走编排预览。付费成片在托管工作台，不经过图片广告。" onClick={() => onNavigate("prepare", recentProjectId)} icon={<Ico size={20}><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M10 10l5 2-5 2v-4z" /></Ico>} />
           <ToolCard name="图片广告" mode="模式 · 图片" desc="演示预览：九宫格是占位，不是真实出图。与视频工作室解耦。" onClick={() => onNavigate("image")} icon={<Ico size={20}><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></Ico>} />
           <ToolCard name="品牌空间" mode="模式 · 素材库" desc="管理品牌 DNA、商品主图与卖点，供工作室与图片广告复用。" onClick={() => onNavigate("brand")} icon={<Ico size={20}><path d="M12 2 2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></Ico>} />
           <ToolCard name="有机种草" mode="模式 · 发布" desc="入口保留。抖音 / 小红书有机发布尚未接线。" onClick={() => onNavigate("connect")} icon={<Ico size={20}><path d="M4 12c2-4 6-6 8-6s6 2 8 6c-2 4-6 6-8 6s-6-2-8-6z" /><circle cx="12" cy="12" r="2.5" /></Ico>} />
@@ -636,18 +663,20 @@ function Projects({
   products,
   loading,
   error,
+  recentProjectId,
   onNavigate,
 }: {
   products: Project[];
   loading: boolean;
   error: string | null;
+  recentProjectId: string | null;
   onNavigate: (view: UrlView, projectId?: string | null) => void;
 }) {
   return (
     <>
       <header className="ot-top">
         <h1 className="ot-title">项目</h1>
-        <button type="button" className="ot-btn ot-btn-primary" onClick={() => onNavigate("prepare")}>
+        <button type="button" className="ot-btn ot-btn-primary" onClick={() => onNavigate("prepare", recentProjectId)}>
           <Ico size={14}><path d="M12 5v14M5 12h14" /></Ico>
           新建
         </button>
@@ -712,7 +741,7 @@ function Connect({ onNavigate }: { onNavigate: (view: UrlView, projectId?: strin
 function Studio({
   view,
   draft,
-  products,
+  requestedProjectId,
   loading,
   error,
   product,
@@ -725,7 +754,7 @@ function Studio({
 }: {
   view: ShellView;
   draft: StudioDraft;
-  products: Project[];
+  requestedProjectId: string | null;
   loading: boolean;
   error: string | null;
   product: Project | null;
@@ -770,9 +799,9 @@ function Studio({
         <div className="ot-meta">{product ? product.project_id : "新项目"}</div>
       </header>
       {view === "prepare" ? (
-        <Prepare
+        <PrepareStep
           draft={draft}
-          products={products}
+          requestedProjectId={requestedProjectId}
           loading={loading}
           error={error}
           product={product}
@@ -805,162 +834,6 @@ function Studio({
   );
 }
 
-function Prepare({
-  draft,
-  products,
-  loading,
-  error,
-  product,
-  presenter,
-  characters,
-  castOpen,
-  onCastOpen,
-  onDraft,
-  onBrand,
-  onCharacters,
-  onStart,
-}: {
-  draft: StudioDraft;
-  products: Project[];
-  loading: boolean;
-  error: string | null;
-  product: Project | null;
-  presenter: { id: string; name: string; role: string; initial: string };
-  characters: Character[];
-  castOpen: boolean;
-  onCastOpen: (open: boolean) => void;
-  onDraft: (partial: Partial<StudioDraft>) => void;
-  onBrand: () => void;
-  onCharacters: () => void;
-  onStart: () => void;
-}) {
-  const options = presenterOptions(characters);
-  return (
-    <>
-      <div className="ot-content">
-        <div>
-          <h1 className="ot-page-title">准备素材</h1>
-          <p className="ot-page-sub">从品牌空间选用已有商品，再选规格与出镜人 · 本步不扣费 · 无需先做图片广告</p>
-        </div>
-        <div className="ot-split">
-          <div className="ot-col">
-            <section className="ot-panel">
-              <div className="ot-label-row">
-                <div className="ot-label">选用已有商品</div>
-                <button type="button" className="ot-link" onClick={onBrand}>更换商品 →</button>
-              </div>
-              {loading ? <p className="ot-hint">正在读取品牌空间…</p> : null}
-              {error ? <p className="ot-error">{error}</p> : null}
-              {!loading && products.length === 0 ? (
-                <p className="ot-hint">品牌空间里还没有可选用的商品。</p>
-              ) : (
-                products.map((item) => {
-                  const selected = product?.project_id === item.project_id;
-                  return (
-                    <button key={item.project_id} type="button" className={"ot-product" + (selected ? " on" : "")} aria-pressed={selected} onClick={() => onDraft({ projectId: item.project_id })}>
-                      <span className="ot-thumb"><span className="ot-ptag">主图</span></span>
-                      <span>
-                        <span className="ot-product-name">{item.product_name}{selected ? <span className="ot-sel">已选用</span> : null}</span>
-                        <span className="ot-product-meta">来自品牌空间 · {item.product_note?.trim() || "主图已就绪"}</span>
-                      </span>
-                    </button>
-                  );
-                })
-              )}
-              <p className="ot-inline-hint">没有商品？<button type="button" className="ot-link" onClick={onBrand}>去品牌空间添加</button>（上传与细节图在品牌空间管理）</p>
-            </section>
-            <div className="ot-tips">
-              <article className="ot-tipcard">
-                <h3><span className="ot-mark">✓</span>推荐选用</h3>
-                <ul>
-                  <li>品牌空间已完善主图的商品</li>
-                  <li>正面清晰、占画面 60%+</li>
-                  <li>卖点与素材齐全的 SKU</li>
-                </ul>
-                <p>新品请先在品牌空间添加，再回此步选用。</p>
-              </article>
-              <article className="ot-tipcard dont">
-                <h3><span className="ot-mark">×</span>尽量避免</h3>
-                <ul>
-                  <li>无主图或占位图的草稿商品</li>
-                  <li>杂乱货架 / 多人合影主图</li>
-                  <li>严重裁切或低清压缩</li>
-                </ul>
-              </article>
-            </div>
-          </div>
-          <div className="ot-side-col">
-            <section className="ot-panel">
-              <div className="ot-label">出镜人 · 库选</div>
-              <div className="ot-talent">
-                <div className="ot-talent-avatar">{presenter.initial}</div>
-                <div>
-                  <b>{presenter.name}</b>
-                  <span>{presenter.role}</span>
-                </div>
-              </div>
-              <button type="button" className="ot-link" aria-expanded={castOpen} onClick={() => onCastOpen(!castOpen)}>从出镜人库更换 →</button>
-              {castOpen ? (
-                <div className="ot-cast">
-                  {options.map((option) => (
-                    <button key={option.id} type="button" className={option.id === presenter.id ? "on" : ""} aria-pressed={option.id === presenter.id} onClick={() => onDraft({ presenterId: option.id })}>
-                      {option.name} · {option.role}
-                    </button>
-                  ))}
-                  <button type="button" onClick={onCharacters}>管理出镜人库</button>
-                </div>
-              ) : null}
-            </section>
-            <section className="ot-panel">
-              <div className="ot-label">成片规格</div>
-              <div className="ot-field">画幅</div>
-              <div className="ot-seg" role="group" aria-label="画幅">
-                {STUDIO_RATIOS.map((ratio) => (
-                  <button key={ratio} type="button" className={draft.ratio === ratio ? "on" : ""} aria-pressed={draft.ratio === ratio} onClick={() => onDraft({ ratio })}>{ratio}</button>
-                ))}
-              </div>
-              <div className="ot-field">时长</div>
-              <div className="ot-seg" role="group" aria-label="时长">
-                {STUDIO_DURATIONS.map((duration) => (
-                  <button key={duration} type="button" className={draft.duration === duration ? "on" : ""} aria-pressed={draft.duration === duration} onClick={() => onDraft({ duration })}>{duration}</button>
-                ))}
-              </div>
-            </section>
-            <section className="ot-panel">
-              <div className="ot-label">卖点（可选）</div>
-              {SELLING_POINTS.map((point) => {
-                const selected = draft.points.includes(point.id);
-                return (
-                  <button key={point.id} type="button" className={"ot-check" + (selected ? " on" : "")} aria-pressed={selected} onClick={() => {
-                    const points = selected ? draft.points.filter((id) => id !== point.id) : [...draft.points, point.id];
-                    onDraft({ points: points.length ? points : [point.id] });
-                  }}>
-                    <span className="ot-box">{selected ? "✓" : ""}</span>
-                    <span><b>{point.title}</b><span>{point.desc}</span></span>
-                  </button>
-                );
-              })}
-            </section>
-          </div>
-        </div>
-      </div>
-      <footer className="ot-sticky">
-        <div>
-          <div className="ot-sticky-title">{product?.product_name ?? "先选择品牌空间里的商品"}</div>
-          <div className="ot-sticky-sub">下一步审稿九宫格分镜 · 本步不扣费 · 不经过图片广告</div>
-        </div>
-        <div className="ot-sticky-right">
-          <div className="ot-chips">
-            <span className="ot-chip on">{draft.ratio}</span>
-            <span className="ot-chip on">{draft.duration}</span>
-            <span className="ot-chip">{presenter.name} · {presenter.role.split("·")[0].trim()}</span>
-          </div>
-          <button type="button" className="ot-btn ot-btn-primary ot-btn-lg" disabled={!product} onClick={onStart}>开始制作</button>
-        </div>
-      </footer>
-    </>
-  );
-}
 
 function Generate({
   product,

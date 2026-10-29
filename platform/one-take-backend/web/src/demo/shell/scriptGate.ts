@@ -11,7 +11,7 @@ import type {
   ScriptState,
   ScriptVersion,
 } from "../../features/script/types";
-import { SELLING_POINTS, type StudioDraft } from "./model";
+import { readSkuEnrichment, type StudioDraft } from "./model";
 
 export const SCRIPT_ANGLES = ["pain_point", "scene", "comparison"] as const;
 
@@ -228,20 +228,71 @@ export function reviewFacts(review: ScriptReviewResult | null, version: ScriptVe
   };
 }
 
-/** 准备步勾选的卖点，转成 generate 需要的痛点 / 卖点 / 场景。 */
-export function studioScriptInput(
-  product: { product_name: string; product_note?: string | null },
-  draft: Pick<StudioDraft, "points">,
-): GenerateScriptInput {
-  const chosen = SELLING_POINTS.filter((item) => draft.points.includes(item.id));
-  const points = (chosen.length ? chosen : [SELLING_POINTS[0]]).slice(0, 5);
-  const note = product.product_note?.trim() ?? "";
+export interface PrepareSkuInput {
+  /** 传入后，本场覆盖只在 draft.projectId 对得上时生效，避免两件商品串味。 */
+  project_id?: string | null;
+  product_name: string;
+  pain_point?: string | null;
+  selling_points?: string[] | null;
+  usage_scenario?: string | null;
+  offer_default?: string | null;
+}
+
+/** 准备步文本：本场覆盖 → 商品草稿。缺了就留空，调用方拦提交，不造假。 */
+export function studioScriptInput(sku: PrepareSkuInput, draft: Pick<StudioDraft, "projectId" | "sessionOnly" | "pain_point" | "selling_points" | "usage_scenario" | "offer">): GenerateScriptInput {
+  const useOverride = draft.sessionOnly && (sku.project_id == null || draft.projectId === sku.project_id);
+  const pain = pickText(useOverride, draft.pain_point, sku.pain_point);
+  const scene = pickText(useOverride, draft.usage_scenario, sku.usage_scenario);
+  const points = pickPoints(useOverride, draft.selling_points, sku.selling_points);
   return {
-    painPoint: clamp(points[0]?.desc || note || "使用起来不顺手", 80),
-    sellingPoints: points.map((item) => item.title),
-    usageScenario: clamp(note.length >= 2 ? note : "日常使用", 100),
-    offer: draft.points.includes("promo") ? "下单赠小样" : null,
+    painPoint: clamp(pain, 80),
+    sellingPoints: points,
+    usageScenario: clamp(scene, 100),
+    offer: pickOffer(useOverride, draft.offer, sku.offer_default),
   };
+}
+
+export function scriptInputReady(input: GenerateScriptInput): boolean {
+  return input.painPoint.trim().length >= 2
+    && input.painPoint.trim().length <= 80
+    && input.usageScenario.trim().length >= 2
+    && input.usageScenario.trim().length <= 100
+    && input.sellingPoints.length >= 1
+    && input.sellingPoints.length <= 5
+    && input.sellingPoints.every((item) => item.trim().length >= 1 && item.trim().length <= 60)
+    && (input.offer == null || input.offer.trim().length <= 80);
+}
+
+/** 读本机商品草稿再套本场覆盖。商品接口还没有这些字段。 */
+export function prepareScriptInput(
+  product: { project_id: string; product_name: string },
+  draft: StudioDraft,
+): GenerateScriptInput {
+  const sku = readSkuEnrichment(product.project_id);
+  return studioScriptInput({
+    project_id: product.project_id,
+    product_name: product.product_name,
+    pain_point: sku.pain_point,
+    selling_points: sku.selling_points,
+    usage_scenario: sku.usage_scenario,
+    offer_default: sku.offer,
+  }, draft);
+}
+
+function pickText(useOverride: boolean, override: string | null | undefined, fallback: string | null | undefined): string {
+  if (useOverride && override != null) return override;
+  return fallback ?? "";
+}
+
+function pickPoints(useOverride: boolean, override: string[] | null | undefined, fallback: string[] | null | undefined): string[] {
+  const source = useOverride && override != null ? override : (fallback ?? []);
+  return source.map((item) => clamp(item, 60)).filter((item) => item.length > 0).slice(0, 5);
+}
+
+function pickOffer(useOverride: boolean, override: string | null | undefined, fallback: string | null | undefined): string | null {
+  const raw = useOverride && override != null ? override : (fallback ?? "");
+  const trimmed = clamp(raw, 80);
+  return trimmed ? trimmed : null;
 }
 
 function clamp(value: string, max: number): string {
