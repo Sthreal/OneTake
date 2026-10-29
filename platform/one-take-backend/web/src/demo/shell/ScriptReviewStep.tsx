@@ -58,11 +58,16 @@ export function ScriptReviewStep({
   presenter,
   draft,
   onAdvance,
+  pathHint = null,
+  onDismissPathHint,
 }: {
   product: Project | null;
   presenter: Pick<PresenterOption, "name" | "source">;
   draft: StudioDraft;
   onAdvance: () => void;
+  /** 路径改过且已有稿。不自动重出，只提示用户自己点重新生成。 */
+  pathHint?: string | null;
+  onDismissPathHint?: () => void;
 }) {
   const [filter, setFilter] = useState<(typeof REVIEW_FILTERS)[number]>("全部");
   const [script, setScript] = useState<ScriptState | null>(null);
@@ -128,11 +133,10 @@ export function ScriptReviewStep({
   const failed = scriptFailed(script);
   const cells = visibleReviewCells(filter);
   const name = product?.product_name ?? "已选商品";
-  const angleGroup = reviewAngleGroupLabel(presenter);
+  const angleGroup = reviewAngleGroupLabel({ source: presenter.source, path: draft.path });
   const batchKey = angleBatchKey(script);
   const soft = angleConfirmSoftForce({
-    // 路径三张卡是 PR-3。在此之前审稿三角按多角度软强制。
-    path: null,
+    path: draft.path,
     batchKey,
     pickedBatchKey,
     selectedStatus: version?.status,
@@ -270,6 +274,7 @@ export function ScriptReviewStep({
       setReview(null);
       setNotice(null);
       setConflict(null);
+      onDismissPathHint?.();
     } catch (err) {
       setError(messageOf(err));
     } finally {
@@ -325,6 +330,7 @@ export function ScriptReviewStep({
                 {locked ? <span className="ot-meta">已确认，再切会冲突</span> : null}
               </div>
               {soft.blocked ? <p className="ot-hint">{ANGLE_PICK_GUIDE}</p> : null}
+              {pathHint ? <p className="ot-hint" role="status">{pathHint}</p> : null}
               {!product ? <p className="ot-hint">先在准备步选用商品，才能生成三套口播。</p> : null}
               {loading ? <p className="ot-hint">正在准备三套口播…</p> : null}
               {error ? <p className="ot-error">{error}</p> : null}
@@ -357,7 +363,7 @@ export function ScriptReviewStep({
                   })}
                 </div>
               ) : null}
-              {failed || error ? (
+              {failed || error || pathHint ? (
                 <button type="button" className="ot-btn ot-btn-secondary ot-btn-sm" disabled={busy !== null} onClick={() => void retryGenerate()}>重新生成三套口播</button>
               ) : null}
             </section>

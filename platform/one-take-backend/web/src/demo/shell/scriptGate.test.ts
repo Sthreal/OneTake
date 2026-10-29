@@ -210,10 +210,14 @@ describe("工作室审稿闸判断", () => {
 });
 
 describe("审稿角度文案和软强制", () => {
-  it("无人用旁白角度，有人仍是口播角度", () => {
+  it("无人用旁白角度，有人仍是口播角度；纯商品路径固定旁白角度", () => {
     expect(reviewAngleGroupLabel({ source: "none" })).toBe("旁白角度");
     expect(reviewAngleGroupLabel({ source: "premade" })).toBe("口播角度");
     expect(reviewAngleGroupLabel({ source: "library" })).toBe("口播角度");
+    expect(reviewAngleGroupLabel({ source: "premade", path: "product_only" })).toBe("旁白角度");
+    expect(reviewAngleGroupLabel({ source: "none", path: "multi_angle" })).toBe("旁白角度");
+    expect(reviewAngleGroupLabel({ source: "library", path: "multi_angle" })).toBe("口播角度");
+    expect(reviewAngleGroupLabel({ source: "premade", path: "talking_head" })).toBe("口播角度");
   });
 
   it("路径还没选时按多角度软强制；口播和纯商品不挡默认角", () => {

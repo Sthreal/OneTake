@@ -381,6 +381,18 @@ body:has(.ot-light) { background: #f4f4f5; }
 .ot-cast button b { display: block; font-weight: 500; }
 .ot-cast button span { display: block; margin-top: 2px; color: #71717a; }
 .ot-cast button.on { border-color: #000; }
+.ot-path-panel { display: flex; flex-direction: column; gap: 0; }
+.ot-path-sub { margin: -2px 0 10px; font-size: 12px; line-height: 1.45; color: #71717a; }
+.ot-paths { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.ot-path {
+  text-align: left; border-radius: 12px; border: 1px solid #efefef; background: #fff;
+  padding: 12px 14px; cursor: pointer; color: inherit;
+}
+.ot-path b { display: block; font-size: 13px; font-weight: 600; color: #000; }
+.ot-path span { display: block; margin-top: 4px; font-size: 12px; line-height: 1.45; color: #71717a; }
+.ot-path.on { border-color: #000; background: #fafafa; }
+.ot-path-cast { margin-top: 14px; padding-top: 14px; border-top: 1px solid #efefef; }
+.ot-path-cast .ot-link { display: inline-block; margin-top: 10px; }
 .ot-check {
   display: flex; gap: 10px; width: 100%; text-align: left; padding: 10px 12px; border-radius: 12px;
   border: 1px solid #efefef; background: #fff; cursor: pointer; color: inherit; margin-bottom: 8px;
@@ -495,6 +507,6 @@ body:has(.ot-light) { background: #f4f4f5; }
 }
 @media (max-width: 760px) {
   .ot-side { display: none; }
-  .ot-tools, .ot-wn, .ot-image-layout { grid-template-columns: 1fr; }
+  .ot-tools, .ot-wn, .ot-image-layout, .ot-paths { grid-template-columns: 1fr; }
   .ot-step span.label { display: none; }
 }

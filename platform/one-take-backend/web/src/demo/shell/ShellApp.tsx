@@ -3,10 +3,11 @@
  * 工作室只走 准备 → 审稿 → 生成 → 成片。图片广告页的「另开工作室」是可选出口，
  * 不把选中的静图写进工作室草稿。
  */
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { listCharacters, type Character } from "../../shared/api/characterApi";
 import { createProject, listProjects, updateProject } from "../../shared/api/projectApi";
+import { getScript } from "../../shared/api/scriptApi";
 import type { Project } from "../../features/input/types";
 import type { ShellView, UrlView } from "../urlState";
 import {
@@ -16,6 +17,7 @@ import {
   IMAGE_AD_RATIOS,
   STUDIO_STEPS,
   clearSessionImages,
+  PATH_CHANGED_HINT,
   PRESENTER_CLEAR_FAILED,
   deliveryPresenterCheck,
   generatePresenterCheck,
@@ -25,6 +27,7 @@ import {
   nextStudioView,
   presenterById,
   projectCharacterSync,
+  switchStudioPath,
   readBrands,
   readGsDone,
   readStudioDraft,
@@ -33,10 +36,12 @@ import {
   writeStudioDraft,
   type ImageAdRatio,
   type PresenterOption,
+  type StudioCreationPath,
   type StudioDraft,
 } from "./model";
 import { PrepareStep } from "./PrepareStep";
 import { ScriptReviewStep, useScriptGateGuard } from "./ScriptReviewStep";
+import { hasReusableScript } from "./scriptGate";
 import "./shell.css";
 
 export function ShellApp({
@@ -774,6 +779,34 @@ function Studio({
   const productId = product?.project_id ?? null;
   const [presenterSyncing, setPresenterSyncing] = useState(false);
   const [presenterSyncError, setPresenterSyncError] = useState<string | null>(null);
+  const [pathHint, setPathHint] = useState<string | null>(null);
+  const pathHintRequest = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      pathHintRequest.current += 1;
+    };
+  }, []);
+
+  async function changePath(next: StudioCreationPath) {
+    if (next === draft.path) return;
+    onDraft(switchStudioPath(draft, next));
+    const request = pathHintRequest.current + 1;
+    pathHintRequest.current = request;
+    const projectKey = product?.project_id ?? null;
+    if (!projectKey) {
+      setPathHint(null);
+      return;
+    }
+    try {
+      const state = await getScript(projectKey);
+      if (pathHintRequest.current !== request) return;
+      setPathHint(hasReusableScript(state) ? PATH_CHANGED_HINT : null);
+    } catch {
+      if (pathHintRequest.current !== request) return;
+      setPathHint(PATH_CHANGED_HINT);
+    }
+  }
 
   const advance = () => {
     const next = nextStudioView(view);
@@ -847,6 +880,8 @@ function Studio({
           castOpen={castOpen}
           onCastOpen={onCastOpen}
           onDraft={onDraft}
+          onPath={(path) => { void changePath(path); }}
+          pathHint={pathHint}
           onBrand={() => onNavigate("brand")}
           onCharacters={() => onNavigate("characters")}
           onStart={() => { void startProduction(); }}
@@ -855,7 +890,14 @@ function Studio({
         />
       ) : null}
       {view === "review" ? (
-        <ScriptReviewStep product={product} presenter={presenter} draft={draft} onAdvance={advance} />
+        <ScriptReviewStep
+          product={product}
+          presenter={presenter}
+          draft={draft}
+          onAdvance={advance}
+          pathHint={pathHint}
+          onDismissPathHint={() => setPathHint(null)}
+        />
       ) : null}
       {view === "generate" ? (
         <Generate
