@@ -36,9 +36,11 @@ import {
   reviewFacts,
   REVIEW_DIMENSIONS,
   sameEdit,
+  prepareScriptInput,
   scriptFailed,
   scriptInFlight,
-  studioScriptInput,
+  scriptInputReady,
+  scriptVersions,
   toEditInput,
 } from "./scriptGate";
 
@@ -75,20 +77,28 @@ export function ScriptReviewStep({
     let cancelled = false;
     setLoading(true);
     setError(null);
-    void loadStudioScript(projectId, studioScriptInput(product, draft), scriptClient)
-      .then((next) => {
+    void (async () => {
+      try {
+        const existing = await getScript(projectId);
+        if (cancelled) return;
+        const input = prepareScriptInput(product, draft);
+        if (scriptVersions(existing).length === 0 && !scriptInputReady(input)) {
+          setScript(null);
+          setError("请先在准备步填写痛点、卖点和使用场景");
+          return;
+        }
+        const next = await loadStudioScript(projectId, input, scriptClient);
         if (!cancelled) setScript(next);
-      })
-      .catch((err: unknown) => {
+      } catch (err) {
         if (!cancelled) setError(messageOf(err));
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setLoading(false);
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };
-    // 卖点只在首次出稿时读取。已有稿再改勾选不会悄悄另开一批。
+    // 卖点只在首次出稿时读取。已有 ready 稿再改准备步，不会悄悄另开一批。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
@@ -214,10 +224,15 @@ export function ScriptReviewStep({
 
   async function retryGenerate() {
     if (!projectId || !product) return;
+    const input = prepareScriptInput(product, draft);
+    if (!scriptInputReady(input)) {
+      setError("请先在准备步填写痛点、卖点和使用场景");
+      return;
+    }
     setBusy("generate");
     setError(null);
     try {
-      const next = await regenerateStudioScript(projectId, studioScriptInput(product, draft), scriptClient);
+      const next = await regenerateStudioScript(projectId, input, scriptClient);
       setScript(next);
       setReview(null);
       setNotice(null);

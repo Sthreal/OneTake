@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { GenerateScriptInput, ScriptState, ScriptVersion } from "../../features/script/types";
+import { DEFAULT_STUDIO_DRAFT } from "./model";
 import {
   ackAllowed,
   angleSwitchLocked,
@@ -115,17 +116,48 @@ describe("工作室审稿闸判断", () => {
     expect(angleSwitchLocked(state)).toBe(true);
   });
 
-  it("准备步卖点写成 generate 的痛点、卖点和可选优惠", () => {
-    expect(studioScriptInput(
-      { product_name: "春季护肤精华液", product_note: "主图已就绪" },
-      { points: ["texture", "sensitive"] },
-    )).toEqual({
-      painPoint: "轻薄不粘腻、一抹吸收",
-      sellingPoints: ["突出材质与质感", "强调敏感肌友好"],
-      usageScenario: "主图已就绪",
+  it("准备步按本场覆盖和商品默认组装 generate，空优惠是 null", () => {
+    const sku = {
+      project_id: "prj_a",
+      product_name: "水杯",
+      pain_point: "清洗麻烦",
+      selling_points: ["杯身可拆"],
+      usage_scenario: "通勤路上",
+      offer_default: "满减",
+    };
+    const stored = { ...DEFAULT_STUDIO_DRAFT, projectId: "prj_a" };
+    expect(studioScriptInput(sku, stored)).toEqual({
+      painPoint: "清洗麻烦",
+      sellingPoints: ["杯身可拆"],
+      usageScenario: "通勤路上",
+      offer: "满减",
+    });
+    expect(studioScriptInput({ ...sku, offer_default: "  " }, stored).offer).toBeNull();
+    const session = {
+      ...stored,
+      sessionOnly: true,
+      pain_point: "本次痛点",
+      selling_points: ["本次卖点"],
+      usage_scenario: "本次场景",
+      offer: "",
+    };
+    expect(studioScriptInput(sku, session)).toEqual({
+      painPoint: "本次痛点",
+      sellingPoints: ["本次卖点"],
+      usageScenario: "本次场景",
       offer: null,
     });
-    expect(studioScriptInput({ product_name: "水杯", product_note: "" }, { points: ["promo"] }).offer).toBe("下单赠小样");
+    expect(studioScriptInput({ ...sku, project_id: "prj_b" }, session)).toMatchObject({
+      painPoint: "清洗麻烦",
+      sellingPoints: ["杯身可拆"],
+      offer: "满减",
+    });
+    expect(studioScriptInput({ product_name: "水杯" }, stored)).toEqual({
+      painPoint: "",
+      sellingPoints: [],
+      usageScenario: "",
+      offer: null,
+    });
   });
 
   it("没有稿就 generate，排队中轮询到 ready，不再次 generate", async () => {
