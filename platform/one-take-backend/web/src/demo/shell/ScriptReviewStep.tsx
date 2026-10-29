@@ -23,6 +23,10 @@ import {
 } from "./model";
 import {
   ackAllowed,
+  ANGLE_PICK_GUIDE,
+  ANGLE_PICK_HINT,
+  angleBatchKey,
+  angleConfirmSoftForce,
   angleLabel,
   angleSwitchLocked,
   applyAllowed,
@@ -35,6 +39,7 @@ import {
   orderedCandidates,
   paidVideoBlock,
   regenerateStudioScript,
+  reviewAngleGroupLabel,
   reviewFacts,
   REVIEW_DIMENSIONS,
   sameEdit,
@@ -67,8 +72,14 @@ export function ScriptReviewStep({
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  /** 用户在这一批里点过角卡片。默认高亮不算。换 project 或重新生成会清掉。 */
+  const [pickedBatchKey, setPickedBatchKey] = useState<string | null>(null);
 
   const projectId = product?.project_id ?? null;
+
+  useEffect(() => {
+    setPickedBatchKey(null);
+  }, [projectId]);
 
   useEffect(() => {
     if (!projectId || !product) {
@@ -117,9 +128,24 @@ export function ScriptReviewStep({
   const failed = scriptFailed(script);
   const cells = visibleReviewCells(filter);
   const name = product?.product_name ?? "已选商品";
+  const angleGroup = reviewAngleGroupLabel(presenter);
+  const batchKey = angleBatchKey(script);
+  const soft = angleConfirmSoftForce({
+    // 路径三张卡是 PR-3。在此之前审稿三角按多角度软强制。
+    path: null,
+    batchKey,
+    pickedBatchKey,
+    selectedStatus: version?.status,
+    hasSelectableCandidate: candidates.some((item) => item.status === "ready"),
+  });
+
+  function markAnglePicked() {
+    if (batchKey) setPickedBatchKey(batchKey);
+  }
 
   async function choose(nextVersion: ScriptVersion) {
     if (!projectId || !script) return;
+    markAnglePicked();
     if (nextVersion.version_id === script.selected_version_id) return;
     setBusy("select");
     setConflict(null);
@@ -198,6 +224,10 @@ export function ScriptReviewStep({
 
   async function confirmAndAdvance() {
     if (!projectId || !version) return;
+    if (soft.blocked) {
+      setNotice(ANGLE_PICK_HINT);
+      return;
+    }
     const block = paidVideoBlock(version);
     if (block.blocked) {
       setNotice(block.message);
@@ -235,6 +265,7 @@ export function ScriptReviewStep({
     setError(null);
     try {
       const next = await regenerateStudioScript(projectId, input, scriptClient);
+      setPickedBatchKey(null);
       setScript(next);
       setReview(null);
       setNotice(null);
@@ -246,7 +277,7 @@ export function ScriptReviewStep({
     }
   }
 
-  const advanceDisabled = !version || guard.blocked || busy !== null || inFlight || version.status === "failed";
+  const advanceDisabled = !version || guard.blocked || busy !== null || inFlight || version.status === "failed" || soft.blocked;
 
   return (
     <>
@@ -254,7 +285,7 @@ export function ScriptReviewStep({
         <div className="ot-headrow">
           <div>
             <h1 className="ot-page-title">审稿确认</h1>
-            <p className="ot-page-sub">选出一套口播角度并过审稿闸，确认后一键生成。无需先做图片广告。</p>
+            <p className="ot-page-sub">选出一套{angleGroup}并过审稿闸，确认后一键生成。无需先做图片广告。</p>
           </div>
           <div className="ot-context">商品 <strong>{name}</strong></div>
         </div>
@@ -290,15 +321,16 @@ export function ScriptReviewStep({
           <div className="ot-side-col">
             <section className="ot-panel" aria-busy={loading || busy !== null}>
               <div className="ot-label-row">
-                <div className="ot-label">口播角度</div>
+                <div className="ot-label">{angleGroup}</div>
                 {locked ? <span className="ot-meta">已确认，再切会冲突</span> : null}
               </div>
+              {soft.blocked ? <p className="ot-hint">{ANGLE_PICK_GUIDE}</p> : null}
               {!product ? <p className="ot-hint">先在准备步选用商品，才能生成三套口播。</p> : null}
               {loading ? <p className="ot-hint">正在准备三套口播…</p> : null}
               {error ? <p className="ot-error">{error}</p> : null}
               {conflict ? <p className="ot-error" role="alert">{conflict}</p> : null}
               {candidates.length > 0 ? (
-                <div className="ot-angles" role="group" aria-label="口播角度">
+                <div className="ot-angles" role="group" aria-label={angleGroup}>
                   {candidates.map((item) => {
                     const selected = item.version_id === (script?.selected_version_id ?? version?.version_id);
                     const label = angleLabel(item);
@@ -383,6 +415,7 @@ export function ScriptReviewStep({
           </div>
         </div>
         <div className="ot-sticky-right">
+          {soft.hint ? <span className="ot-meta" role="status">{soft.hint}</span> : null}
           <button type="button" className="ot-btn ot-btn-primary ot-btn-lg" disabled={advanceDisabled} onClick={() => void confirmAndAdvance()}>
             确认并生成视频<span className="ot-fee">· {DEMO_FEE} 积分</span>
           </button>

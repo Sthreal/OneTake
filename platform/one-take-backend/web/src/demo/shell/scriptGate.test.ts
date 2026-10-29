@@ -4,8 +4,12 @@ import type { GenerateScriptInput, ScriptState, ScriptVersion } from "../../feat
 import { DEFAULT_STUDIO_DRAFT } from "./model";
 import {
   ackAllowed,
+  angleBatchKey,
+  angleConfirmSoftForce,
   angleSwitchLocked,
   applyAllowed,
+  explicitAngleRequired,
+  reviewAngleGroupLabel,
   editResetGate,
   gateHeadline,
   lengthFailureCopy,
@@ -202,5 +206,78 @@ describe("工作室审稿闸判断", () => {
     expect(merged.version?.review_gate?.status).toBe("passed");
     expect(merged.candidates?.map((item) => item.version_id)).toEqual(["scr_pain", "scr_scene"]);
     expect(merged.candidates?.[1].angle).toBe("scene");
+  });
+});
+
+describe("审稿角度文案和软强制", () => {
+  it("无人用旁白角度，有人仍是口播角度", () => {
+    expect(reviewAngleGroupLabel({ source: "none" })).toBe("旁白角度");
+    expect(reviewAngleGroupLabel({ source: "premade" })).toBe("口播角度");
+    expect(reviewAngleGroupLabel({ source: "library" })).toBe("口播角度");
+  });
+
+  it("路径还没选时按多角度软强制；口播和纯商品不挡默认角", () => {
+    expect(explicitAngleRequired(null)).toBe(true);
+    expect(explicitAngleRequired(undefined)).toBe(true);
+    expect(explicitAngleRequired("multi_angle")).toBe(true);
+    expect(explicitAngleRequired("talking_head")).toBe(false);
+    expect(explicitAngleRequired("product_only")).toBe(false);
+  });
+
+  it("新一批的默认高亮不算选过，点过这一批才放开，换批重新挡", () => {
+    const pain = version();
+    const scene = version({ version_id: "scr_scene", angle: "scene", generation_batch_id: "sbg_1" });
+    const state = { version: pain, candidates: [pain, scene], selected_version_id: pain.version_id };
+    const batchKey = angleBatchKey(state);
+    expect(batchKey).toBe("sbg_1");
+    const fresh = angleConfirmSoftForce({
+      path: "multi_angle",
+      batchKey,
+      pickedBatchKey: null,
+      selectedStatus: "ready",
+      hasSelectableCandidate: true,
+    });
+    expect(fresh).toEqual({ blocked: true, hint: "请先选择角度" });
+    expect(angleConfirmSoftForce({
+      path: "multi_angle",
+      batchKey,
+      pickedBatchKey: batchKey,
+      selectedStatus: "ready",
+      hasSelectableCandidate: true,
+    }).blocked).toBe(false);
+    expect(angleConfirmSoftForce({
+      path: "multi_angle",
+      batchKey: "sbg_2",
+      pickedBatchKey: batchKey,
+      selectedStatus: "ready",
+      hasSelectableCandidate: true,
+    })).toEqual({ blocked: true, hint: "请先选择角度" });
+    expect(angleConfirmSoftForce({
+      path: "talking_head",
+      batchKey,
+      pickedBatchKey: null,
+      selectedStatus: "ready",
+      hasSelectableCandidate: true,
+    }).blocked).toBe(false);
+    expect(angleConfirmSoftForce({
+      path: null,
+      batchKey,
+      pickedBatchKey: null,
+      selectedStatus: "confirmed",
+      hasSelectableCandidate: true,
+    }).blocked).toBe(false);
+    expect(angleConfirmSoftForce({
+      path: null,
+      batchKey,
+      pickedBatchKey: null,
+      selectedStatus: "failed",
+      hasSelectableCandidate: false,
+    }).blocked).toBe(false);
+    const bare = version({ generation_batch_id: null });
+    expect(angleBatchKey({
+      version: bare,
+      candidates: [bare, version({ version_id: "scr_scene", angle: "scene", generation_batch_id: null })],
+      selected_version_id: bare.version_id,
+    })).toBe("scr_pain|scr_scene");
   });
 });
