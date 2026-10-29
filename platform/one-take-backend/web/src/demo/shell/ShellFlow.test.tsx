@@ -34,7 +34,7 @@ import {
   selectScript,
 } from "../../shared/api/scriptApi";
 import { StudioShell } from "../StudioShell";
-import { DEFAULT_STUDIO_DRAFT, PRESENTER_CLEAR_FAILED, writeSkuEnrichment, writeStudioDraft } from "./model";
+import { DEFAULT_STUDIO_DRAFT, PATH_CHANGED_HINT, PRESENTER_CLEAR_FAILED, TALKING_HEAD_PRESENTER_REQUIRED, writeSkuEnrichment, writeStudioDraft } from "./model";
 
 const product = {
   project_id: "prj_skin",
@@ -242,6 +242,11 @@ async function pickHighlightedAngle(user: ReturnType<typeof userEvent.setup>) {
   await user.click(within(group).getByRole("button", { name: "痛点种草" }));
 }
 
+async function choosePath(user: ReturnType<typeof userEvent.setup>, name: RegExp) {
+  const paths = screen.getByRole("group", { name: "创作路径" });
+  await user.click(within(paths).getByRole("button", { name }));
+}
+
 async function fillPrepare(user: ReturnType<typeof userEvent.setup>) {
   await user.type(await screen.findByRole("textbox", { name: "痛点" }), "清洗麻烦");
   await user.type(screen.getByRole("textbox", { name: "卖点 1" }), "杯身可拆");
@@ -309,12 +314,23 @@ describe("iter18 图片广告与工作室解耦", () => {
     expect(screen.queryByText("强调敏感肌友好")).not.toBeInTheDocument();
     expect(screen.queryByText("限时促销话术")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "更换 →" })).toBeInTheDocument();
-    expect(screen.getByText("林晓")).toBeInTheDocument();
+    const paths = screen.getByRole("group", { name: "创作路径" });
+    expect(within(paths).getAllByRole("button")).toHaveLength(3);
+    expect(within(paths).getByRole("button", { name: /纯商品无人/ })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("本路径不出镜人")).toBeInTheDocument();
+    expect(screen.queryByText("林晓")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "从出镜人库更换 →" })).not.toBeInTheDocument();
+    expect(document.querySelector(".ot-chips")).toHaveTextContent("纯商品无人");
     expect(screen.getByRole("button", { name: "开始制作" })).toBeDisabled();
     expect(screen.getByText("请至少上传 1 张商品图")).toBeInTheDocument();
     expect(screen.getByText("请填写痛点")).toBeInTheDocument();
     expect(screen.getByText("请至少添加 1 条卖点（最多 5 条）")).toBeInTheDocument();
     expect(screen.getByText("请填写使用场景")).toBeInTheDocument();
+
+    await choosePath(user, /口播出镜/);
+    expect(screen.getByText("林晓")).toBeInTheDocument();
+    expect(document.querySelector(".ot-chips")).toHaveTextContent("口播出镜");
+    expect(document.querySelector(".ot-chips")).not.toHaveTextContent("林晓");
 
     await user.click(screen.getByRole("button", { name: "从出镜人库更换 →" }));
     const castButtons = within(document.querySelector(".ot-cast") as HTMLElement).getAllByRole("button");
@@ -322,6 +338,10 @@ describe("iter18 图片广告与工作室解耦", () => {
     expect(castButtons[0]).toHaveTextContent("商品镜头为主，不出现人物");
     expect(screen.getByRole("button", { name: /周予/ })).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: /提示词|描述出镜人|prompt/ })).not.toBeInTheDocument();
+
+    await choosePath(user, /多角度口播/);
+    expect(document.querySelector(".ot-talent")).toHaveTextContent("林晓");
+    expect(screen.getByRole("textbox", { name: "痛点" })).toHaveValue("");
 
     await fillPrepare(user);
 
@@ -545,6 +565,20 @@ describe("iter18 图片广告与工作室解耦", () => {
     await user.click(screen.getByRole("button", { name: "开始制作" }));
     expect(await screen.findByRole("heading", { name: "审稿确认" })).toBeInTheDocument();
     expect(generateScript).toHaveBeenCalledTimes(generated);
+
+    await user.click(screen.getByRole("button", { name: /准备素材/ }));
+    expect(await screen.findByRole("textbox", { name: "卖点 1" })).toHaveValue("换成新卖点");
+    const beforePath = vi.mocked(generateScript).mock.calls.length;
+    await choosePath(user, /口播出镜/);
+    expect(await screen.findByText(PATH_CHANGED_HINT)).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "痛点" })).toHaveValue("清洗麻烦");
+    expect(screen.getByRole("textbox", { name: "卖点 1" })).toHaveValue("换成新卖点");
+    expect(screen.queryByRole("heading", { name: "品牌空间" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "开始制作" }));
+    expect(await screen.findByRole("heading", { name: "审稿确认" })).toBeInTheDocument();
+    expect(generateScript).toHaveBeenCalledTimes(beforePath);
+    expect(screen.getByText(PATH_CHANGED_HINT)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "重新生成三套口播" })).toBeInTheDocument();
   });
 
   it("上手四步按钮去四个不同页面", async () => {
@@ -580,10 +614,11 @@ describe("iter18 图片广告与工作室解耦", () => {
     const user = userEvent.setup();
     open("/?view=prepare&project=prj_skin");
     render(<StudioShell />);
-    await user.click(await screen.findByRole("button", { name: "从出镜人库更换 →" }));
-    await user.click(screen.getByRole("button", { name: /无出镜人/ }));
+    expect(await screen.findByRole("group", { name: "创作路径" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /纯商品无人/ })).toHaveAttribute("aria-pressed", "true");
     expect(document.querySelector(".ot-talent")).toBeNull();
-    expect(document.querySelector(".ot-cast-picked")).toHaveTextContent("商品镜头为主，不出现人物");
+    expect(document.querySelector(".ot-cast-picked")).toHaveTextContent("本路径不出镜人");
+    expect(screen.queryByRole("button", { name: "从出镜人库更换 →" })).not.toBeInTheDocument();
 
     await fillPrepare(user);
     await waitFor(() => expect(updateProject).toHaveBeenCalledWith("prj_skin", { characterId: null }));
@@ -623,12 +658,11 @@ describe("iter18 图片广告与工作室解耦", () => {
     const user = userEvent.setup();
     open("/?view=prepare&project=prj_skin");
     render(<StudioShell />);
-    await user.click(await screen.findByRole("button", { name: "从出镜人库更换 →" }));
-    await user.click(screen.getByRole("button", { name: /无出镜人/ }));
+    expect(await screen.findByText("本路径不出镜人")).toBeInTheDocument();
     await fillPrepare(user);
     expect(await screen.findByRole("alert")).toHaveTextContent(PRESENTER_CLEAR_FAILED);
     expect(screen.getByRole("heading", { name: "准备" })).toBeInTheDocument();
-    expect(document.querySelector(".ot-cast-picked")).toHaveTextContent("无出镜人");
+    expect(document.querySelector(".ot-cast-picked")).toHaveTextContent("本路径不出镜人");
     expect(screen.queryByText("出镜人：林晓")).not.toBeInTheDocument();
   });
 
@@ -659,6 +693,7 @@ describe("iter18 图片广告与工作室解耦", () => {
     writeStudioDraft({
       ...DEFAULT_STUDIO_DRAFT,
       projectId: "prj_skin",
+      path: "multi_angle",
       presenterId: null,
       sessionOnly: true,
       pain_point: "本次痛点",
@@ -748,6 +783,12 @@ describe("iter18 图片广告与工作室解耦", () => {
       });
       return { version: pain, candidates: [pain, scene, comparison], selected_version_id: pain.version_id };
     });
+    writeStudioDraft({
+      ...DEFAULT_STUDIO_DRAFT,
+      projectId: "prj_skin",
+      path: "multi_angle",
+      presenterId: "premade:linxiao",
+    });
     const user = userEvent.setup();
     open("/?view=review&project=prj_skin");
     render(<StudioShell />);
@@ -761,5 +802,102 @@ describe("iter18 图片广告与工作室解耦", () => {
     expect(screen.getByRole("button", { name: /确认并生成视频/ })).toBeDisabled();
     expect(screen.getByRole("group", { name: "口播角度" })).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "钩子" })).toHaveValue("新的一批仍是默认角");
+  });
+
+  it("纯商品无人：默认路径不出镜，审稿用旁白角度且不软强制", async () => {
+    const user = userEvent.setup();
+    open("/?view=prepare&project=prj_skin");
+    render(<StudioShell />);
+    const paths = await screen.findByRole("group", { name: "创作路径" });
+    expect(within(paths).getAllByRole("button")).toHaveLength(3);
+    expect(within(paths).getByRole("button", { name: /纯商品无人/ })).toHaveAttribute("aria-pressed", "true");
+    expect(within(paths).getByRole("button", { name: /口播出镜/ })).toHaveAttribute("aria-pressed", "false");
+    expect(within(paths).getByRole("button", { name: /多角度口播/ })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByText("同一商品信息，选不同成片方式 · 不增加费用")).toBeInTheDocument();
+    expect(screen.getByText("本路径不出镜人")).toBeInTheDocument();
+    expect(document.querySelector(".ot-talent")).toBeNull();
+    expect(screen.queryByText("林晓")).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /音色|提示词|描述出镜人/ })).not.toBeInTheDocument();
+    expect(document.querySelector(".ot-chips")).toHaveTextContent("纯商品无人");
+
+    const pain = screen.getByRole("textbox", { name: "痛点" });
+    await user.type(pain, "清洗麻烦");
+    await choosePath(user, /多角度口播/);
+    await choosePath(user, /纯商品无人/);
+    expect(pain).toHaveValue("清洗麻烦");
+    expect(screen.queryByRole("heading", { name: "品牌空间" })).not.toBeInTheDocument();
+    expect(document.querySelector(".ot-talent")).toBeNull();
+
+    await fillPrepare(user);
+    await waitFor(() => expect(updateProject).toHaveBeenCalledWith("prj_skin", { characterId: null }));
+    expect(await screen.findByRole("group", { name: "旁白角度" })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "口播角度" })).not.toBeInTheDocument();
+    expect(screen.queryByText("请先选择角度")).not.toBeInTheDocument();
+    expect(screen.queryByText("先点选一套角度，再审稿确认")).not.toBeInTheDocument();
+    expect(screen.queryByText("林晓")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "场景安利" }));
+    await waitFor(() => expect(selectScript).toHaveBeenCalledWith("prj_skin", "scr_scene"));
+    expect(generateScript).toHaveBeenCalledTimes(1);
+  });
+
+  it("口播出镜：无人不能开始，预填预制人后可以，审稿不软强制", async () => {
+    const user = userEvent.setup();
+    open("/?view=prepare&project=prj_skin");
+    render(<StudioShell />);
+    await screen.findByRole("group", { name: "创作路径" });
+    await choosePath(user, /口播出镜/);
+    expect(document.querySelector(".ot-talent")).toHaveTextContent("林晓");
+    expect(document.querySelector(".ot-chips")).toHaveTextContent("口播出镜");
+    expect(screen.queryByText("本路径不出镜人")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "从出镜人库更换 →" }));
+    await user.click(screen.getByRole("button", { name: /无出镜人/ }));
+    expect(screen.getByText(TALKING_HEAD_PRESENTER_REQUIRED)).toBeInTheDocument();
+    expect(document.querySelector(".ot-talent")).toBeNull();
+    await user.type(screen.getByRole("textbox", { name: "痛点" }), "清洗麻烦");
+    await user.type(screen.getByRole("textbox", { name: "卖点 1" }), "杯身可拆");
+    await user.type(screen.getByRole("textbox", { name: "使用场景" }), "通勤路上");
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(input, new File([Uint8Array.from([1, 2, 3])], "main.png", { type: "image/png" }));
+    expect(screen.getByRole("button", { name: "开始制作" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: /周予/ }));
+    const start = screen.getByRole("button", { name: "开始制作" });
+    await waitFor(() => expect(start).toBeEnabled());
+    await user.click(start);
+    expect(await screen.findByRole("group", { name: "口播角度" })).toBeInTheDocument();
+    expect(screen.queryByText("请先选择角度")).not.toBeInTheDocument();
+    expect(screen.queryByText("先点选一套角度，再审稿确认")).not.toBeInTheDocument();
+    expect(screen.getByText(/配音人 周予/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /确认并生成视频/ })).toBeDisabled();
+    expect(screen.queryByRole("textbox", { name: /音色/ })).not.toBeInTheDocument();
+  });
+
+  it("多角度口播：无人也能开始，选角是主交互", async () => {
+    const user = userEvent.setup();
+    open("/?view=prepare&project=prj_skin");
+    render(<StudioShell />);
+    await screen.findByRole("group", { name: "创作路径" });
+    await choosePath(user, /多角度口播/);
+    expect(screen.getByRole("button", { name: /多角度口播/ })).toHaveAttribute("aria-pressed", "true");
+    expect(document.querySelector(".ot-cast-picked")).toHaveTextContent("无出镜人");
+    expect(document.querySelector(".ot-talent")).toBeNull();
+    expect(screen.queryByText("林晓")).not.toBeInTheDocument();
+    expect(document.querySelector(".ot-chips")).toHaveTextContent("多角度口播");
+    expect(screen.queryByText(TALKING_HEAD_PRESENTER_REQUIRED)).not.toBeInTheDocument();
+
+    await fillPrepare(user);
+    expect(await screen.findByRole("group", { name: "旁白角度" })).toBeInTheDocument();
+    expect(screen.getByText("请先选择角度")).toBeInTheDocument();
+    expect(screen.getByText("先点选一套角度，再审稿确认")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /确认并生成视频/ })).toBeDisabled();
+    expect(screen.getByText(/本场无出镜人/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "痛点种草" }));
+    expect(selectScript).not.toHaveBeenCalled();
+    expect(screen.queryByText("请先选择角度")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "对比测评" }));
+    await waitFor(() => expect(selectScript).toHaveBeenCalledWith("prj_skin", "scr_cmp"));
   });
 });

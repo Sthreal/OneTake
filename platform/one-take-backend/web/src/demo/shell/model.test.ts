@@ -18,7 +18,13 @@ import {
   normalizeStudioDraft,
   prepareImageRejection,
   prepareSubmitErrors,
+  PATH_CHANGED_HINT,
   PREMADE_PRESENTER,
+  PRODUCT_ONLY_CAST_HINT,
+  PRODUCT_ONLY_CAST_TITLE,
+  STUDIO_PATHS,
+  TALKING_HEAD_PRESENTER_REQUIRED,
+  assignPresenter,
   deliveryPresenterCheck,
   deliveryShowsTalent,
   generatePresenterCheck,
@@ -29,6 +35,9 @@ import {
   readStudioDraft,
   resolveSelectedProduct,
   reviewFeeHint,
+  studioPathName,
+  switchStudioPath,
+  talkingHeadStartError,
   writeSkuEnrichment,
 } from "./model";
 
@@ -82,10 +91,15 @@ describe("iter18 信息架构", () => {
     expect(draft).not.toHaveProperty("imageAd");
     expect(draft).not.toHaveProperty("points");
     expect(draft.selling_points).toBeNull();
+    expect(draft.path).toBe("product_only");
+    expect(draft.presenterId).toBeNull();
+    expect(draft.lastPresenterId).toBe("premade:linxiao");
     expect(Object.keys(draft).sort()).toEqual([
       "duration",
+      "lastPresenterId",
       "offer",
       "pain_point",
+      "path",
       "presenterId",
       "projectId",
       "ratio",
@@ -105,7 +119,7 @@ describe("iter18 信息架构", () => {
 });
 
 describe("准备步草稿与商品富化", () => {
-  it("把 v1 草稿迁到 v2，并丢掉旧的卖点 checkbox id", () => {
+  it("把 v1 草稿迁到 v3，丢掉旧的卖点 checkbox id，并记住原来的出镜人", () => {
     localStorage.setItem("onetake.studioDraft.v1", JSON.stringify({
       projectId: "prj_a",
       presenterId: "premade:linxiao",
@@ -116,12 +130,17 @@ describe("准备步草稿与商品富化", () => {
     const draft = readStudioDraft(null);
     expect(draft.projectId).toBe("prj_a");
     expect(draft.ratio).toBe("1:1");
+    expect(draft.path).toBe("product_only");
+    expect(draft.presenterId).toBeNull();
+    expect(draft.lastPresenterId).toBe("premade:linxiao");
     expect(draft.selling_points).toBeNull();
     expect(draft.pain_point).toBeNull();
     expect(draft).not.toHaveProperty("points");
     expect(localStorage.getItem("onetake.studioDraft.v1")).toBeNull();
-    const stored = JSON.parse(localStorage.getItem("onetake.studioDraft.v2") ?? "{}") as { points?: unknown };
+    expect(localStorage.getItem("onetake.studioDraft.v2")).toBeNull();
+    const stored = JSON.parse(localStorage.getItem("onetake.studioDraft.v3") ?? "{}") as { points?: unknown; path?: string };
     expect(stored.points).toBeUndefined();
+    expect(stored.path).toBe("product_only");
   });
 
   it("两件商品各自记卖点；仅本次出片不写回另一件", () => {
@@ -167,14 +186,26 @@ describe("准备步草稿与商品富化", () => {
 
   it("presenterId 为 null 时往返仍是无出镜人，同步会清空 character_id", () => {
     const draft = normalizeStudioDraft({ ...DEFAULT_STUDIO_DRAFT, presenterId: null });
+    expect(draft.path).toBe("product_only");
     expect(draft.presenterId).toBeNull();
-    localStorage.setItem("onetake.studioDraft.v2", JSON.stringify(draft));
+    localStorage.setItem("onetake.studioDraft.v2", JSON.stringify({ ...draft, path: undefined }));
     expect(readStudioDraft(null).presenterId).toBeNull();
+    expect(readStudioDraft(null).path).toBe("product_only");
+    expect(localStorage.getItem("onetake.studioDraft.v2")).toBeNull();
+    expect(localStorage.getItem("onetake.studioDraft.v3")).toContain("product_only");
     expect(readStudioDraft("prj_other").presenterId).toBeNull();
     expect(normalizeStudioDraft({ presenterId: "" }).presenterId).toBeNull();
     expect(normalizeStudioDraft({ presenterId: "   " }).presenterId).toBeNull();
-    expect(normalizeStudioDraft({ presenterId: "chr_zhou" }).presenterId).toBe("chr_zhou");
-    expect(normalizeStudioDraft({}).presenterId).toBe(PREMADE_PRESENTER.id);
+    expect(normalizeStudioDraft({ presenterId: "none" }).presenterId).toBeNull();
+    expect(normalizeStudioDraft({ presenterId: "chr_zhou" }).presenterId).toBeNull();
+    expect(normalizeStudioDraft({ presenterId: "chr_zhou" }).lastPresenterId).toBe("chr_zhou");
+    expect(normalizeStudioDraft({ path: "talking_head", presenterId: "chr_zhou" }).presenterId).toBe("chr_zhou");
+    expect(normalizeStudioDraft({ path: "multi_angle", presenterId: "chr_zhou" }).presenterId).toBe("chr_zhou");
+    expect(normalizeStudioDraft({ path: "multi_angle", presenterId: null }).presenterId).toBeNull();
+    expect(normalizeStudioDraft({ path: "talking_head", presenterId: null }).presenterId).toBeNull();
+    expect(normalizeStudioDraft({}).presenterId).toBeNull();
+    expect(normalizeStudioDraft({}).path).toBe("product_only");
+    expect(normalizeStudioDraft({ path: "talking_head" }).presenterId).toBe(PREMADE_PRESENTER.id);
 
     expect(projectCharacterSync(null)).toEqual({ characterId: null });
     expect(projectCharacterSync(PREMADE_PRESENTER.id)).toBeNull();
@@ -193,5 +224,51 @@ describe("准备步草稿与商品富化", () => {
     expect(deliveryPresenterCheck({ source: "none", name: "无出镜人" })).toBe("纯商品镜头 · 无人出镜");
     expect(deliveryShowsTalent({ source: "none" })).toBe(false);
     expect(deliveryShowsTalent({ source: "library" })).toBe(true);
+  });
+
+  it("切换路径会清或预填出镜，不改商品事实", () => {
+    expect(STUDIO_PATHS.map((item) => item.name)).toEqual(["口播出镜", "纯商品无人", "多角度口播"]);
+    expect(studioPathName("product_only")).toBe("纯商品无人");
+    expect(PRODUCT_ONLY_CAST_TITLE).toBe("本路径不出镜人");
+    expect(PRODUCT_ONLY_CAST_HINT).toContain("口播出镜");
+    expect(PATH_CHANGED_HINT).toBe("路径已变，如需按新路径重出稿请点重新生成");
+
+    const withPerson = normalizeStudioDraft({
+      path: "multi_angle",
+      presenterId: "chr_zhou",
+      pain_point: "清洗麻烦",
+      selling_points: ["杯身可拆"],
+      usage_scenario: "通勤",
+    });
+    const productOnly = switchStudioPath(withPerson, "product_only");
+    expect(productOnly.path).toBe("product_only");
+    expect(productOnly.presenterId).toBeNull();
+    expect(productOnly.lastPresenterId).toBe("chr_zhou");
+    expect(productOnly.pain_point).toBe("清洗麻烦");
+    expect(productOnly.selling_points).toEqual(["杯身可拆"]);
+    expect(productOnly.usage_scenario).toBe("通勤");
+    expect(talkingHeadStartError(productOnly)).toBeNull();
+
+    const talking = switchStudioPath(productOnly, "talking_head");
+    expect(talking.presenterId).toBe("chr_zhou");
+    expect(talking.pain_point).toBe("清洗麻烦");
+    expect(talkingHeadStartError(talking)).toBeNull();
+
+    const cleared = assignPresenter(talking, null);
+    expect(cleared.presenterId).toBeNull();
+    expect(cleared.lastPresenterId).toBe("chr_zhou");
+    expect(talkingHeadStartError(cleared)).toBe(TALKING_HEAD_PRESENTER_REQUIRED);
+
+    const again = switchStudioPath(switchStudioPath(cleared, "product_only"), "talking_head");
+    expect(again.presenterId).toBe("chr_zhou");
+
+    const fresh = switchStudioPath(normalizeStudioDraft({ path: "product_only" }), "talking_head");
+    expect(fresh.presenterId).toBe(PREMADE_PRESENTER.id);
+
+    const multi = switchStudioPath(productOnly, "multi_angle");
+    expect(multi.presenterId).toBeNull();
+    expect(multi.path).toBe("multi_angle");
+    expect(talkingHeadStartError(multi)).toBeNull();
+    expect(switchStudioPath(multi, "multi_angle")).toBe(multi);
   });
 });

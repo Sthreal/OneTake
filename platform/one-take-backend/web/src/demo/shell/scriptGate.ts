@@ -11,7 +11,9 @@ import type {
   ScriptState,
   ScriptVersion,
 } from "../../features/script/types";
-import { readSkuEnrichment, type StudioDraft } from "./model";
+import { readSkuEnrichment, type StudioCreationPath, type StudioDraft } from "./model";
+
+export type { StudioCreationPath };
 
 export const SCRIPT_ANGLES = ["pain_point", "scene", "comparison"] as const;
 
@@ -61,6 +63,11 @@ export function scriptVersions(state: ScriptState | null | undefined): ScriptVer
   return state.version ? [state.version] : [];
 }
 
+/** 已有 ready / confirmed 稿时，改路径不能静默重出，只提示用户自己点重新生成。 */
+export function hasReusableScript(state: ScriptState | null | undefined): boolean {
+  return scriptVersions(state).some((item) => item.status === "ready" || item.status === "confirmed");
+}
+
 export function orderedCandidates(state: ScriptState | null | undefined): ScriptVersion[] {
   return [...scriptVersions(state)].sort((a, b) => {
     const ai = SCRIPT_ANGLES.indexOf((a.angle ?? "") as (typeof SCRIPT_ANGLES)[number]);
@@ -73,18 +80,16 @@ export function angleLabel(version: ScriptVersion): string {
   return version.angle_label || ANGLE_LABELS[version.angle ?? ""] || "口播";
 }
 
-/** 创作路径三选一是 PR-3。这里只给审稿文案和软强制用。 */
-export type StudioCreationPath = "talking_head" | "product_only" | "multi_angle";
-
 export const ANGLE_PICK_HINT = "请先选择角度";
 export const ANGLE_PICK_GUIDE = "先点选一套角度，再审稿确认";
 
 /**
- * 无人 / 纯商品体感用「旁白角度」，有人出镜仍是「口播角度」。
- * 路径条还没做时，用出镜人是否为空来区分，不靠 path。
+ * 纯商品，或当前无人，用「旁白角度」。有出镜人仍是「口播角度」。
+ * 多角度路径不改组名规则，只靠软强制把选角抬成主交互。
  */
-export function reviewAngleGroupLabel(presenter: { source: string }): "旁白角度" | "口播角度" {
-  return presenter.source === "none" ? "旁白角度" : "口播角度";
+export function reviewAngleGroupLabel(presenter: { source: string; path?: StudioCreationPath | null }): "旁白角度" | "口播角度" {
+  if (presenter.path === "product_only" || presenter.source === "none") return "旁白角度";
+  return "口播角度";
 }
 
 /**

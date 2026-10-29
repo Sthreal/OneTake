@@ -117,6 +117,30 @@ export const STUDIO_DURATIONS = ["15s", "30s", "60s"] as const;
 export type StudioRatio = (typeof STUDIO_RATIOS)[number];
 export type StudioDuration = (typeof STUDIO_DURATIONS)[number];
 
+/** 本场创作路径。只活在工作室草稿里，不写回商品，也不进服务端项目。 */
+export const STUDIO_PATHS = [
+  { id: "talking_head", name: "口播出镜", description: "库选出镜人讲解卖点，适合种草口播" },
+  { id: "product_only", name: "纯商品无人", description: "不出镜人，商品镜头 + 旁白/字幕" },
+  { id: "multi_angle", name: "多角度口播", description: "一次出 3 套文案角度，选中后再审稿" },
+] as const;
+
+export type StudioCreationPath = (typeof STUDIO_PATHS)[number]["id"];
+
+export const PATH_SECTION_TITLE = "创作路径";
+export const PATH_SECTION_SUB = "同一商品信息，选不同成片方式 · 不增加费用";
+export const PATH_CHANGED_HINT = "路径已变，如需按新路径重出稿请点重新生成";
+export const TALKING_HEAD_PRESENTER_REQUIRED = "口播出镜路径请选择一位出镜人";
+export const PRODUCT_ONLY_CAST_TITLE = "本路径不出镜人";
+export const PRODUCT_ONLY_CAST_HINT = "如需出镜请改选「口播出镜」或「多角度口播」";
+
+export function isStudioPath(value: unknown): value is StudioCreationPath {
+  return STUDIO_PATHS.some((item) => item.id === value);
+}
+
+export function studioPathName(path: StudioCreationPath): string {
+  return STUDIO_PATHS.find((item) => item.id === path)?.name ?? "纯商品无人";
+}
+
 export const PREMADE_PRESENTER = {
   id: "premade:linxiao",
   name: "林晓",
@@ -214,8 +238,17 @@ export function resolveSelectedProduct<T extends ShelfProduct>(projectId: string
 
 export interface StudioDraft {
   projectId: string | null;
-  /** null = 无出镜人。空字符串也会收成 null，不再回退预制人。缺省（旧稿没这个字段）仍是预制人。 */
+  /** 本场成片方式。缺省（旧稿没有这个字段）是纯商品无人。 */
+  path: StudioCreationPath;
+  /**
+   * null = 无出镜人。空字符串也会收成 null，不再回退预制人。
+   * 纯商品路径强制 null。口播路径可以暂时为 null，但开始制作会拦住。
+   */
   presenterId: string | null;
+  /**
+   * 切到口播出镜、而当前又无人时，用来预填。纯商品会清掉 presenterId，但把上一次人选留在这里。
+   */
+  lastPresenterId: string | null;
   ratio: StudioRatio;
   duration: StudioDuration;
   /** 勾选后，下面的文本只覆盖这一次出片，不写回商品草稿。 */
@@ -228,6 +261,7 @@ export interface StudioDraft {
   specs: string | null;
 }
 
+const DRAFT_KEY_V3 = "onetake.studioDraft.v3";
 const DRAFT_KEY_V2 = "onetake.studioDraft.v2";
 const DRAFT_KEY_V1 = "onetake.studioDraft.v1";
 const GS_KEY = "onetake.gsDone.v1";
@@ -235,7 +269,9 @@ const BRAND_KEY = "onetake.brands.v1";
 
 export const DEFAULT_STUDIO_DRAFT: StudioDraft = {
   projectId: null,
-  presenterId: PREMADE_PRESENTER.id,
+  path: "product_only",
+  presenterId: null,
+  lastPresenterId: null,
   ratio: "9:16",
   duration: "30s",
   sessionOnly: false,
@@ -264,43 +300,103 @@ function nullablePoints(value: unknown): string[] | null {
   return value.filter((item): item is string => typeof item === "string").slice(0, 5);
 }
 
-/** 空 / null 是无出镜人。只有字段根本没出现时才用默认预制人（旧稿）。 */
-function normalizePresenterId(value: unknown): string | null {
-  if (value === null) return null;
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    return trimmed ? trimmed : null;
-  }
-  return DEFAULT_STUDIO_DRAFT.presenterId;
+/** 有字才算人选。null、空串、哨兵 `none` 都是无出镜人。字段缺失时返回 undefined。 */
+function readPresenterField(raw: object, key: "presenterId" | "lastPresenterId"): string | null | undefined {
+  if (!Object.prototype.hasOwnProperty.call(raw, key)) return undefined;
+  const value = (raw as Record<string, unknown>)[key];
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === "none") return null;
+  return trimmed;
 }
 
-/** 旧 v1 的 `points`（checkbox id）直接丢掉，不映射成卖点文案。 */
+/**
+ * 按路径收出镜人。
+ * 纯商品强制无人，但把旧的非空人选留在 lastPresenterId。
+ * 口播缺字段时用上次人选或预制；显式 null 先留着，交给开始制作拦截，避免把用户刚点的「无出镜人」立刻填回去。
+ * 多角度缺字段默认无人，显式人选保留。
+ */
+function alignPresenter(
+  path: StudioCreationPath,
+  raw: object,
+): { presenterId: string | null; lastPresenterId: string | null } {
+  const presenterField = readPresenterField(raw, "presenterId");
+  const lastField = readPresenterField(raw, "lastPresenterId") ?? null;
+  const explicit = presenterField === undefined ? null : presenterField;
+  if (path === "product_only") {
+    return { presenterId: null, lastPresenterId: explicit ?? lastField };
+  }
+  if (path === "talking_head") {
+    const presenterId = presenterField === undefined ? (lastField ?? PREMADE_PRESENTER.id) : presenterField;
+    return { presenterId, lastPresenterId: presenterId ?? lastField };
+  }
+  const presenterId = presenterField === undefined ? null : presenterField;
+  return { presenterId, lastPresenterId: presenterId ?? lastField };
+}
+
+/** 旧 v1 的 `points`（checkbox id）直接丢掉，不映射成卖点文案。无 path 的旧稿按纯商品无人。 */
 export function normalizeStudioDraft(raw: (Partial<StudioDraft> & { points?: unknown }) | null | undefined): StudioDraft {
+  const record = raw && typeof raw === "object" ? raw : {};
+  const path = isStudioPath(record.path) ? record.path : "product_only";
+  const presenter = alignPresenter(path, record);
   return {
-    projectId: typeof raw?.projectId === "string" && raw.projectId ? raw.projectId : null,
-    presenterId: normalizePresenterId(raw?.presenterId),
-    ratio: isRatio(raw?.ratio) ? raw.ratio : DEFAULT_STUDIO_DRAFT.ratio,
-    duration: isDuration(raw?.duration) ? raw.duration : DEFAULT_STUDIO_DRAFT.duration,
-    sessionOnly: raw?.sessionOnly === true,
-    pain_point: nullableText(raw?.pain_point),
-    selling_points: nullablePoints(raw?.selling_points),
-    usage_scenario: nullableText(raw?.usage_scenario),
-    offer: nullableText(raw?.offer),
-    specs: nullableText(raw?.specs),
+    projectId: typeof record.projectId === "string" && record.projectId ? record.projectId : null,
+    path,
+    presenterId: presenter.presenterId,
+    lastPresenterId: presenter.lastPresenterId,
+    ratio: isRatio(record.ratio) ? record.ratio : DEFAULT_STUDIO_DRAFT.ratio,
+    duration: isDuration(record.duration) ? record.duration : DEFAULT_STUDIO_DRAFT.duration,
+    sessionOnly: record.sessionOnly === true,
+    pain_point: nullableText(record.pain_point),
+    selling_points: nullablePoints(record.selling_points),
+    usage_scenario: nullableText(record.usage_scenario),
+    offer: nullableText(record.offer),
+    specs: nullableText(record.specs),
   };
+}
+
+/** 换路径只动路径和出镜，不动痛点 / 卖点 / 场景，也不重新出稿。 */
+export function switchStudioPath(draft: StudioDraft, path: StudioCreationPath): StudioDraft {
+  if (path === draft.path) return draft;
+  const remembered = draft.presenterId ?? draft.lastPresenterId;
+  if (path === "product_only") {
+    return { ...draft, path, presenterId: null, lastPresenterId: remembered };
+  }
+  if (path === "talking_head") {
+    const presenterId = draft.presenterId ?? remembered ?? PREMADE_PRESENTER.id;
+    return { ...draft, path, presenterId, lastPresenterId: presenterId };
+  }
+  return { ...draft, path, presenterId: draft.presenterId, lastPresenterId: remembered };
+}
+
+/** 库里点一个人。纯商品路径忽略人选，保持无人。点「无出镜人」不会忘掉上一次库选。 */
+export function assignPresenter(draft: StudioDraft, presenterId: string | null): StudioDraft {
+  if (draft.path === "product_only") return { ...draft, presenterId: null };
+  const next = presenterId && presenterId.trim() && presenterId.trim() !== "none" ? presenterId.trim() : null;
+  return {
+    ...draft,
+    presenterId: next,
+    lastPresenterId: next ?? draft.lastPresenterId,
+  };
+}
+
+export function talkingHeadStartError(draft: Pick<StudioDraft, "path" | "presenterId">): string | null {
+  if (draft.path !== "talking_head") return null;
+  if (draft.presenterId == null || draft.presenterId === "none") return TALKING_HEAD_PRESENTER_REQUIRED;
+  return null;
 }
 
 export function readStudioDraft(urlProjectId: string | null): StudioDraft {
   let stored: unknown = null;
   let migrated = false;
   try {
-    const current = localStorage.getItem(DRAFT_KEY_V2);
+    const current = localStorage.getItem(DRAFT_KEY_V3);
     if (current) {
       stored = JSON.parse(current) as unknown;
     } else {
-      const legacy = localStorage.getItem(DRAFT_KEY_V1);
-      if (legacy) {
-        stored = JSON.parse(legacy) as unknown;
+      const previous = localStorage.getItem(DRAFT_KEY_V2) ?? localStorage.getItem(DRAFT_KEY_V1);
+      if (previous) {
+        stored = JSON.parse(previous) as unknown;
         migrated = true;
       }
     }
@@ -323,7 +419,8 @@ export function readStudioDraft(urlProjectId: string | null): StudioDraft {
 
 export function writeStudioDraft(draft: StudioDraft): StudioDraft {
   const next = normalizeStudioDraft(draft);
-  localStorage.setItem(DRAFT_KEY_V2, JSON.stringify(next));
+  localStorage.setItem(DRAFT_KEY_V3, JSON.stringify(next));
+  localStorage.removeItem(DRAFT_KEY_V2);
   localStorage.removeItem(DRAFT_KEY_V1);
   return next;
 }

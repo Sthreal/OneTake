@@ -4,18 +4,27 @@ import { useId, useRef, useState } from "react";
 import type { Project } from "../../features/input/types";
 import type { Character } from "../../shared/api/characterApi";
 import {
+  PATH_SECTION_SUB,
+  PATH_SECTION_TITLE,
   PREPARE_IMAGE_ACCEPT,
+  PRODUCT_ONLY_CAST_HINT,
+  PRODUCT_ONLY_CAST_TITLE,
   STUDIO_DURATIONS,
+  STUDIO_PATHS,
   STUDIO_RATIOS,
   applyPrepareEdit,
+  assignPresenter,
   effectivePrepareFields,
   prepareImageRejection,
   prepareSubmitErrors,
   presenterOptions,
   setPrepareSessionOnly,
+  studioPathName,
+  talkingHeadStartError,
   type PrepareImage,
   type PresenterOption,
   type SkuEnrichment,
+  type StudioCreationPath,
   type StudioDraft,
 } from "./model";
 
@@ -41,6 +50,8 @@ export function PrepareStep(props: {
   castOpen: boolean;
   onCastOpen: (open: boolean) => void;
   onDraft: (partial: Partial<StudioDraft>) => void;
+  onPath: (path: StudioCreationPath) => void;
+  pathHint?: string | null;
   onBrand: () => void;
   onCharacters: () => void;
   onStart: () => void | Promise<void>;
@@ -56,14 +67,12 @@ function PrepareEmpty({
   requestedProjectId,
   loading,
   error,
-  presenter,
   onBrand,
 }: {
   draft: StudioDraft;
   requestedProjectId: string | null;
   loading: boolean;
   error: string | null;
-  presenter: PresenterOption;
   onBrand: () => void;
 }) {
   const pending = Boolean(requestedProjectId) && loading;
@@ -85,7 +94,7 @@ function PrepareEmpty({
           </section>
         ) : null}
       </div>
-      <PrepareFooter draft={draft} presenter={presenter} productName={null} errors={[]} ready={false} onStart={() => {}} />
+      <PrepareFooter draft={draft} productName={null} errors={[]} ready={false} onStart={() => {}} />
     </>
   );
 }
@@ -98,6 +107,8 @@ function PrepareLoaded({
   castOpen,
   onCastOpen,
   onDraft,
+  onPath,
+  pathHint = null,
   onBrand,
   onCharacters,
   onStart,
@@ -111,6 +122,8 @@ function PrepareLoaded({
   castOpen: boolean;
   onCastOpen: (open: boolean) => void;
   onDraft: (partial: Partial<StudioDraft>) => void;
+  onPath: (path: StudioCreationPath) => void;
+  pathHint?: string | null;
   onBrand: () => void;
   onCharacters: () => void;
   onStart: () => void | Promise<void>;
@@ -134,6 +147,8 @@ function PrepareLoaded({
     sellingPoints: rows.map((row) => row.text),
     usageScenario: scene,
   });
+  const presenterError = talkingHeadStartError(draft);
+  if (presenterError) errors.push(presenterError);
   const ready = errors.length === 0;
 
   function snapshot(overrides: Partial<SkuEnrichment> = {}): SkuEnrichment {
@@ -358,35 +373,6 @@ function PrepareLoaded({
           </div>
           <div className="ot-side-col">
             <section className="ot-panel">
-              <div className="ot-label">出镜人 · 库选</div>
-              {presenter.source === "none" ? (
-                <div className="ot-cast-picked">
-                  <b>{presenter.name}</b>
-                  <span>{presenter.role}</span>
-                </div>
-              ) : (
-                <div className="ot-talent">
-                  <div className="ot-talent-avatar">{presenter.initial}</div>
-                  <div>
-                    <b>{presenter.name}</b>
-                    <span>{presenter.role}</span>
-                  </div>
-                </div>
-              )}
-              <button type="button" className="ot-link" aria-expanded={castOpen} onClick={() => onCastOpen(!castOpen)}>从出镜人库更换 →</button>
-              {castOpen ? (
-                <div className="ot-cast">
-                  {options.map((option) => (
-                    <button key={option.id ?? "none"} type="button" className={option.id === presenter.id ? "on" : ""} aria-pressed={option.id === presenter.id} onClick={() => onDraft({ presenterId: option.id })}>
-                      <b>{option.name}</b>
-                      <span>{option.role}</span>
-                    </button>
-                  ))}
-                  <button type="button" onClick={onCharacters}>管理出镜人库</button>
-                </div>
-              ) : null}
-            </section>
-            <section className="ot-panel">
               <div className="ot-label">成片规格</div>
               <div className="ot-field">画幅</div>
               <div className="ot-seg" role="group" aria-label="画幅">
@@ -403,10 +389,37 @@ function PrepareLoaded({
             </section>
           </div>
         </div>
+        <section className="ot-panel ot-path-panel">
+          <div className="ot-label">{PATH_SECTION_TITLE}</div>
+          <p className="ot-path-sub">{PATH_SECTION_SUB}</p>
+          <div className="ot-paths" role="group" aria-label={PATH_SECTION_TITLE}>
+            {STUDIO_PATHS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={"ot-path" + (draft.path === item.id ? " on" : "")}
+                aria-pressed={draft.path === item.id}
+                onClick={() => onPath(item.id)}
+              >
+                <b>{item.name}</b>
+                <span>{item.description}</span>
+              </button>
+            ))}
+          </div>
+          {pathHint ? <p className="ot-hint" role="status">{pathHint}</p> : null}
+          <PresenterBand
+            draft={draft}
+            presenter={presenter}
+            options={options}
+            castOpen={castOpen}
+            onCastOpen={onCastOpen}
+            onDraft={onDraft}
+            onCharacters={onCharacters}
+          />
+        </section>
       </div>
       <PrepareFooter
         draft={draft}
-        presenter={presenter}
         productName={product.product_name}
         errors={errors}
         errorId={errorId}
@@ -419,9 +432,68 @@ function PrepareLoaded({
   );
 }
 
-function PrepareFooter({
+function PresenterBand({
   draft,
   presenter,
+  options,
+  castOpen,
+  onCastOpen,
+  onDraft,
+  onCharacters,
+}: {
+  draft: StudioDraft;
+  presenter: PresenterOption;
+  options: PresenterOption[];
+  castOpen: boolean;
+  onCastOpen: (open: boolean) => void;
+  onDraft: (partial: Partial<StudioDraft>) => void;
+  onCharacters: () => void;
+}) {
+  if (draft.path === "product_only") {
+    return (
+      <div className="ot-path-cast" aria-label="出镜人">
+        <div className="ot-cast-picked">
+          <b>{PRODUCT_ONLY_CAST_TITLE}</b>
+          <span>{PRODUCT_ONLY_CAST_HINT}</span>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="ot-path-cast">
+      <div className="ot-label">出镜人 · 库选</div>
+      {presenter.source === "none" ? (
+        <div className="ot-cast-picked">
+          <b>{presenter.name}</b>
+          <span>{presenter.role}</span>
+        </div>
+      ) : (
+        <div className="ot-talent">
+          <div className="ot-talent-avatar">{presenter.initial}</div>
+          <div>
+            <b>{presenter.name}</b>
+            <span>{presenter.role}</span>
+          </div>
+        </div>
+      )}
+      <button type="button" className="ot-link" aria-expanded={castOpen} onClick={() => onCastOpen(!castOpen)}>从出镜人库更换 →</button>
+      {castOpen ? (
+        <div className="ot-cast">
+          {options.map((option) => (
+            <button key={option.id ?? "none"} type="button" className={option.id === presenter.id ? "on" : ""} aria-pressed={option.id === presenter.id} onClick={() => onDraft(assignPresenter(draft, option.id))}>
+              <b>{option.name}</b>
+              <span>{option.role}</span>
+            </button>
+          ))}
+          <button type="button" onClick={onCharacters}>管理出镜人库</button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function PrepareFooter({
+  draft,
   productName,
   errors,
   errorId,
@@ -431,7 +503,6 @@ function PrepareFooter({
   onStart,
 }: {
   draft: StudioDraft;
-  presenter: PresenterOption;
   productName: string | null;
   errors: string[];
   errorId?: string;
@@ -454,17 +525,17 @@ function PrepareFooter({
       </div>
       <div className="ot-sticky-right">
         <div className="ot-chips">
+          <span className="ot-chip">{studioPathName(draft.path)}</span>
           <span className="ot-chip on">{draft.ratio}</span>
           <span className="ot-chip on">{draft.duration}</span>
-          <span className="ot-chip">{presenter.source === "none" ? presenter.name : `${presenter.name} · ${presenter.role.split("·")[0].trim()}`}</span>
         </div>
         <button
           type="button"
           className="ot-btn ot-btn-primary ot-btn-lg"
-          disabled={!ready || syncing}
+          disabled={!ready || syncing || talkingHeadStartError(draft) !== null}
           aria-describedby={errors.length > 0 ? errorId : undefined}
           onClick={() => {
-            if (ready && !syncing) return onStart();
+            if (ready && !syncing && !talkingHeadStartError(draft)) return onStart();
           }}
         >
           开始制作
