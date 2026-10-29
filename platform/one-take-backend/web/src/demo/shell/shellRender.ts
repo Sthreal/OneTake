@@ -1,19 +1,29 @@
-/** 壳层生成步提交渲染：复用托管工作台同一套入口，不另起一条出片栈。
+/** 壳层生成步提交渲染：复用托管工作台的付费入口，不另起一条出片栈。
  *
- * 工作台 `DemoApp.produce` 在费用批准之后：
+ * 工作台 `DemoApp.produce` 在费用批准之后按路径分叉：
  * - `one_shot` → `requestVideo`（`POST /video`，与 `POST /compose` 同一服务方法）
  * - `segmented` → `startVideoBatch`（`POST /video/batch`）
  *
- * 两条都会先过审稿闸和费用闸（服务端 `_require_paid_entry`）。自动链 `auto_run`
- * 停在人工闸前，不会替我们入队付费渲染，所以这里不调用它。
- * 不走关键帧 UI，也不调用关键帧接口。
+ * 壳层不跟这条分叉。Mock 出片没有已确认分镜，也没有已采用关键帧：
+ * - `one_shot` 进 `_create_one_shot_video`，缺确认分镜即 `VIDEO_CONFLICT`「请先确认视频分镜」，
+ *   过了这一关还要已采用关键帧。
+ * - `startVideoBatch` 同样要求已确认分镜。
  *
- * 建方案前有一段窄前奏（对齐主图 `main-image/ensure` 的窄度）：
+ * 所以壳层新建方案固定 `product + clean + segmented`，出片一律 `requestVideo`，
+ * 不按 `plan.path === "segmented"` 改走 batch。`_create_base_video` 在 product 且非
+ * one_shot 时走 `render_base_video(main_image)`，不要求分镜或关键帧，Mock 可以到可播预览。
+ * 托管工作台默认仍是 one_shot，这里不改它。
+ *
+ * `requestVideo` 会先过审稿闸和费用闸（服务端 `_require_paid_entry`）。自动链 `auto_run`
+ * 停在人工闸前，不会替我们入队付费渲染，所以这里不调用它。
+ * 不走关键帧 UI，也不调用关键帧接口。客户端仍带上工作台的 `startVideoBatch`，入队路径不调用它。
+ *
+ * 建方案前有一段窄前奏（对齐主图 `main-image/ensure` 的窄度，#25）：
  * 配音和字幕都已 confirmed 就直接建方案；否则按需生成配音（带字幕）、等到 ready，
  * 再 `POST /audio-subtitle/confirm`。不跑自动链后半段，也不生成分镜或关键帧。
  */
 import type { SubtitleState, SubtitleVersion, VoiceRequestInput, VoiceRun, VoiceState } from "../../features/audio-subtitle/types";
-import type { VideoPlan, VideoState } from "../../features/video/types";
+import type { VideoPlan } from "../../features/video/types";
 import { confirmAudioSubtitle, getSubtitle, requestSubtitle } from "../../shared/api/subtitleApi";
 import { getVoice, requestVoice } from "../../shared/api/voiceApi";
 import {
@@ -317,15 +327,14 @@ async function runEnqueue(
   }
   if (!plan) {
     await ensureAudioSubtitleBeforeRender(projectId, client, prelude);
-    const created = await client.createVideoPlan(projectId, "product", "clean", "one_shot");
+    const created = await client.createVideoPlan(projectId, "product", "clean", "segmented");
     plan = created.plan;
     if (!plan) throw new Error("视频方案创建失败");
   }
   await client.getVideoEstimate(projectId, plan.plan_id);
   await client.approveCost(projectId, plan.plan_id);
-  const dispatched: VideoState = plan.path === "segmented"
-    ? await client.startVideoBatch(projectId)
-    : await client.requestVideo(projectId);
+  // batch 与 one_shot 都会因缺分镜 VIDEO_CONFLICT。product + segmented 的 POST /video 用主图出片。
+  const dispatched = await client.requestVideo(projectId);
   const next = dispatched.plan ?? plan;
   return describeShellRender(next, await playbackUrl(client, projectId, next));
 }

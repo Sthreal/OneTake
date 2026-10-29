@@ -148,7 +148,7 @@ function videoPlan(partial: Partial<VideoPlan>): VideoPlan {
     provider: "mock-video",
     error_code: null,
     video_url: null,
-    path: "one_shot",
+    path: "segmented",
     created_at: "2026-10-29T00:00:00Z",
     updated_at: "2026-10-29T00:00:00Z",
     completed_at: null,
@@ -184,7 +184,7 @@ function installRenderBackend(mode: "playable" | "queued" | "failed" = "playable
     requires_confirmation: false,
     missing_price_config: [],
     price_notes: [],
-    path: "one_shot",
+    path: "segmented",
     keyframe_calls: 0,
     keyframe_images: 0,
     i2v_clips: 0,
@@ -590,11 +590,13 @@ describe("iter18 图片广告与工作室解耦", () => {
     expect(screen.getByText("声线：TTS + 库选数字人")).toBeInTheDocument();
     expect(screen.queryByText(/live Wan 已生成|唇形已同步|克隆声驱动/)).not.toBeInTheDocument();
     expect(requestVideo).toHaveBeenCalledWith("prj_skin");
-    expect(createVideoPlan).toHaveBeenCalledWith("prj_skin", "product", "clean", "one_shot");
+    expect(createVideoPlan).toHaveBeenCalledWith("prj_skin", "product", "clean", "segmented");
     expect(approveCost).toHaveBeenCalledWith("prj_skin", "vid_1");
     expect(vi.mocked(approveCost).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(requestVideo).mock.invocationCallOrder[0]);
     expect(vi.mocked(confirmScript).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(requestVideo).mock.invocationCallOrder[0]);
     expect(startVideoBatch).not.toHaveBeenCalled();
+    expect(screen.getByRole("status")).not.toHaveTextContent("VIDEO_CONFLICT");
+    expect(screen.getByRole("status")).not.toHaveTextContent("请先确认视频分镜");
     await waitFor(() => expect(screen.getByRole("button", { name: "查看成片" })).toBeEnabled());
 
     await user.click(screen.getByRole("button", { name: "查看成片" }));
@@ -684,6 +686,7 @@ describe("iter18 图片广告与工作室解耦", () => {
     expect(screen.getByRole("button", { name: "查看成片" })).toBeDisabled();
     expect(requestVideo).not.toHaveBeenCalled();
     expect(approveCost).not.toHaveBeenCalled();
+    expect(createVideoPlan).not.toHaveBeenCalled();
     expect(startVideoBatch).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "回到审稿过闸" }));
     expect(await screen.findByRole("heading", { name: "审稿确认" })).toBeInTheDocument();
@@ -1163,8 +1166,12 @@ describe("iter18 图片广告与工作室解耦", () => {
     const status = screen.getByRole("status");
     expect(status).not.toHaveTextContent("Mock 成片就绪");
     expect(status).not.toHaveTextContent("可播预览");
+    expect(status).not.toHaveTextContent("VIDEO_CONFLICT");
+    expect(status).not.toHaveTextContent("请先确认视频分镜");
     expect(screen.queryByLabelText("成片预览")).not.toBeInTheDocument();
+    expect(createVideoPlan).toHaveBeenCalledWith("prj_skin", "product", "clean", "segmented");
     expect(requestVideo).toHaveBeenCalledWith("prj_skin");
+    expect(startVideoBatch).not.toHaveBeenCalled();
   });
 
   it("渲染失败可以重试，不会给出可播预览", async () => {
