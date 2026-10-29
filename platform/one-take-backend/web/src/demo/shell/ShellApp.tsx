@@ -1,6 +1,6 @@
 /** iter18 外壳：首页上手、图片广告、品牌空间、有机发布、工作室四步。
  *
- * 工作室只走 准备 → 审稿 → 生成成片 → 交付。确认过闸后，生成步提交与托管工作台
+ * 工作室只走 准备 → 审稿 → 提交渲染 → 交付。确认过闸后，渲染步提交与托管工作台
  * 相同的渲染任务。图片广告页的「另开工作室」是可选出口，不把选中的静图写进工作室草稿。
  */
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
@@ -12,7 +12,6 @@ import { getScript } from "../../shared/api/scriptApi";
 import type { Project } from "../../features/input/types";
 import type { ShellView, UrlView } from "../urlState";
 import {
-  DEMO_CREDITS,
   GS_STEPS,
   IMAGE_AD_CELLS,
   IMAGE_AD_RATIOS,
@@ -109,7 +108,6 @@ export function ShellApp({
         selling_points: null,
         usage_scenario: null,
         offer: null,
-        specs: null,
       });
     });
   }, [projectId]);
@@ -288,13 +286,13 @@ function Sidebar({
       </nav>
       <div className="ot-group">
         <div className="ot-group-label">创作</div>
-        <button type="button" className={"ot-tool" + (view === "image" ? " on" : "")} onClick={() => onNavigate("image")}>
-          <Ico><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></Ico>
-          图片广告
-        </button>
         <button type="button" className="ot-tool" onClick={() => onNavigate("prepare", recentProjectId)}>
           <Ico><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M10 10l5 2-5 2v-4z" /></Ico>
           快速出片
+        </button>
+        <button type="button" className={"ot-tool" + (view === "image" ? " on" : "")} onClick={() => onNavigate("image")}>
+          <Ico><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></Ico>
+          图片广告
         </button>
       </div>
       <div className="ot-group">
@@ -313,7 +311,7 @@ function Sidebar({
         <div className="ot-avatar">S</div>
         <div>
           <div className="ot-user-name">Sthreal</div>
-          <div className="ot-user-mail">积分 {DEMO_CREDITS}</div>
+          <div className="ot-user-mail">示意 · 未接计价</div>
         </div>
       </div>
     </aside>
@@ -344,7 +342,7 @@ function StudioRail({
         <Ico><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" /></Ico>
         <span className="ot-tip">品牌空间</span>
       </button>
-      <div className="ot-credits"><i /><span>{DEMO_CREDITS}</span></div>
+      <div className="ot-credits" aria-label="示意，未接计价"><i /><span>示意</span></div>
     </aside>
   );
 }
@@ -399,7 +397,7 @@ function Home({
                       </div>
                       <p className="ot-gs-desc">{step.description}</p>
                       <div className="ot-cta-row">
-                        <button type="button" className="ot-btn ot-btn-primary ot-btn-sm" data-entry={`gs-${step.dest}`} onClick={() => onGo(step.id, step.dest)}>
+                        <button type="button" className={"ot-btn ot-btn-sm " + (step.dest === "prepare" ? "ot-btn-primary" : "ot-btn-secondary")} data-entry={`gs-${step.dest}`} onClick={() => onGo(step.id, step.dest)}>
                           {step.cta}
                         </button>
                         {step.optional ? (
@@ -431,7 +429,7 @@ function Home({
         <h2 className="ot-section">最近动态</h2>
         <div className="ot-wn">
           <article className="ot-wn-card"><div className="ot-wn-thumb" /><div className="ot-wn-title">图片广告独立成能力</div><div className="ot-wn-desc">静图广告与工作室出片解耦；出片不必先出图。</div></article>
-          <article className="ot-wn-card"><div className="ot-wn-thumb" /><div className="ot-wn-title">确认后提交渲染</div><div className="ot-wn-desc">「确认并生成成片 · 12 积分」。过闸后进入排队、可播或失败重试。</div></article>
+          <article className="ot-wn-card"><div className="ot-wn-thumb" /><div className="ot-wn-title">确认后提交渲染</div><div className="ot-wn-desc">过闸后提交渲染。没有成片地址时不提供预览，本页也不报价。</div></article>
           <article className="ot-wn-card"><div className="ot-wn-thumb" /><div className="ot-wn-title">聚焦有机种草</div><div className="ot-wn-desc">入口在，发布还没接线。不做 Meta 投放主路径。</div></article>
         </div>
       </div>
@@ -1022,7 +1020,7 @@ function RenderSlot({
       </p>
       <p className="ot-page-sub">{view.detail}</p>
       {view.playableUrl ? (
-        <video className="ot-player" controls playsInline src={view.playableUrl} aria-label="成片预览" />
+        <video className="ot-player" controls playsInline src={view.playableUrl} aria-label="成片播放" />
       ) : null}
       <div className="ot-checkline">声线：{voice.label}</div>
       <p className="ot-hint">{voice.detail}</p>
@@ -1085,8 +1083,8 @@ function Generate({
     <>
       <div className="ot-content">
         <div>
-          <h1 className="ot-page-title">生成成片</h1>
-          <p className="ot-page-sub">过闸后提交与托管工作台相同的渲染。这里只显示排队、可播预览或失败重试。不经过图片广告。</p>
+          <h1 className="ot-page-title">提交渲染</h1>
+          <p className="ot-page-sub">过闸后提交与托管工作台相同的渲染。没有成片地址时不提供预览。不经过图片广告。</p>
         </div>
         <section className="ot-panel">
           <div className="ot-checkline">商品：{product?.product_name ?? "未选择"}</div>
@@ -1107,7 +1105,7 @@ function Generate({
       </div>
       <footer className="ot-sticky">
         <div>
-          <div className="ot-sticky-title">{guard.blocked ? "生成前要先过审稿闸" : "渲染提交后才能看到成片"}</div>
+          <div className="ot-sticky-title">{guard.blocked ? "提交渲染前要先过审稿闸" : "渲染提交后才能看到成片"}</div>
           <div className="ot-sticky-sub">
             {guard.blocked ? "未 apply / ack 不会提交渲染，付费视频会 409 SCRIPT_REVIEW_REQUIRED" : "排队中还不是成片。可播后再进交付。"}
           </div>
@@ -1137,7 +1135,7 @@ function Delivery({
       <div className="ot-content">
         <div>
           <h1 className="ot-page-title">成片交付</h1>
-          <p className="ot-page-sub">这里是已提交的渲染：排队、可播预览，或失败后重试。有机发布尚未接线。不经过图片广告。</p>
+          <p className="ot-page-sub">成片以渲染结果为准。未完成时是待渲染或排队，没有成片地址就不提供预览。有机发布尚未接线。</p>
         </div>
         {guard.loading ? <p className="ot-hint" role="status">正在核对审稿闸…</p> : null}
         {!guard.loading && guard.blocked ? (

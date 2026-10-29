@@ -8,7 +8,7 @@ import type { ShellView } from "../urlState";
 export const STUDIO_STEPS = [
   { view: "prepare", label: "准备素材", short: "准备" },
   { view: "review", label: "审稿确认", short: "审稿" },
-  { view: "generate", label: "生成成片", short: "生成" },
+  { view: "generate", label: "提交渲染", short: "渲染" },
   { view: "delivery", label: "成片交付", short: "交付" },
 ] as const;
 
@@ -92,25 +92,6 @@ export const IMAGE_AD_CELLS = [
 ] as const;
 
 export type ImageAdCell = (typeof IMAGE_AD_CELLS)[number];
-
-export const REVIEW_CELLS = [
-  { id: "1", caption: "开场特写", dur: "3.2s", tone: "g1", group: "开场" },
-  { id: "2", caption: "瓶身展示", dur: "3.0s", tone: "g2", group: "开场" },
-  { id: "3", caption: "质地滴落", dur: "3.5s", tone: "g3", group: "卖点" },
-  { id: "4", caption: "涂抹手部", dur: "3.8s", tone: "g4", group: "卖点" },
-  { id: "5", caption: "面部特写", dur: "3.5s", tone: "g5", group: "卖点" },
-  { id: "6", caption: "卖点字幕", dur: "3.0s", tone: "g6", group: "卖点" },
-  { id: "7", caption: "护肤日常", dur: "3.2s", tone: "g7", group: "收尾" },
-  { id: "8", caption: "产品合影", dur: "3.0s", tone: "g8", group: "收尾" },
-  { id: "9", caption: "CTA 收尾", dur: "3.8s", tone: "g9", group: "收尾" },
-] as const;
-
-export const REVIEW_FILTERS = ["全部", "开场", "卖点", "收尾"] as const;
-
-export function visibleReviewCells(filter: (typeof REVIEW_FILTERS)[number]) {
-  if (filter === "全部") return REVIEW_CELLS;
-  return REVIEW_CELLS.filter((cell) => cell.group === filter);
-}
 
 export const STUDIO_RATIOS = ["9:16", "1:1", "16:9"] as const;
 export const STUDIO_DURATIONS = ["15s", "30s", "60s"] as const;
@@ -258,7 +239,6 @@ export interface StudioDraft {
   selling_points: string[] | null;
   usage_scenario: string | null;
   offer: string | null;
-  specs: string | null;
 }
 
 const DRAFT_KEY_V3 = "onetake.studioDraft.v3";
@@ -279,7 +259,6 @@ export const DEFAULT_STUDIO_DRAFT: StudioDraft = {
   selling_points: null,
   usage_scenario: null,
   offer: null,
-  specs: null,
 };
 
 function isRatio(value: unknown): value is StudioRatio {
@@ -351,7 +330,6 @@ export function normalizeStudioDraft(raw: (Partial<StudioDraft> & { points?: unk
     selling_points: nullablePoints(record.selling_points),
     usage_scenario: nullableText(record.usage_scenario),
     offer: nullableText(record.offer),
-    specs: nullableText(record.specs),
   };
 }
 
@@ -410,7 +388,6 @@ export function readStudioDraft(urlProjectId: string | null): StudioDraft {
     draft.selling_points = null;
     draft.usage_scenario = null;
     draft.offer = null;
-    draft.specs = null;
   }
   if (urlProjectId) draft.projectId = urlProjectId;
   if (migrated) writeStudioDraft(draft);
@@ -432,11 +409,13 @@ export const PREPARE_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 export const PREPARE_IMAGE_ACCEPT = ".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp";
 
 export const PREPARE_REQUIRED_COPY = {
-  image: "请至少上传 1 张商品图",
   pain: "请填写痛点",
   points: "请至少添加 1 条卖点（最多 5 条）",
   scene: "请填写使用场景",
 } as const;
+
+/** 准备步商品图不做出片门槛。上传仍可留给后续主图前奏，本步不假装必传。 */
+export const PREPARE_IMAGE_OPTIONAL_COPY = "可选示意";
 
 export interface PrepareImage {
   id: string;
@@ -452,7 +431,6 @@ export interface SkuEnrichment {
   pain_point: string;
   selling_points: string[];
   usage_scenario: string;
-  specs: string;
   offer: string;
   images: PrepareImage[];
 }
@@ -461,7 +439,6 @@ interface StoredSkuText {
   pain_point: string;
   selling_points: string[];
   usage_scenario: string;
-  specs: string;
   offer: string;
 }
 
@@ -469,7 +446,6 @@ const EMPTY_SKU_TEXT: StoredSkuText = {
   pain_point: "",
   selling_points: [],
   usage_scenario: "",
-  specs: "",
   offer: "",
 };
 
@@ -498,7 +474,6 @@ function loadSkuText(): Map<string, StoredSkuText> {
           ? record.selling_points.filter((item): item is string => typeof item === "string").slice(0, 5)
           : [],
         usage_scenario: typeof record.usage_scenario === "string" ? record.usage_scenario : "",
-        specs: typeof record.specs === "string" ? record.specs : "",
         offer: typeof record.offer === "string" ? record.offer : "",
       });
     }
@@ -537,7 +512,6 @@ export function readSkuEnrichment(projectId: string): SkuEnrichment {
     pain_point: text.pain_point,
     selling_points: [...text.selling_points],
     usage_scenario: text.usage_scenario,
-    specs: text.specs,
     offer: text.offer,
     images: cloneImages(skuImages.get(projectId) ?? []),
   };
@@ -549,7 +523,6 @@ export function writeSkuEnrichment(projectId: string, fields: SkuEnrichment): Sk
     pain_point: fields.pain_point,
     selling_points: selling,
     usage_scenario: fields.usage_scenario,
-    specs: fields.specs,
     offer: fields.offer,
   };
   skuTexts().set(projectId, text);
@@ -578,7 +551,6 @@ export function effectivePrepareFields(projectId: string, draft: StudioDraft): S
     pain_point: draft.pain_point ?? sku.pain_point,
     selling_points: draft.selling_points ?? sku.selling_points,
     usage_scenario: draft.usage_scenario ?? sku.usage_scenario,
-    specs: draft.specs ?? sku.specs,
     offer: draft.offer ?? sku.offer,
     images: sessionImages.has(projectId) ? cloneImages(sessionImages.get(projectId) ?? []) : sku.images,
   };
@@ -595,7 +567,6 @@ export function applyPrepareEdit(projectId: string, draft: StudioDraft, fields: 
       pain_point: fields.pain_point,
       selling_points: selling,
       usage_scenario: fields.usage_scenario,
-      specs: fields.specs,
       offer: fields.offer,
     };
   }
@@ -608,7 +579,6 @@ export function applyPrepareEdit(projectId: string, draft: StudioDraft, fields: 
     selling_points: null,
     usage_scenario: null,
     offer: null,
-    specs: null,
   };
 }
 
@@ -637,13 +607,11 @@ export function prepareImageRejection(file: { name: string; type: string; size: 
 }
 
 export function prepareSubmitErrors(input: {
-  imageCount: number;
   painPoint: string;
   sellingPoints: string[];
   usageScenario: string;
 }): string[] {
   const errors: string[] = [];
-  if (input.imageCount < 1) errors.push(PREPARE_REQUIRED_COPY.image);
   if (input.painPoint.trim().length < 2) errors.push(PREPARE_REQUIRED_COPY.pain);
   const points = input.sellingPoints.map((item) => item.trim()).filter(Boolean);
   if (points.length < 1 || points.length > 5) errors.push(PREPARE_REQUIRED_COPY.points);
@@ -706,5 +674,3 @@ export function imageAdExportPayload(input: { caption: string; ratio: string; pr
   };
 }
 
-export const DEMO_CREDITS = 128;
-export const DEMO_FEE = 12;

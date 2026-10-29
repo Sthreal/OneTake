@@ -7,6 +7,7 @@ import {
   PATH_SECTION_SUB,
   PATH_SECTION_TITLE,
   PREPARE_IMAGE_ACCEPT,
+  PREPARE_IMAGE_OPTIONAL_COPY,
   PRODUCT_ONLY_CAST_HINT,
   PRODUCT_ONLY_CAST_TITLE,
   STUDIO_DURATIONS,
@@ -136,13 +137,11 @@ function PrepareLoaded({
   const [pain, setPain] = useState(initial.pain_point);
   const [rows, setRows] = useState(() => toRows(initial.selling_points));
   const [scene, setScene] = useState(initial.usage_scenario);
-  const [specs, setSpecs] = useState(initial.specs);
   const [offer, setOffer] = useState(initial.offer);
   const [images, setImages] = useState<PrepareImage[]>(initial.images);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const options = presenterOptions(characters);
   const errors = prepareSubmitErrors({
-    imageCount: images.length,
     painPoint: pain,
     sellingPoints: rows.map((row) => row.text),
     usageScenario: scene,
@@ -156,7 +155,6 @@ function PrepareLoaded({
       pain_point: pain,
       selling_points: rows.map((row) => row.text),
       usage_scenario: scene,
-      specs,
       offer,
       images,
       ...overrides,
@@ -221,7 +219,7 @@ function PrepareLoaded({
               </div>
             </section>
             <section className="ot-panel">
-              <div className="ot-label">商品图片 <span className="ot-req">必填</span></div>
+              <div className="ot-label">商品图片 <span className="ot-opt">{PREPARE_IMAGE_OPTIONAL_COPY}</span></div>
               {images.length > 0 ? (
                 <div className="ot-image-grid">
                   {images.map((image) => (
@@ -256,7 +254,7 @@ function PrepareLoaded({
                 }}
               />
               <button type="button" className="ot-btn ot-btn-secondary ot-btn-sm" onClick={() => fileRef.current?.click()}>上传图片</button>
-              <p className="ot-hint">支持 PNG / JPEG / JPG / WEBP，单张 ≤10MB，至少 1 张</p>
+              <p className="ot-hint">不作为开始制作的门槛。支持 PNG / JPEG / JPG / WEBP，单张 ≤10MB。</p>
               {uploadError ? <p className="ot-error" role="alert">{uploadError}</p> : null}
             </section>
             <section className="ot-panel">
@@ -326,21 +324,6 @@ function PrepareLoaded({
                     const value = event.target.value;
                     setScene(value);
                     commit(snapshot({ usage_scenario: value }));
-                  }}
-                />
-              </label>
-              <label className="ot-field-block">
-                <span className="ot-label">规格要点 <span className="ot-opt">可选</span></span>
-                <textarea
-                  className="ot-textarea"
-                  aria-label="规格要点"
-                  maxLength={200}
-                  placeholder="例：30ml、玻璃瓶"
-                  value={specs}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    setSpecs(value);
-                    commit(snapshot({ specs: value }));
                   }}
                 />
               </label>
@@ -516,7 +499,7 @@ function PrepareFooter({
     <footer className="ot-sticky">
       <div>
         <div className="ot-sticky-title">{productName ?? "请先选择商品"}</div>
-        <div className="ot-sticky-sub">下一步：选角并过审稿闸 · 本步不扣费</div>
+        <div className="ot-sticky-sub">下一步：选角 / 过闸 · 本步不扣费</div>
         {errors.length > 0 ? (
           <ul id={errorId} className="ot-prepare-errors" aria-label="还不能开始制作">
             {errors.map((item) => <li key={item}>{item}</li>)}

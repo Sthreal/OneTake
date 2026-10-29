@@ -139,15 +139,16 @@ describe("渲染三态", () => {
     );
     expect(ready).toMatchObject({
       phase: "playable",
-      headline: "可播预览",
+      headline: "成片可播",
       mockReady: true,
       playableUrl: "https://example.com/mock.mp4",
     });
     expect(ready.detail).toContain("Mock 成片就绪");
     expect(ready.detail).toContain("不是 live Wan");
     const placeholder = describeShellRender(plan({ status: "completed", provider: "mock-video", video_url: null }), null);
-    expect(placeholder).toMatchObject({ phase: "playable", mockReady: true, playableUrl: null });
-    expect(placeholder.detail).toContain("Mock 成片就绪");
+    expect(placeholder).toMatchObject({ phase: "playable", headline: "待渲染", mockReady: false, playableUrl: null });
+    expect(placeholder.detail).toContain("不提供预览");
+    expect(placeholder.detail).not.toContain("可播预览");
     expect(describeShellRender(plan({ status: "failed", error_code: "QUEUE_UNAVAILABLE" }), null)).toMatchObject({
       phase: "failed",
       headline: "失败可重试",
@@ -429,7 +430,7 @@ describe("enqueueShellRender", () => {
     expect(client.createVideoPlan).not.toHaveBeenCalled();
   });
 
-  it("配音已确认、字幕仍是 ready 时直接确认，再进入可播预览", async () => {
+  it("配音已确认、字幕仍是 ready 时直接确认，再进入成片可播", async () => {
     let confirmed = false;
     const client = {
       getVideo: vi.fn(async () => state(confirmed ? plan({ status: "plan_ready" }) : null)),
@@ -461,7 +462,7 @@ describe("enqueueShellRender", () => {
     const view = await enqueueShellRender("prj_skin", client, noWait);
     expect(view).toMatchObject({
       phase: "playable",
-      headline: "可播预览",
+      headline: "成片可播",
       mockReady: true,
       playableUrl: "https://example.com/mock.mp4",
     });
@@ -608,7 +609,7 @@ describe("enqueueShellRender", () => {
     const view = await enqueueShellRender("prj_skin", client);
     expect(view).toMatchObject({
       phase: "playable",
-      headline: "可播预览",
+      headline: "成片可播",
       errorCode: null,
       mockReady: true,
     });
