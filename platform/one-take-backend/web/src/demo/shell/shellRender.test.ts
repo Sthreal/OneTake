@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SubtitleVersion, VoiceRun } from "../../features/audio-subtitle/types";
+import type { ContentPlan, ContentPlanStatus } from "../../features/content-plan/types";
 import type { VideoPlan, VideoState } from "../../features/video/types";
 import {
   describeShellRender,
@@ -81,6 +82,23 @@ function subtitleVersion(partial: Partial<SubtitleVersion> = {}): SubtitleVersio
     completed_at: "2026-10-29T00:00:00Z",
     confirmed_at: null,
     ...partial,
+  };
+}
+
+function contentPlan(status: ContentPlanStatus): ContentPlan {
+  return {
+    plan_id: "cpl_1",
+    project_id: "prj_skin",
+    status,
+    provider: "rules",
+    model: "rules-v1",
+    selected_variant_index: 0,
+    total_duration_seconds: 14,
+    variants: [],
+    error_code: null,
+    created_at: "2026-10-29T00:00:00Z",
+    updated_at: "2026-10-29T00:00:00Z",
+    confirmed_at: status === "confirmed" ? "2026-10-29T00:00:00Z" : null,
   };
 }
 
@@ -194,6 +212,18 @@ describe("enqueueShellRender", () => {
       requestVoice: vi.fn(),
       requestSubtitle: vi.fn(),
       confirmAudioSubtitle: vi.fn(),
+      getContentPlan: vi.fn(async () => {
+        calls.push("getContentPlan");
+        return contentPlan("confirmed");
+      }),
+      generateContentPlan: vi.fn(async () => {
+        calls.push("generateContentPlan");
+        return contentPlan("ready");
+      }),
+      confirmContentPlan: vi.fn(async () => {
+        calls.push("confirmContentPlan");
+        return contentPlan("confirmed");
+      }),
     } as unknown as ShellRenderClient;
 
     const view = await enqueueShellRender("prj_skin", client);
@@ -201,11 +231,13 @@ describe("enqueueShellRender", () => {
     expect(view.mockReady).toBe(false);
     expect(view.errorCode).toBeNull();
     expect(view.detail).not.toContain("VIDEO_CONFLICT");
+    expect(view.detail).not.toContain("CONTENT_QA_CONFLICT");
     expect(view.detail).not.toContain("请先确认视频分镜");
     expect(calls).toEqual([
       "getVideo",
       "getVoice",
       "getSubtitle",
+      "getContentPlan",
       "createVideoPlan",
       "getVideoEstimate",
       "approveCost",
@@ -215,6 +247,8 @@ describe("enqueueShellRender", () => {
     expect(client.requestVoice).not.toHaveBeenCalled();
     expect(client.requestSubtitle).not.toHaveBeenCalled();
     expect(client.confirmAudioSubtitle).not.toHaveBeenCalled();
+    expect(client.generateContentPlan).not.toHaveBeenCalled();
+    expect(client.confirmContentPlan).not.toHaveBeenCalled();
     expect(client.startVideoBatch).not.toHaveBeenCalled();
     expect(client.createVideoPlan).toHaveBeenCalledWith("prj_skin", "product", "clean", "segmented");
     expect(client.requestVideo).toHaveBeenCalledWith("prj_skin");
@@ -243,18 +277,25 @@ describe("enqueueShellRender", () => {
       getVoice: vi.fn(),
       requestVoice: vi.fn(),
       confirmAudioSubtitle: vi.fn(),
+      getContentPlan: vi.fn(),
+      generateContentPlan: vi.fn(),
+      confirmContentPlan: vi.fn(),
     } as unknown as ShellRenderClient;
 
     const view = await enqueueShellRender("prj_skin", client);
     expect(client.createVideoPlan).not.toHaveBeenCalled();
     expect(client.getVoice).not.toHaveBeenCalled();
     expect(client.requestVoice).not.toHaveBeenCalled();
+    expect(client.getContentPlan).not.toHaveBeenCalled();
+    expect(client.generateContentPlan).not.toHaveBeenCalled();
+    expect(client.confirmContentPlan).not.toHaveBeenCalled();
     expect(client.startVideoBatch).not.toHaveBeenCalled();
     expect(client.requestVideo).toHaveBeenCalledWith("prj_skin");
     expect(client.approveCost).toHaveBeenCalledWith("prj_skin", "vid_1");
     expect(view).toMatchObject({ phase: "playable", mockReady: true, playableUrl: "https://example.com/mock.mp4", errorCode: null });
     expect(view.detail).toContain("Mock 成片就绪");
     expect(view.detail).not.toContain("VIDEO_CONFLICT");
+    expect(view.detail).not.toContain("CONTENT_QA_CONFLICT");
     expect(view.detail).not.toContain("请先确认视频分镜");
   });
 
@@ -270,6 +311,9 @@ describe("enqueueShellRender", () => {
       getOutput: vi.fn(async () => null),
       getVoice: vi.fn(),
       requestVoice: vi.fn(),
+      getContentPlan: vi.fn(),
+      generateContentPlan: vi.fn(),
+      confirmContentPlan: vi.fn(),
     } as unknown as ShellRenderClient;
 
     const first = await enqueueShellRender("prj_skin", client);
@@ -280,12 +324,17 @@ describe("enqueueShellRender", () => {
     expect(second.headline).toBe("排队中");
     expect(second.errorCode).toBeNull();
     expect(second.detail).not.toContain("VIDEO_CONFLICT");
+    expect(second.errorCode).not.toBe("CONTENT_QA_CONFLICT");
+    expect(second.detail).not.toContain("CONTENT_QA_CONFLICT");
     expect(second.detail).not.toContain("请先确认视频分镜");
     expect(client.approveCost).toHaveBeenCalledTimes(1);
     expect(client.requestVideo).toHaveBeenCalledTimes(1);
     expect(client.startVideoBatch).not.toHaveBeenCalled();
     expect(client.getVoice).not.toHaveBeenCalled();
     expect(client.requestVoice).not.toHaveBeenCalled();
+    expect(client.getContentPlan).not.toHaveBeenCalled();
+    expect(client.generateContentPlan).not.toHaveBeenCalled();
+    expect(client.confirmContentPlan).not.toHaveBeenCalled();
   });
 
   it("配音字幕未确认时先生成并确认，Mock 入队后不再出现「请先确认配音」", async () => {
@@ -328,15 +377,24 @@ describe("enqueueShellRender", () => {
         calls.push("confirmAudioSubtitle");
         confirmed = true;
       }),
+      getContentPlan: vi.fn(async () => {
+        calls.push("getContentPlan");
+        return contentPlan("confirmed");
+      }),
+      generateContentPlan: vi.fn(),
+      confirmContentPlan: vi.fn(),
     } as unknown as ShellRenderClient;
 
     const view = await enqueueShellRender("prj_skin", client, noWait);
     expect(view).toMatchObject({ phase: "queued", headline: "排队中", errorCode: null });
     expect(view.detail).not.toContain("请先确认配音");
+    expect(view.detail).not.toContain("CONTENT_QA_CONFLICT");
     expect(view.detail).not.toContain("请先确认视频分镜");
     expect(view.detail).not.toContain("VIDEO_CONFLICT");
     expect(view.detail).toContain("Mock 渲染已入队");
-    expect(calls).toEqual(["requestVoice", "requestSubtitle", "confirmAudioSubtitle", "createVideoPlan"]);
+    expect(calls).toEqual(["requestVoice", "requestSubtitle", "confirmAudioSubtitle", "getContentPlan", "createVideoPlan"]);
+    expect(client.generateContentPlan).not.toHaveBeenCalled();
+    expect(client.confirmContentPlan).not.toHaveBeenCalled();
     expect(client.requestVoice).toHaveBeenCalledWith("prj_skin", SHELL_VOICE_REQUEST);
     expect(client.confirmAudioSubtitle).toHaveBeenCalledWith("prj_skin");
     expect(client.createVideoPlan).toHaveBeenCalledWith("prj_skin", "product", "clean", "segmented");
@@ -395,6 +453,9 @@ describe("enqueueShellRender", () => {
       confirmAudioSubtitle: vi.fn(async () => {
         confirmed = true;
       }),
+      getContentPlan: vi.fn(async () => contentPlan("confirmed")),
+      generateContentPlan: vi.fn(),
+      confirmContentPlan: vi.fn(),
     } as unknown as ShellRenderClient;
 
     const view = await enqueueShellRender("prj_skin", client, noWait);
@@ -405,14 +466,159 @@ describe("enqueueShellRender", () => {
       playableUrl: "https://example.com/mock.mp4",
     });
     expect(view.detail).not.toContain("请先确认配音");
+    expect(view.detail).not.toContain("CONTENT_QA_CONFLICT");
     expect(view.detail).not.toContain("请先确认视频分镜");
     expect(view.detail).not.toContain("VIDEO_CONFLICT");
     expect(view.detail).toContain("不是 live Wan");
     expect(client.requestVoice).not.toHaveBeenCalled();
     expect(client.requestSubtitle).not.toHaveBeenCalled();
     expect(client.confirmAudioSubtitle).toHaveBeenCalledWith("prj_skin");
+    expect(client.generateContentPlan).not.toHaveBeenCalled();
+    expect(client.confirmContentPlan).not.toHaveBeenCalled();
     expect(client.startVideoBatch).not.toHaveBeenCalled();
     expect(client.requestVideo).toHaveBeenCalledWith("prj_skin");
     expect(client.createVideoPlan).toHaveBeenCalledWith("prj_skin", "product", "clean", "segmented");
+  });
+
+  it("缺分镜时先 generate+confirm，再 createVideoPlan，入队视图不含 CONTENT_QA_CONFLICT", async () => {
+    const calls: string[] = [];
+    let storyboard: ContentPlanStatus | null = null;
+    const client = {
+      getVideo: vi.fn(async () => state(calls.includes("createVideoPlan") ? plan({ status: "plan_ready" }) : null)),
+      createVideoPlan: vi.fn(async () => {
+        calls.push("createVideoPlan");
+        if (storyboard !== "confirmed") throw new Error("请先确认视频分镜");
+        return state(plan({ status: "plan_ready", path: "segmented" }));
+      }),
+      getVideoEstimate: vi.fn(async () => {
+        calls.push("getVideoEstimate");
+        return { plan_id: "vid_1", is_paid: false };
+      }),
+      approveCost: vi.fn(async () => {
+        calls.push("approveCost");
+        return { plan_id: "vid_1" };
+      }),
+      requestVideo: vi.fn(async () => {
+        calls.push("requestVideo");
+        if (storyboard !== "confirmed") {
+          return state(plan({ status: "failed", path: "segmented", error_code: "CONTENT_QA_CONFLICT" }));
+        }
+        return state(plan({ status: "video_generating", path: "segmented", provider: "mock-video" }));
+      }),
+      startVideoBatch: vi.fn(async () => state(plan({ status: "failed", path: "segmented", error_code: "VIDEO_CONFLICT" }))),
+      getOutput: vi.fn(async () => {
+        calls.push("getOutput");
+        return null;
+      }),
+      getVoice: vi.fn(async () => {
+        calls.push("getVoice");
+        return { run: voiceRun({ status: "confirmed", confirmed_at: "2026-10-29T00:00:00Z" }) };
+      }),
+      requestVoice: vi.fn(),
+      getSubtitle: vi.fn(async () => {
+        calls.push("getSubtitle");
+        return { version: subtitleVersion({ status: "confirmed", confirmed_at: "2026-10-29T00:00:00Z" }) };
+      }),
+      requestSubtitle: vi.fn(),
+      confirmAudioSubtitle: vi.fn(),
+      getContentPlan: vi.fn(async () => {
+        calls.push("getContentPlan");
+        return storyboard ? contentPlan(storyboard) : null;
+      }),
+      generateContentPlan: vi.fn(async () => {
+        calls.push("generateContentPlan");
+        storyboard = "ready";
+        return contentPlan("ready");
+      }),
+      confirmContentPlan: vi.fn(async () => {
+        calls.push("confirmContentPlan");
+        storyboard = "confirmed";
+        return contentPlan("confirmed");
+      }),
+    } as unknown as ShellRenderClient;
+
+    const view = await enqueueShellRender("prj_skin", client);
+    expect(view).toMatchObject({ phase: "queued", headline: "排队中", errorCode: null });
+    expect(view.detail).not.toContain("CONTENT_QA_CONFLICT");
+    expect(view.detail).not.toContain("请先确认视频分镜");
+    expect(view.detail).not.toContain("VIDEO_CONFLICT");
+    expect(view.detail).toContain("Mock 渲染已入队");
+    expect(calls).toEqual([
+      "getVoice",
+      "getSubtitle",
+      "getContentPlan",
+      "generateContentPlan",
+      "confirmContentPlan",
+      "createVideoPlan",
+      "getVideoEstimate",
+      "approveCost",
+      "requestVideo",
+      "getOutput",
+    ]);
+    expect(client.generateContentPlan).toHaveBeenCalledWith("prj_skin");
+    expect(client.confirmContentPlan).toHaveBeenCalledWith("prj_skin");
+    expect(client.confirmContentPlan).toHaveBeenCalledTimes(1);
+    expect(client.createVideoPlan).toHaveBeenCalledWith("prj_skin", "product", "clean", "segmented");
+    expect(client.requestVideo).toHaveBeenCalledWith("prj_skin");
+    expect(client.startVideoBatch).not.toHaveBeenCalled();
+    expect(client.requestVoice).not.toHaveBeenCalled();
+    expect(client.confirmAudioSubtitle).not.toHaveBeenCalled();
+  });
+
+  it("分镜已是 ready 时只 confirm，不重复 generate", async () => {
+    const calls: string[] = [];
+    let storyboard: ContentPlanStatus = "ready";
+    const client = {
+      getVideo: vi.fn(async () => state(calls.includes("createVideoPlan") ? plan({ status: "plan_ready" }) : null)),
+      createVideoPlan: vi.fn(async () => {
+        calls.push("createVideoPlan");
+        if (storyboard !== "confirmed") throw new Error("请先确认视频分镜");
+        return state(plan({ status: "plan_ready", path: "segmented" }));
+      }),
+      getVideoEstimate: vi.fn(async () => ({ plan_id: "vid_1", is_paid: false })),
+      approveCost: vi.fn(async () => ({ plan_id: "vid_1" })),
+      requestVideo: vi.fn(async () => {
+        if (storyboard !== "confirmed") {
+          return state(plan({ status: "failed", path: "segmented", error_code: "CONTENT_QA_CONFLICT" }));
+        }
+        return state(plan({ status: "completed", path: "segmented", provider: "mock-video", video_url: "https://example.com/mock.mp4" }));
+      }),
+      startVideoBatch: vi.fn(),
+      getOutput: vi.fn(async () => ({ download_url: "https://example.com/mock.mp4" })),
+      getVoice: vi.fn(async () => ({ run: voiceRun({ status: "confirmed", confirmed_at: "2026-10-29T00:00:00Z" }) })),
+      requestVoice: vi.fn(),
+      getSubtitle: vi.fn(async () => ({ version: subtitleVersion({ status: "confirmed", confirmed_at: "2026-10-29T00:00:00Z" }) })),
+      requestSubtitle: vi.fn(),
+      confirmAudioSubtitle: vi.fn(),
+      getContentPlan: vi.fn(async () => {
+        calls.push("getContentPlan");
+        return contentPlan(storyboard);
+      }),
+      generateContentPlan: vi.fn(async () => {
+        calls.push("generateContentPlan");
+        return contentPlan("ready");
+      }),
+      confirmContentPlan: vi.fn(async () => {
+        calls.push("confirmContentPlan");
+        storyboard = "confirmed";
+        return contentPlan("confirmed");
+      }),
+    } as unknown as ShellRenderClient;
+
+    const view = await enqueueShellRender("prj_skin", client);
+    expect(view).toMatchObject({
+      phase: "playable",
+      headline: "可播预览",
+      errorCode: null,
+      mockReady: true,
+    });
+    expect(view.detail).not.toContain("CONTENT_QA_CONFLICT");
+    expect(view.detail).not.toContain("请先确认视频分镜");
+    expect(calls).toEqual(["getContentPlan", "confirmContentPlan", "createVideoPlan"]);
+    expect(client.generateContentPlan).not.toHaveBeenCalled();
+    expect(client.confirmContentPlan).toHaveBeenCalledTimes(1);
+    expect(client.confirmContentPlan).toHaveBeenCalledWith("prj_skin");
+    expect(client.startVideoBatch).not.toHaveBeenCalled();
+    expect(client.requestVideo).toHaveBeenCalledWith("prj_skin");
   });
 });

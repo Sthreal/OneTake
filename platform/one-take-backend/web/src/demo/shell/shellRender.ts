@@ -4,26 +4,32 @@
  * - `one_shot` → `requestVideo`（`POST /video`，与 `POST /compose` 同一服务方法）
  * - `segmented` → `startVideoBatch`（`POST /video/batch`）
  *
- * 壳层不跟这条分叉。Mock 出片没有已确认分镜，也没有已采用关键帧：
- * - `one_shot` 进 `_create_one_shot_video`，缺确认分镜即 `VIDEO_CONFLICT`「请先确认视频分镜」，
- *   过了这一关还要已采用关键帧。
- * - `startVideoBatch` 同样要求已确认分镜。
- *
- * 所以壳层新建方案固定 `product + clean + segmented`，出片一律 `requestVideo`，
+ * 壳层不跟这条分叉（#26）。`one_shot` 进 `_create_one_shot_video`，还要已采用关键帧；
+ * `startVideoBatch` 同样走逐镜关键帧。壳层不接关键帧 UI，也不造关键帧。
+ * 所以新建方案固定 `product + clean + segmented`，出片一律 `requestVideo`，
  * 不按 `plan.path === "segmented"` 改走 batch。`_create_base_video` 在 product 且非
- * one_shot 时走 `render_base_video(main_image)`，不要求分镜或关键帧，Mock 可以到可播预览。
- * 托管工作台默认仍是 one_shot，这里不改它。
+ * one_shot 时走 `render_base_video(main_image)`。托管工作台默认仍是 one_shot，这里不改它。
+ *
+ * 主图出片之后 Worker `process_job` 仍会 `evaluate_candidate`。那里硬要求
+ * `content_plan.status == confirmed`，否则 `CONTENT_QA_CONFLICT`「请先确认视频分镜」。
+ * 壳层没有导演模式那张确认按钮，所以在建方案前再补一段窄前奏，对标 `DemoApp.loadReviewData`：
+ * 没有分镜，或还没 confirmed → `generateContentPlan`（已经是 ready 则只 confirm）→ `confirmContentPlan`。
+ * `generateContentPlan` 要求 pipeline 已在 `audio_subtitle_confirmed`（或 `content_plan_*`），
+ * 所以必须排在配音字幕前奏之后。已经 confirmed 则不重复生成，也不再确认。
+ *
+ * 入队顺序：#24 主图前奏在出稿时（若有）→ #25 配音字幕前奏 → 本段分镜前奏 →
+ * `createVideoPlan(..., "segmented")` → estimate → approveCost → `requestVideo`。
  *
  * `requestVideo` 会先过审稿闸和费用闸（服务端 `_require_paid_entry`）。自动链 `auto_run`
  * 停在人工闸前，不会替我们入队付费渲染，所以这里不调用它。
- * 不走关键帧 UI，也不调用关键帧接口。客户端仍带上工作台的 `startVideoBatch`，入队路径不调用它。
+ * 客户端仍带上工作台的 `startVideoBatch`，入队路径不调用它。
  *
- * 建方案前有一段窄前奏（对齐主图 `main-image/ensure` 的窄度，#25）：
- * 配音和字幕都已 confirmed 就直接建方案；否则按需生成配音（带字幕）、等到 ready，
- * 再 `POST /audio-subtitle/confirm`。不跑自动链后半段，也不生成分镜或关键帧。
+ * #25 配音字幕前奏：都已 confirmed 就直接往下；否则按需生成配音（带字幕）、等到 ready，
+ * 再 `POST /audio-subtitle/confirm`。不跑自动链后半段，也不调用关键帧接口。
  */
 import type { SubtitleState, SubtitleVersion, VoiceRequestInput, VoiceRun, VoiceState } from "../../features/audio-subtitle/types";
 import type { VideoPlan } from "../../features/video/types";
+import { confirmContentPlan, generateContentPlan, getContentPlan } from "../../shared/api/contentPlanApi";
 import { confirmAudioSubtitle, getSubtitle, requestSubtitle } from "../../shared/api/subtitleApi";
 import { getVoice, requestVoice } from "../../shared/api/voiceApi";
 import {
@@ -50,6 +56,9 @@ const defaultClient = {
   getSubtitle,
   requestSubtitle,
   confirmAudioSubtitle,
+  getContentPlan,
+  generateContentPlan,
+  confirmContentPlan,
 };
 
 export type ShellRenderClient = typeof defaultClient;
@@ -261,6 +270,7 @@ function requireReadySubtitle(state: SubtitleState): SubtitleVersion {
  *
  * 已确认则直接返回。否则生成配音（subtitle_enabled），没有字幕再 POST /subtitle，
  * 等到 ready 后走与 DemoApp 相同的 `confirmAudioSubtitle`。不跑自动链。
+ * 分镜前奏在这之后：生成分镜要求 pipeline 已经停在本步确认过的状态。
  */
 export async function ensureAudioSubtitleBeforeRender(
   projectId: string,
@@ -304,6 +314,32 @@ export async function ensureAudioSubtitleBeforeRender(
   await client.confirmAudioSubtitle(projectId);
 }
 
+type ContentPlanPreludeClient = Pick<
+  ShellRenderClient,
+  "getContentPlan" | "generateContentPlan" | "confirmContentPlan"
+>;
+
+/**
+ * Worker `evaluate_candidate` 硬要求 `content_plan.status == confirmed`。
+ * 缺了是 `CONTENT_QA_CONFLICT`「请先确认视频分镜」。
+ *
+ * 调用方必须先跑完配音字幕前奏：`generateContentPlan` 只接受
+ * `audio_subtitle_confirmed` 或 `content_plan_*`。
+ * 已 confirmed 直接返回。已是 ready 只 confirm。没有方案（或 failed）先 generate 再 confirm。
+ * 不改分镜内容，不造关键帧，也不露出确认按钮。
+ */
+export async function ensureContentPlanBeforeRender(
+  projectId: string,
+  client: ContentPlanPreludeClient,
+): Promise<void> {
+  const existing = await client.getContentPlan(projectId);
+  if (existing?.status === "confirmed") return;
+  if (existing?.status !== "ready") {
+    await client.generateContentPlan(projectId);
+  }
+  await client.confirmContentPlan(projectId);
+}
+
 async function playbackUrl(client: ShellRenderClient, projectId: string, plan: VideoPlan | null): Promise<string | null> {
   try {
     const output = await client.getOutput(projectId);
@@ -327,13 +363,15 @@ async function runEnqueue(
   }
   if (!plan) {
     await ensureAudioSubtitleBeforeRender(projectId, client, prelude);
+    await ensureContentPlanBeforeRender(projectId, client);
     const created = await client.createVideoPlan(projectId, "product", "clean", "segmented");
     plan = created.plan;
     if (!plan) throw new Error("视频方案创建失败");
   }
   await client.getVideoEstimate(projectId, plan.plan_id);
   await client.approveCost(projectId, plan.plan_id);
-  // batch 与 one_shot 都会因缺分镜 VIDEO_CONFLICT。product + segmented 的 POST /video 用主图出片。
+  // 仍不走 batch：product + segmented 的 POST /video 用主图出片，不造关键帧。
+  // 分镜前奏只为了让 Worker 的 evaluate_candidate 不再 CONTENT_QA_CONFLICT。
   const dispatched = await client.requestVideo(projectId);
   const next = dispatched.plan ?? plan;
   return describeShellRender(next, await playbackUrl(client, projectId, next));
