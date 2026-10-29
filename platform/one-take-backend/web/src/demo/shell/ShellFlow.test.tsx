@@ -925,6 +925,9 @@ describe("iter18 图片广告与工作室解耦", () => {
 
     expect(await screen.findByRole("heading", { name: "成片交付" })).toBeInTheDocument();
     expect(screen.getByText("纯商品镜头 · 无人出镜")).toBeInTheDocument();
+    expect(screen.getByText("声线：旁白字幕")).toBeInTheDocument();
+    expect(screen.queryByText("声线：TTS + 库选数字人")).not.toBeInTheDocument();
+    expect(screen.queryByText(/唇形已同步|克隆声驱动|live Wan 已生成/)).not.toBeInTheDocument();
     expect(screen.queryByText("林晓")).not.toBeInTheDocument();
     expect(document.querySelector(".ot-talent")).toBeNull();
     expect(screen.queryByText(/演示数字人|数字人预览/)).not.toBeInTheDocument();
@@ -1178,10 +1181,13 @@ describe("iter18 图片广告与工作室解耦", () => {
   });
 
   it("首页主按钮进工作室；导演和工作台是次要入口", async () => {
+    writeStudioDraft({ ...DEFAULT_STUDIO_DRAFT, projectId: "prj_skin" });
     const user = userEvent.setup();
     render(<StudioShell />);
     const primary = await screen.findByRole("button", { name: "开始出片" });
     expect(primary.className).toContain("ot-btn-primary");
+    const visiblePrimary = screen.getAllByRole("button").filter((button) => button.className.includes("ot-btn-primary"));
+    expect(visiblePrimary.map((button) => button.textContent?.replace(/\s+/g, ""))).toEqual(["开始出片"]);
     expect(screen.getByText("示意 · 未接计价")).toBeInTheDocument();
     expect(screen.queryByText("128")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "去图片广告" }).className).toContain("ot-btn-secondary");
@@ -1191,7 +1197,40 @@ describe("iter18 图片广告与工作室解耦", () => {
     expect(workbench.className).toContain("ot-btn-secondary");
     await user.click(primary);
     expect(await screen.findByRole("heading", { name: "准备" })).toBeInTheDocument();
-    expect(screen.queryByText(/MOCK_DIRECTOR|导演模式/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "导演模式" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/MOCK_DIRECTOR/)).not.toBeInTheDocument();
+
+    await fillPrepare(user);
+    expect(await screen.findByRole("heading", { name: "审稿确认" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "导演模式" })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "审稿" }));
+    await user.click(screen.getByRole("button", { name: "保留原稿" }));
+    const go = screen.getByRole("button", { name: /确认并提交渲染/ });
+    await waitFor(() => expect(go).toBeEnabled());
+    await user.click(go);
+    expect(await screen.findByRole("heading", { name: "提交渲染" })).toBeInTheDocument();
+    expect(screen.getByText("声线：旁白字幕")).toBeInTheDocument();
+    expect(screen.queryByText("声线：TTS + 库选数字人")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "导演模式" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/唇形已同步|克隆声驱动|live Wan 已生成/)).not.toBeInTheDocument();
+  });
+
+  it("口播草稿在审稿闸拦住时仍显示 TTS，纯商品路径不因旧人选改口", async () => {
+    writeStudioDraft({
+      ...DEFAULT_STUDIO_DRAFT,
+      projectId: "prj_skin",
+      path: "talking_head",
+      presenterId: "premade:linxiao",
+    });
+    open("/?view=generate&project=prj_skin");
+    render(<StudioShell />);
+    expect(await screen.findByRole("heading", { name: "提交渲染" })).toBeInTheDocument();
+    expect(screen.getByText("声线：TTS + 库选数字人")).toBeInTheDocument();
+    expect(screen.getByText(/不做原声对口型/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "付费生成已拦住" })).toBeInTheDocument();
+    expect(screen.queryByText("声线：旁白字幕")).not.toBeInTheDocument();
+    expect(screen.queryByText(/唇形已同步|克隆声驱动|live Wan 已生成/)).not.toBeInTheDocument();
+    expect(requestVideo).not.toHaveBeenCalled();
   });
 
   it("渲染排队时不假装成片已出", async () => {
