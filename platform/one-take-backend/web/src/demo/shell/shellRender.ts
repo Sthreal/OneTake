@@ -7,9 +7,15 @@
  * 两条都会先过审稿闸和费用闸（服务端 `_require_paid_entry`）。自动链 `auto_run`
  * 停在人工闸前，不会替我们入队付费渲染，所以这里不调用它。
  * 不走关键帧 UI，也不调用关键帧接口。
+ *
+ * 建方案前有一段窄前奏（对齐主图 `main-image/ensure` 的窄度）：
+ * 配音和字幕都已 confirmed 就直接建方案；否则按需生成配音（带字幕）、等到 ready，
+ * 再 `POST /audio-subtitle/confirm`。不跑自动链后半段，也不生成分镜或关键帧。
  */
+import type { SubtitleState, SubtitleVersion, VoiceRequestInput, VoiceRun, VoiceState } from "../../features/audio-subtitle/types";
 import type { VideoPlan, VideoState } from "../../features/video/types";
-import { approveCost } from "../api";
+import { confirmAudioSubtitle, getSubtitle, requestSubtitle } from "../../shared/api/subtitleApi";
+import { getVoice, requestVoice } from "../../shared/api/voiceApi";
 import {
   createVideoPlan,
   getOutput,
@@ -18,6 +24,8 @@ import {
   requestVideo,
   startVideoBatch,
 } from "../../shared/api/videoApi";
+import { approveCost } from "../api";
+import { voiceSubtitleAutoApprovable } from "../policy";
 
 const defaultClient = {
   getVideo,
@@ -27,6 +35,11 @@ const defaultClient = {
   requestVideo,
   startVideoBatch,
   getOutput,
+  getVoice,
+  requestVoice,
+  getSubtitle,
+  requestSubtitle,
+  confirmAudioSubtitle,
 };
 
 export type ShellRenderClient = typeof defaultClient;
@@ -148,6 +161,139 @@ export function describeShellRender(plan: VideoPlan | null, downloadUrl: string 
   return IDLE_VIEW;
 }
 
+/** 与自动链 `AUTO_RUN_VOICE_ID`、配音面板默认音色一致。Mock 适配器忽略这个值。 */
+export const SHELL_VOICE_REQUEST: VoiceRequestInput = {
+  enabled: true,
+  subtitleEnabled: true,
+  voiceId: "longxiaochun_v2",
+  language: "zh",
+  speed: 1,
+};
+
+export const VOICE_PENDING_COPY = "配音还没就绪，暂时不能提交渲染。";
+export const SUBTITLE_PENDING_COPY = "字幕还没就绪，暂时不能提交渲染。";
+
+const AUDIO_POLL_INTERVAL_MS = 500;
+const AUDIO_POLL_LIMIT = 40;
+
+export interface AudioPreludeOptions {
+  sleep?: (ms: number) => Promise<void>;
+  intervalMs?: number;
+  maxPolls?: number;
+}
+
+type AudioPreludeClient = Pick<
+  ShellRenderClient,
+  "getVoice" | "requestVoice" | "getSubtitle" | "requestSubtitle" | "confirmAudioSubtitle"
+>;
+
+function defaultSleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function voiceTerminal(state: VoiceState): boolean {
+  const status = state.run?.status;
+  return status === "ready" || status === "confirmed" || status === "failed";
+}
+
+function subtitleTerminal(state: SubtitleState): boolean {
+  const status = state.version?.status;
+  return status === "ready" || status === "confirmed" || status === "failed";
+}
+
+async function untilSettled<T>(
+  current: T,
+  settled: (value: T) => boolean,
+  read: () => Promise<T>,
+  sleep: (ms: number) => Promise<void>,
+  intervalMs: number,
+  maxPolls: number,
+): Promise<T> {
+  let value = current;
+  let polls = 0;
+  while (!settled(value) && polls < maxPolls) {
+    polls += 1;
+    await sleep(intervalMs);
+    value = await read();
+  }
+  return value;
+}
+
+function requireReadyVoice(state: VoiceState): VoiceRun {
+  const run = state.run;
+  if (!run || run.status === "queued" || run.status === "generating") {
+    throw new Error(VOICE_PENDING_COPY);
+  }
+  if (run.status === "failed") {
+    const code = run.error_code ? `（${run.error_code}）` : "";
+    throw new Error(`配音生成失败${code}。可以重试。`);
+  }
+  return run;
+}
+
+function requireReadySubtitle(state: SubtitleState): SubtitleVersion {
+  const version = state.version;
+  if (!version || version.status === "queued" || version.status === "generating") {
+    throw new Error(SUBTITLE_PENDING_COPY);
+  }
+  if (version.status === "failed") {
+    const code = version.error_code ? `（${version.error_code}）` : "";
+    throw new Error(`字幕生成失败${code}。可以重试。`);
+  }
+  return version;
+}
+
+/**
+ * createVideoPlan 的闸：pipeline 要在 audio_subtitle_confirmed（或更后的可重生状态），
+ * 且配音、字幕 status 都是 confirmed。缺了服务端抛「请先确认配音和字幕」。
+ *
+ * 已确认则直接返回。否则生成配音（subtitle_enabled），没有字幕再 POST /subtitle，
+ * 等到 ready 后走与 DemoApp 相同的 `confirmAudioSubtitle`。不跑自动链。
+ */
+export async function ensureAudioSubtitleBeforeRender(
+  projectId: string,
+  client: AudioPreludeClient,
+  options?: AudioPreludeOptions,
+): Promise<void> {
+  const sleep = options?.sleep ?? defaultSleep;
+  const intervalMs = options?.intervalMs ?? AUDIO_POLL_INTERVAL_MS;
+  const maxPolls = options?.maxPolls ?? AUDIO_POLL_LIMIT;
+
+  let voice = await client.getVoice(projectId);
+  if (!voice.run || voice.run.status === "failed") {
+    voice = await client.requestVoice(projectId, SHELL_VOICE_REQUEST);
+  }
+  voice = await untilSettled(voice, voiceTerminal, () => client.getVoice(projectId), sleep, intervalMs, maxPolls);
+  const run = requireReadyVoice(voice);
+
+  let subtitle = await client.getSubtitle(projectId);
+  if (!subtitle.version || subtitle.version.status === "failed") {
+    subtitle = await client.requestSubtitle(projectId);
+  }
+  subtitle = await untilSettled(
+    subtitle,
+    subtitleTerminal,
+    () => client.getSubtitle(projectId),
+    sleep,
+    intervalMs,
+    maxPolls,
+  );
+  const version = requireReadySubtitle(subtitle);
+
+  if (run.status === "confirmed" && version.status === "confirmed") return;
+
+  if (run.status !== "confirmed") {
+    // 与 DemoApp.loadReviewData 一样不拿分镜时长做偏差闸：壳层这时还没有分镜。
+    const decision = voiceSubtitleAutoApprovable(run.duration_seconds, version.segments.length, null);
+    if (!decision.auto) {
+      throw new Error(`需要你确认配音与字幕：${decision.reason}`);
+    }
+  }
+  await client.confirmAudioSubtitle(projectId);
+}
+
 async function playbackUrl(client: ShellRenderClient, projectId: string, plan: VideoPlan | null): Promise<string | null> {
   try {
     const output = await client.getOutput(projectId);
@@ -158,13 +304,19 @@ async function playbackUrl(client: ShellRenderClient, projectId: string, plan: V
   return plan?.video_url ?? null;
 }
 
-async function runEnqueue(projectId: string, client: ShellRenderClient, force: boolean): Promise<ShellRenderView> {
+async function runEnqueue(
+  projectId: string,
+  client: ShellRenderClient,
+  force: boolean,
+  prelude?: AudioPreludeOptions,
+): Promise<ShellRenderView> {
   const current = await client.getVideo(projectId);
   let plan = current.plan;
   if (plan && !force && (isLive(plan) || isDone(plan) || isFailed(plan))) {
     return describeShellRender(plan, await playbackUrl(client, projectId, plan));
   }
   if (!plan) {
+    await ensureAudioSubtitleBeforeRender(projectId, client, prelude);
     const created = await client.createVideoPlan(projectId, "product", "clean", "one_shot");
     plan = created.plan;
     if (!plan) throw new Error("视频方案创建失败");
@@ -182,14 +334,14 @@ async function runEnqueue(projectId: string, client: ShellRenderClient, force: b
 export function enqueueShellRender(
   projectId: string,
   client: ShellRenderClient = defaultClient,
-  options?: { force?: boolean },
+  options?: { force?: boolean } & AudioPreludeOptions,
 ): Promise<ShellRenderView> {
   const force = options?.force === true;
   if (!force) {
     const pending = inflight.get(projectId);
     if (pending) return pending;
   }
-  const task = runEnqueue(projectId, client, force);
+  const task = runEnqueue(projectId, client, force, options);
   inflight.set(projectId, task);
   return task.finally(() => {
     if (inflight.get(projectId) === task) inflight.delete(projectId);

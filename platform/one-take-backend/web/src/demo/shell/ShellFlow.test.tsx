@@ -35,6 +35,54 @@ vi.mock("../api", async () => {
   const actual = await vi.importActual<typeof import("../api")>("../api");
   return { ...actual, approveCost: vi.fn() };
 });
+vi.mock("../../shared/api/voiceApi", () => ({
+  getVoice: vi.fn(async () => ({
+    run: {
+      run_id: "voi_1",
+      project_id: "prj_skin",
+      script_version_id: "scr_1",
+      status: "confirmed",
+      enabled: true,
+      subtitle_enabled: true,
+      provider: "mock-cosyvoice-v2",
+      model: "cosyvoice-v2",
+      voice_id: "longxiaochun_v2",
+      language: "zh",
+      speed: 1,
+      duration_seconds: 15,
+      audio_url: null,
+      error_code: null,
+      created_at: "2026-10-29T00:00:00Z",
+      updated_at: "2026-10-29T00:00:00Z",
+      completed_at: "2026-10-29T00:00:00Z",
+      confirmed_at: "2026-10-29T00:00:00Z",
+    },
+  })),
+  requestVoice: vi.fn(),
+}));
+vi.mock("../../shared/api/subtitleApi", () => ({
+  getSubtitle: vi.fn(async () => ({
+    version: {
+      subtitle_id: "sub_1",
+      project_id: "prj_skin",
+      script_version_id: "scr_1",
+      voice_run_id: "voi_1",
+      status: "confirmed",
+      enabled: true,
+      language: "zh",
+      segments: [{ index: 1, text: "旁白", start: 0, end: 15 }],
+      srt_url: null,
+      error_code: null,
+      created_at: "2026-10-29T00:00:00Z",
+      updated_at: "2026-10-29T00:00:00Z",
+      completed_at: "2026-10-29T00:00:00Z",
+      confirmed_at: "2026-10-29T00:00:00Z",
+    },
+  })),
+  updateSubtitle: vi.fn(),
+  confirmAudioSubtitle: vi.fn(),
+  requestSubtitle: vi.fn(),
+}));
 vi.mock("./mainImagePrelude", async () => {
   const actual = await vi.importActual<typeof import("./mainImagePrelude")>("./mainImagePrelude");
   return {

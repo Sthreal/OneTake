@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { SubtitleVersion, VoiceRun } from "../../features/audio-subtitle/types";
 import type { VideoPlan, VideoState } from "../../features/video/types";
 import {
   describeShellRender,
   enqueueShellRender,
   presenterIsAbsent,
   resetShellRenderFlight,
+  SHELL_VOICE_REQUEST,
   shellVoiceCopy,
   type ShellRenderClient,
 } from "./shellRender";
@@ -37,6 +39,52 @@ function plan(partial: Partial<VideoPlan>): VideoPlan {
 function state(value: VideoPlan | null): VideoState {
   return { plan: value };
 }
+
+function voiceRun(partial: Partial<VoiceRun> = {}): VoiceRun {
+  return {
+    run_id: "voi_1",
+    project_id: "prj_skin",
+    script_version_id: "scr_1",
+    status: "ready",
+    enabled: true,
+    subtitle_enabled: true,
+    provider: "mock-cosyvoice-v2",
+    model: "cosyvoice-v2",
+    voice_id: "longxiaochun_v2",
+    language: "zh",
+    speed: 1,
+    duration_seconds: 14.2,
+    audio_url: null,
+    error_code: null,
+    created_at: "2026-10-29T00:00:00Z",
+    updated_at: "2026-10-29T00:00:00Z",
+    completed_at: "2026-10-29T00:00:00Z",
+    confirmed_at: null,
+    ...partial,
+  };
+}
+
+function subtitleVersion(partial: Partial<SubtitleVersion> = {}): SubtitleVersion {
+  return {
+    subtitle_id: "sub_1",
+    project_id: "prj_skin",
+    script_version_id: "scr_1",
+    voice_run_id: "voi_1",
+    status: "ready",
+    enabled: true,
+    language: "zh",
+    segments: [{ index: 1, text: "这只水壶通勤也能装", start: 0, end: 14.2 }],
+    srt_url: null,
+    error_code: null,
+    created_at: "2026-10-29T00:00:00Z",
+    updated_at: "2026-10-29T00:00:00Z",
+    completed_at: "2026-10-29T00:00:00Z",
+    confirmed_at: null,
+    ...partial,
+  };
+}
+
+const noWait = { sleep: async () => {}, intervalMs: 0, maxPolls: 5 };
 
 describe("壳层声线文案", () => {
   it("有出镜人是 TTS + 库选，没有人是旁白字幕，两边都不承诺克隆或原声对口型", () => {
@@ -130,12 +178,35 @@ describe("enqueueShellRender", () => {
         calls.push("getOutput");
         return null;
       }),
+      getVoice: vi.fn(async () => {
+        calls.push("getVoice");
+        return { run: voiceRun({ status: "confirmed", confirmed_at: "2026-10-29T00:00:00Z" }) };
+      }),
+      getSubtitle: vi.fn(async () => {
+        calls.push("getSubtitle");
+        return { version: subtitleVersion({ status: "confirmed", confirmed_at: "2026-10-29T00:00:00Z" }) };
+      }),
+      requestVoice: vi.fn(),
+      requestSubtitle: vi.fn(),
+      confirmAudioSubtitle: vi.fn(),
     } as unknown as ShellRenderClient;
 
     const view = await enqueueShellRender("prj_skin", client);
     expect(view.headline).toBe("排队中");
     expect(view.mockReady).toBe(false);
-    expect(calls).toEqual(["getVideo", "createVideoPlan", "getVideoEstimate", "approveCost", "requestVideo", "getOutput"]);
+    expect(calls).toEqual([
+      "getVideo",
+      "getVoice",
+      "getSubtitle",
+      "createVideoPlan",
+      "getVideoEstimate",
+      "approveCost",
+      "requestVideo",
+      "getOutput",
+    ]);
+    expect(client.requestVoice).not.toHaveBeenCalled();
+    expect(client.requestSubtitle).not.toHaveBeenCalled();
+    expect(client.confirmAudioSubtitle).not.toHaveBeenCalled();
     expect(client.startVideoBatch).not.toHaveBeenCalled();
     expect(client.createVideoPlan).toHaveBeenCalledWith("prj_skin", "product", "clean", "one_shot");
     expect(client.approveCost).toHaveBeenCalledWith("prj_skin", "vid_1");
@@ -157,10 +228,15 @@ describe("enqueueShellRender", () => {
         video_url: "https://example.com/mock.mp4",
       }))),
       getOutput: vi.fn(async () => ({ download_url: "https://example.com/mock.mp4" })),
+      getVoice: vi.fn(),
+      requestVoice: vi.fn(),
+      confirmAudioSubtitle: vi.fn(),
     } as unknown as ShellRenderClient;
 
     const view = await enqueueShellRender("prj_skin", client);
     expect(client.createVideoPlan).not.toHaveBeenCalled();
+    expect(client.getVoice).not.toHaveBeenCalled();
+    expect(client.requestVoice).not.toHaveBeenCalled();
     expect(client.requestVideo).not.toHaveBeenCalled();
     expect(client.approveCost).toHaveBeenCalledWith("prj_skin", "vid_1");
     expect(client.startVideoBatch).toHaveBeenCalledWith("prj_skin");
@@ -178,6 +254,8 @@ describe("enqueueShellRender", () => {
       requestVideo: vi.fn(async () => state(plan({ status: "video_generating" }))),
       startVideoBatch: vi.fn(),
       getOutput: vi.fn(async () => null),
+      getVoice: vi.fn(),
+      requestVoice: vi.fn(),
     } as unknown as ShellRenderClient;
 
     const first = await enqueueShellRender("prj_skin", client);
@@ -188,5 +266,128 @@ describe("enqueueShellRender", () => {
     expect(second.headline).toBe("排队中");
     expect(client.approveCost).toHaveBeenCalledTimes(1);
     expect(client.requestVideo).toHaveBeenCalledTimes(1);
+    expect(client.getVoice).not.toHaveBeenCalled();
+    expect(client.requestVoice).not.toHaveBeenCalled();
+  });
+
+  it("配音字幕未确认时先生成并确认，Mock 入队后不再出现「请先确认配音」", async () => {
+    const calls: string[] = [];
+    let confirmed = false;
+    let voiceReads = 0;
+    let subtitleReads = 0;
+    const client = {
+      getVideo: vi.fn(async () => state(calls.includes("createVideoPlan") ? plan({ status: "plan_ready" }) : null)),
+      createVideoPlan: vi.fn(async () => {
+        calls.push("createVideoPlan");
+        if (!confirmed) throw new Error("请先确认配音和字幕");
+        return state(plan({ status: "plan_ready", path: "one_shot" }));
+      }),
+      getVideoEstimate: vi.fn(async () => ({ plan_id: "vid_1", is_paid: false })),
+      approveCost: vi.fn(async () => ({ plan_id: "vid_1" })),
+      requestVideo: vi.fn(async () => state(plan({ status: "video_generating", provider: "mock-video" }))),
+      startVideoBatch: vi.fn(),
+      getOutput: vi.fn(async () => null),
+      getVoice: vi.fn(async () => {
+        voiceReads += 1;
+        if (voiceReads === 1) return { run: null };
+        return { run: voiceRun({ status: "ready", duration_seconds: 14.2 }) };
+      }),
+      requestVoice: vi.fn(async () => {
+        calls.push("requestVoice");
+        return { run: voiceRun({ status: "queued", duration_seconds: null }) };
+      }),
+      getSubtitle: vi.fn(async () => {
+        subtitleReads += 1;
+        if (subtitleReads === 1) return { version: null };
+        if (subtitleReads === 2) return { version: subtitleVersion({ status: "generating", segments: [] }) };
+        return { version: subtitleVersion({ status: "ready" }) };
+      }),
+      requestSubtitle: vi.fn(async () => {
+        calls.push("requestSubtitle");
+        return { version: subtitleVersion({ status: "queued", segments: [] }) };
+      }),
+      confirmAudioSubtitle: vi.fn(async () => {
+        calls.push("confirmAudioSubtitle");
+        confirmed = true;
+      }),
+    } as unknown as ShellRenderClient;
+
+    const view = await enqueueShellRender("prj_skin", client, noWait);
+    expect(view).toMatchObject({ phase: "queued", headline: "排队中" });
+    expect(view.detail).not.toContain("请先确认配音");
+    expect(view.detail).toContain("Mock 渲染已入队");
+    expect(calls).toEqual(["requestVoice", "requestSubtitle", "confirmAudioSubtitle", "createVideoPlan"]);
+    expect(client.requestVoice).toHaveBeenCalledWith("prj_skin", SHELL_VOICE_REQUEST);
+    expect(client.confirmAudioSubtitle).toHaveBeenCalledWith("prj_skin");
+    expect(client.startVideoBatch).not.toHaveBeenCalled();
+    expect(client.requestVideo).toHaveBeenCalledWith("prj_skin");
+  });
+
+  it("配音已在排队时不再重复请求，字幕为空则不代按、也不建方案", async () => {
+    const client = {
+      getVideo: vi.fn(async () => state(null)),
+      createVideoPlan: vi.fn(async () => {
+        throw new Error("请先确认配音和字幕");
+      }),
+      getVideoEstimate: vi.fn(),
+      approveCost: vi.fn(),
+      requestVideo: vi.fn(),
+      startVideoBatch: vi.fn(),
+      getOutput: vi.fn(),
+      getVoice: vi.fn()
+        .mockResolvedValueOnce({ run: voiceRun({ status: "queued", duration_seconds: null }) })
+        .mockResolvedValueOnce({ run: voiceRun({ status: "ready", duration_seconds: 14.2 }) }),
+      requestVoice: vi.fn(),
+      getSubtitle: vi.fn(async () => ({ version: subtitleVersion({ status: "ready", segments: [] }) })),
+      requestSubtitle: vi.fn(),
+      confirmAudioSubtitle: vi.fn(),
+    } as unknown as ShellRenderClient;
+
+    await expect(enqueueShellRender("prj_skin", client, noWait)).rejects.toThrow(/字幕分段为空/);
+    expect(client.requestVoice).not.toHaveBeenCalled();
+    expect(client.requestSubtitle).not.toHaveBeenCalled();
+    expect(client.confirmAudioSubtitle).not.toHaveBeenCalled();
+    expect(client.createVideoPlan).not.toHaveBeenCalled();
+  });
+
+  it("配音已确认、字幕仍是 ready 时直接确认，再进入可播预览", async () => {
+    let confirmed = false;
+    const client = {
+      getVideo: vi.fn(async () => state(confirmed ? plan({ status: "plan_ready" }) : null)),
+      createVideoPlan: vi.fn(async () => {
+        if (!confirmed) throw new Error("请先确认配音和字幕");
+        return state(plan({ status: "plan_ready" }));
+      }),
+      getVideoEstimate: vi.fn(async () => ({ plan_id: "vid_1", is_paid: false })),
+      approveCost: vi.fn(async () => ({ plan_id: "vid_1" })),
+      requestVideo: vi.fn(async () => state(plan({
+        status: "completed",
+        provider: "mock-video",
+        video_url: "https://example.com/mock.mp4",
+      }))),
+      startVideoBatch: vi.fn(),
+      getOutput: vi.fn(async () => ({ download_url: "https://example.com/mock.mp4" })),
+      getVoice: vi.fn(async () => ({ run: voiceRun({ status: "confirmed", confirmed_at: "2026-10-29T00:00:00Z" }) })),
+      requestVoice: vi.fn(),
+      getSubtitle: vi.fn(async () => ({ version: subtitleVersion({ status: "ready" }) })),
+      requestSubtitle: vi.fn(),
+      confirmAudioSubtitle: vi.fn(async () => {
+        confirmed = true;
+      }),
+    } as unknown as ShellRenderClient;
+
+    const view = await enqueueShellRender("prj_skin", client, noWait);
+    expect(view).toMatchObject({
+      phase: "playable",
+      headline: "可播预览",
+      mockReady: true,
+      playableUrl: "https://example.com/mock.mp4",
+    });
+    expect(view.detail).not.toContain("请先确认配音");
+    expect(view.detail).toContain("不是 live Wan");
+    expect(client.requestVoice).not.toHaveBeenCalled();
+    expect(client.requestSubtitle).not.toHaveBeenCalled();
+    expect(client.confirmAudioSubtitle).toHaveBeenCalledWith("prj_skin");
+    expect(client.createVideoPlan).toHaveBeenCalledTimes(1);
   });
 });
