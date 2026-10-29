@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="#-quick-start"><img alt="Quick Start" src="https://img.shields.io/badge/Quick_Start-5_minutes-ff6b5f?style=for-the-badge" /></a>
-  <a href="docs/架构设计.md"><img alt="Architecture" src="https://img.shields.io/badge/Architecture-Docs-9b7bff?style=for-the-badge" /></a>
+  <a href="docs/方案档案.md"><img alt="Architecture" src="https://img.shields.io/badge/Architecture-Docs-9b7bff?style=for-the-badge" /></a>
   <a href="#-roadmap"><img alt="Roadmap" src="https://img.shields.io/badge/Roadmap-Active-52d6b4?style=for-the-badge" /></a>
 </p>
 
@@ -156,7 +156,7 @@ OneTake/
 └─ docker-compose.yml              # One Take 核心服务编排
 ```
 
-MiniClaw 后端已归档到 tag `archive/miniclaw-backend-2026-10-23`；可借鉴设计见 `docs/miniclaw-可借鉴设计.md`。
+MiniClaw 后端已归档到 tag `archive/miniclaw-backend-2026-10-23`。
 
 ## 🧪 开发与测试
 
@@ -189,7 +189,6 @@ RECOGNITION_PROVIDER=mock
 IMAGE_EDIT_PROVIDER=mock
 MATTING_PROVIDER=mock
 SCRIPT_PROVIDER=mock
-AVATAR_VIDEO_PROVIDER=mock
 ```
 
 真实 Provider 失败不会自动回退 Mock，避免把 Mock 结果误认为真实结果。
@@ -218,12 +217,13 @@ AVATAR_VIDEO_PROVIDER=mock
 
 ## 📚 文档
 
-- [架构设计](docs/架构设计.md)
+仓库里目前能打开的文档：
+
 - [方案档案](docs/方案档案.md)
-- [仓库结构与开发说明](docs/仓库结构与开发说明.md)
-- [MVP 验收报告](docs/MVP验收报告.md)
-- [真实 S2V 启用手册](docs/真实S2V启用手册.md)
+- [多角度脚本](docs/多角度脚本.md)
+- [项目协作规则](docs/AGENTS.md)
 - [MCP Bridge](apps/mcp/README.md)
+- [CLI](apps/cli/README.md)
 
 ## 🤝 Contributing
 

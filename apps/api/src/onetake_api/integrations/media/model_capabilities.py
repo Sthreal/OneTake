@@ -7,7 +7,6 @@
 | `wan-i2v` | ✅ | ❌ | ❌ | ❌ | 见 `wan_i2v_max_seconds` 配置 | `integrations/wan_i2v/adapter.py`（单图 + prompt + duration） |
 | `wan-kf2v` | ✅ | ✅ | ❌ | ❌ | 同上 | `integrations/wan_kf2v/adapter.py`（`generate_pair(first,last)`） |
 | `wan-r2v` | ✅ | ❌ | ✅（≤4） | ✅ | **15s** | `video_plan/one_shot.py`：`MAX_CALL_SECONDS` / `MAX_MEDIA_ITEMS`（r2v 官方硬约束） |
-| `wan-s2v` | — | — | 声音参考 | — | — | 已下线调用点（保留适配器）；**不在预检覆盖内** |
 
 预检**只报事实与降级码**，不阻断：真正拦人的是费用闸与交付门。
 """

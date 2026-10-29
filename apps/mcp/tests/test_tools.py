@@ -7,7 +7,7 @@ from onetake_mcp.tools import build_mcp
 
 class FakeClient:
     async def get_provider_status(self):
-        return [{'capability': 'avatar_video'}]
+        return [{'capability': 'product_video'}]
 
     async def list_projects(self, limit=20):
         return []
@@ -35,6 +35,19 @@ def _settings(*, write=False, paid=False):
         paid_enabled=paid,
         asset_hosts=('cdn.example',),
     )
+
+
+def test_create_video_plan_rejects_avatar_mode() -> None:
+    """MCP 写入口不得再把 avatar 当成合法档位（与 API 422 契约同一条拒绝）。"""
+    from onetake_mcp.tools import require_video_mode
+
+    try:
+        require_video_mode("avatar")
+    except ValueError as exc:
+        assert "avatar" in str(exc)
+    else:
+        raise AssertionError("avatar mode must be rejected")
+    assert require_video_mode("product") == "product"
 
 
 def test_mcp_exposes_read_only_tool_contract() -> None:
