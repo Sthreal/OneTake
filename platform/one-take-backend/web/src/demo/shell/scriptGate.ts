@@ -73,6 +73,62 @@ export function angleLabel(version: ScriptVersion): string {
   return version.angle_label || ANGLE_LABELS[version.angle ?? ""] || "口播";
 }
 
+/** 创作路径三选一是 PR-3。这里只给审稿文案和软强制用。 */
+export type StudioCreationPath = "talking_head" | "product_only" | "multi_angle";
+
+export const ANGLE_PICK_HINT = "请先选择角度";
+export const ANGLE_PICK_GUIDE = "先点选一套角度，再审稿确认";
+
+/**
+ * 无人 / 纯商品体感用「旁白角度」，有人出镜仍是「口播角度」。
+ * 路径条还没做时，用出镜人是否为空来区分，不靠 path。
+ */
+export function reviewAngleGroupLabel(presenter: { source: string }): "旁白角度" | "口播角度" {
+  return presenter.source === "none" ? "旁白角度" : "口播角度";
+}
+
+/**
+ * 多角度软强制。path 还没进草稿时按多角度处理（审稿三角就是主交互）。
+ * talking_head / product_only 允许沿用服务端默认角，不挡确认。
+ */
+export function explicitAngleRequired(path: StudioCreationPath | null | undefined): boolean {
+  if (path == null) return true;
+  return path === "multi_angle";
+}
+
+/** 同一批候选的身份。没有 batch id 时用版本 id 串起来，换一批就会变。 */
+export function angleBatchKey(state: ScriptState | null | undefined): string | null {
+  const versions = orderedCandidates(state);
+  if (versions.length === 0) return null;
+  const batch = versions.find((item) => item.generation_batch_id)?.generation_batch_id;
+  if (batch) return batch;
+  return versions.map((item) => item.version_id).join("|");
+}
+
+export interface AngleConfirmSoftForce {
+  blocked: boolean;
+  hint: string | null;
+}
+
+/**
+ * 新一批 ready 之后，服务端默认高亮的角 0 不算用户选过。
+ * 点任意角（含已经高亮的角 0）后解除。已确认、还在生成、整批失败都不挡。
+ * 只影响确认按钮，不改 confirm / select 接口。
+ */
+export function angleConfirmSoftForce(input: {
+  path?: StudioCreationPath | null;
+  batchKey: string | null;
+  pickedBatchKey: string | null;
+  selectedStatus: string | null | undefined;
+  hasSelectableCandidate: boolean;
+}): AngleConfirmSoftForce {
+  if (!explicitAngleRequired(input.path)) return { blocked: false, hint: null };
+  if (input.selectedStatus === "confirmed") return { blocked: false, hint: null };
+  if (!input.hasSelectableCandidate) return { blocked: false, hint: null };
+  if (input.batchKey && input.pickedBatchKey === input.batchKey) return { blocked: false, hint: null };
+  return { blocked: true, hint: ANGLE_PICK_HINT };
+}
+
 export function gateSummary(version: ScriptVersion | null | undefined): ReviewGateSummary {
   return version?.review_gate ?? PENDING_GATE;
 }
