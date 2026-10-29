@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from onetake_api.modules.main_image.domain import MainImageVersion
 from onetake_api.modules.main_image.public import MainImagePublicService
 from onetake_api.modules.main_image.service import MainImageView
+from onetake_api.modules.pipeline.orchestrator import PipelineOrchestrator
 from onetake_api.platform.database import get_session
 from onetake_api.platform.request_context import get_request_id
 
@@ -86,4 +87,11 @@ def get_main_image(project_id: str, session: Session = Depends(get_session)) -> 
 @router.post("/confirm", response_model=MainImageResponse)
 def confirm_main_image(project_id: str, session: Session = Depends(get_session)) -> MainImageResponse:
     view = MainImagePublicService().confirm(session, project_id)
+    return MainImageResponse(data=_data(view), request_id=get_request_id())
+
+
+@router.post("/ensure", response_model=MainImageResponse)
+def ensure_main_image(project_id: str, session: Session = Depends(get_session)) -> MainImageResponse:
+    """壳层出稿前奏：识别 + 主图做到已确认。不生成文案，也不跑自动链后半段。"""
+    view = PipelineOrchestrator().ensure_confirmed_main_image(session, project_id)
     return MainImageResponse(data=_data(view), request_id=get_request_id())

@@ -53,6 +53,11 @@ export interface LoadScriptOptions {
   sleep?: (ms: number) => Promise<void>;
   intervalMs?: number;
   maxPolls?: number;
+  /**
+   * 没有稿、即将 generate 之前调用。
+   * 文案接口要求主图已确认；壳层在这里把识别和主图补到 confirmed，再出稿。
+   */
+  ensureMainImage?: (projectId: string) => Promise<void>;
 }
 
 const pendingLoads = new Map<string, Promise<ScriptState>>();
@@ -398,6 +403,7 @@ export function loadStudioScript(
   const job = (async () => {
     let state = await api.getScript(projectId);
     if (scriptVersions(state).length === 0) {
+      if (options?.ensureMainImage) await options.ensureMainImage(projectId);
       state = await api.generateScript(projectId, input);
     }
     return settleScript(state, projectId, api, options);
@@ -416,6 +422,7 @@ export function regenerateStudioScript(
   options?: LoadScriptOptions,
 ): Promise<ScriptState> {
   const job = (async () => {
+    if (options?.ensureMainImage) await options.ensureMainImage(projectId);
     const state = await api.generateScript(projectId, input);
     return settleScript(state, projectId, api, options);
   })();

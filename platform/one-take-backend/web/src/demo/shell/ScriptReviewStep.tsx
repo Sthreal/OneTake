@@ -50,6 +50,7 @@ import {
   scriptVersions,
   toEditInput,
 } from "./scriptGate";
+import { ensureShellMainImage } from "./mainImagePrelude";
 
 const scriptClient = { getScript, generateScript };
 
@@ -105,7 +106,9 @@ export function ScriptReviewStep({
           setError("请先在准备步填写痛点、卖点和使用场景");
           return;
         }
-        const next = await loadStudioScript(projectId, input, scriptClient);
+        const next = await loadStudioScript(projectId, input, scriptClient, {
+          ensureMainImage: ensureShellMainImage,
+        });
         if (!cancelled) setScript(next);
       } catch (err) {
         if (!cancelled) setError(messageOf(err));
@@ -268,7 +271,9 @@ export function ScriptReviewStep({
     setBusy("generate");
     setError(null);
     try {
-      const next = await regenerateStudioScript(projectId, input, scriptClient);
+      const next = await regenerateStudioScript(projectId, input, scriptClient, {
+        ensureMainImage: ensureShellMainImage,
+      });
       setPickedBatchKey(null);
       setScript(next);
       setReview(null);
@@ -332,7 +337,7 @@ export function ScriptReviewStep({
               {soft.blocked ? <p className="ot-hint">{ANGLE_PICK_GUIDE}</p> : null}
               {pathHint ? <p className="ot-hint" role="status">{pathHint}</p> : null}
               {!product ? <p className="ot-hint">先在准备步选用商品，才能生成三套口播。</p> : null}
-              {loading ? <p className="ot-hint">正在准备三套口播…</p> : null}
+              {loading ? <p className="ot-hint">正在确认主图并准备三套口播…</p> : null}
               {error ? <p className="ot-error">{error}</p> : null}
               {conflict ? <p className="ot-error" role="alert">{conflict}</p> : null}
               {candidates.length > 0 ? (

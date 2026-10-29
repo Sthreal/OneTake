@@ -35,6 +35,13 @@ vi.mock("../api", async () => {
   const actual = await vi.importActual<typeof import("../api")>("../api");
   return { ...actual, approveCost: vi.fn() };
 });
+vi.mock("./mainImagePrelude", async () => {
+  const actual = await vi.importActual<typeof import("./mainImagePrelude")>("./mainImagePrelude");
+  return {
+    ...actual,
+    ensureShellMainImage: vi.fn(async () => undefined),
+  };
+});
 
 import type { ScriptReviewResult, ScriptState, ScriptVersion } from "../../features/script/types";
 import type { VideoPlan } from "../../features/video/types";
@@ -60,6 +67,7 @@ import {
   reviewScriptGate,
   selectScript,
 } from "../../shared/api/scriptApi";
+import { ensureShellMainImage } from "./mainImagePrelude";
 import { StudioShell } from "../StudioShell";
 import { DEFAULT_STUDIO_DRAFT, PATH_CHANGED_HINT, PRESENTER_CLEAR_FAILED, TALKING_HEAD_PRESENTER_REQUIRED, writeSkuEnrichment, writeStudioDraft } from "./model";
 
@@ -397,6 +405,8 @@ describe("iter18 图片广告与工作室解耦", () => {
     vi.mocked(confirmScript).mockClear();
     vi.mocked(updateProject).mockReset();
     vi.mocked(updateProject).mockResolvedValue(product);
+    vi.mocked(ensureShellMainImage).mockReset();
+    vi.mocked(ensureShellMainImage).mockResolvedValue(undefined);
     vi.mocked(listCharacters).mockResolvedValue({
       characters: [{
         character_id: "chr_zhou",
@@ -489,6 +499,10 @@ describe("iter18 图片广告与工作室解耦", () => {
       usageScenario: "通勤路上",
       offer: null,
     });
+    expect(ensureShellMainImage).toHaveBeenCalledWith("prj_skin");
+    expect(vi.mocked(ensureShellMainImage).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(generateScript).mock.invocationCallOrder[0],
+    );
     expect(screen.getByRole("button", { name: "痛点种草" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText("请先选择角度")).toBeInTheDocument();
     expect(screen.getByText("先点选一套角度，再审稿确认")).toBeInTheDocument();
@@ -544,6 +558,20 @@ describe("iter18 图片广告与工作室解耦", () => {
     expect(screen.queryByText(/数字人预览已生成/)).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "图片广告" })).not.toBeInTheDocument();
     expect(requestVideo).toHaveBeenCalledTimes(1);
+  });
+
+  it("主图前奏失败时停在审稿说明，不会去 generate，也没有确认主图按钮", async () => {
+    vi.mocked(ensureShellMainImage).mockRejectedValue(
+      new Error("请先在准备步上传一张商品图。没有已确认主图时不能生成文案。"),
+    );
+    const user = userEvent.setup();
+    open("/?view=prepare&project=prj_skin");
+    render(<StudioShell />);
+    await fillPrepare(user);
+    expect(await screen.findByText("请先在准备步上传一张商品图。没有已确认主图时不能生成文案。")).toBeInTheDocument();
+    expect(generateScript).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "确认主图" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "重新生成三套口播" })).toBeInTheDocument();
   });
 
   it("等长失败不能应用改写，保留原稿后才能进生成", async () => {

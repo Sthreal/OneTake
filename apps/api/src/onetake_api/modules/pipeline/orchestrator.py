@@ -24,6 +24,7 @@ from onetake_api.modules.main_image.domain import STATUS_CONFIRMED as MAIN_IMAGE
 from onetake_api.modules.main_image.domain import STATUS_READY as MAIN_IMAGE_READY
 from onetake_api.modules.main_image.domain import STATUS_FAILED as MAIN_IMAGE_FAILED
 from onetake_api.modules.main_image.public import MainImagePublicService
+from onetake_api.modules.main_image.service import MainImageConflictError, MainImageView
 from onetake_api.modules.outbox.public import OutboxPublicService
 from onetake_api.modules.pipeline.domain import (
     STATUS_COMPLETED,
@@ -254,6 +255,36 @@ class PipelineOrchestrator:
         self._pipeline.mark_auto_run(session, project_id, stage=breakpoint_stage)
         session.commit()
         return result
+
+    def ensure_confirmed_main_image(self, session: Session, project_id: str) -> MainImageView:
+        """壳层出稿前的窄前奏：只把识别和主图做到已确认。
+
+        不读 ``AUTO_RUN_ENABLED``，也不进入文案 / 配音 / 关键帧。
+        已确认则直接返回。没有 worker 时与自动链一样就地 ``process_job``；
+        有 worker 时只等它跑完，不重复调用供应商。
+        """
+        self._projects.get_project(session, project_id=project_id)
+        self._retried_stages.clear()
+        self._blocked_permanent = None
+        self._waited_external = False
+        for name in ("recognition", "main_image"):
+            spec = get_stage(name)
+            if not self._drive_stage(session, project_id, spec):
+                raise MainImageConflictError(self._prelude_stuck(name))
+            self._confirm_stage(session, project_id, spec)
+        view = self._main_images.latest(session, project_id)
+        if view is None or view.version.status != MAIN_IMAGE_CONFIRMED:
+            raise MainImageConflictError("主图还没确认，暂时不能生成文案")
+        return view
+
+    def _prelude_stuck(self, stage: str) -> str:
+        if self._waited_external:
+            return "主图还在处理，稍后再点开始制作"
+        if self._blocked_permanent:
+            return f"主图没有准备好（{self._blocked_permanent}），暂时不能生成文案"
+        if stage == "recognition":
+            return "识别还没完成，暂时不能确认主图"
+        return "主图还没准备好，暂时不能生成文案"
 
     # ----------------------------------------------------------------- S10
     def recover_from_failure(self, session: Session, project_id: str, error: Exception, *,

@@ -183,6 +183,7 @@ function PrepareLoaded({
         mime: file.type || "image/jpeg",
         size: file.size,
         preview: URL.createObjectURL(file),
+        file,
       });
     }
     setUploadError(rejected);
