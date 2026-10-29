@@ -50,9 +50,9 @@ describe("iter18 信息架构", () => {
     expect(GS_STEPS[3].optional).toBe(true);
   });
 
-  it("工作室只有准备 → 审稿 → 生成 → 成片，下一步不会进图片广告", () => {
+  it("工作室只有准备 → 审稿 → 提交渲染 → 成片，下一步不会进图片广告", () => {
     expect(STUDIO_STEPS.map((step) => step.view)).toEqual(["prepare", "review", "generate", "delivery"]);
-    expect(STUDIO_STEPS.map((step) => step.label)).toEqual(["准备素材", "审稿确认", "生成成片", "成片交付"]);
+    expect(STUDIO_STEPS.map((step) => step.label)).toEqual(["准备素材", "审稿确认", "提交渲染", "成片交付"]);
     expect(nextStudioView("prepare")).toBe("review");
     expect(nextStudioView("review")).toBe("generate");
     expect(nextStudioView("generate")).toBe("delivery");
@@ -106,7 +106,6 @@ describe("iter18 信息架构", () => {
       "ratio",
       "selling_points",
       "sessionOnly",
-      "specs",
       "usage_scenario",
     ]);
     const products = [
@@ -167,7 +166,7 @@ describe("准备步草稿与商品富化", () => {
     expect(effectivePrepareFields("prj_b", session).selling_points).toEqual(["乙卖点"]);
   });
 
-  it("图片只收 PNG / JPEG / JPG / WEBP，且不超过 10MB；必填文案按准备步拦截", () => {
+  it("图片只收 PNG / JPEG / JPG / WEBP，且不超过 10MB；痛点卖点场景仍拦截，商品图不拦", () => {
     expect(prepareImageRejection({ name: "a.heic", type: "image/heic", size: 100 })).toBe("仅支持 PNG / JPEG / JPG / WEBP");
     expect(prepareImageRejection({ name: "a.gif", type: "image/gif", size: 100 })).toBe("仅支持 PNG / JPEG / JPG / WEBP");
     expect(prepareImageRejection({ name: "a.png", type: "image/png", size: PREPARE_IMAGE_MAX_BYTES + 1 })).toBe("单张不能超过 10MB");
@@ -175,14 +174,32 @@ describe("准备步草稿与商品富化", () => {
     expect(prepareImageRejection({ name: "a.jpeg", type: "image/jpeg", size: 32 })).toBeNull();
     expect(prepareImageRejection({ name: "a.webp", type: "image/webp", size: 32 })).toBeNull();
     expect(prepareImageRejection({ name: "a.PNG", type: "", size: 32 })).toBeNull();
-    expect(prepareSubmitErrors({ imageCount: 0, painPoint: "", sellingPoints: ["  "], usageScenario: "通勤" })).toEqual([
-      PREPARE_REQUIRED_COPY.image,
+    expect(prepareSubmitErrors({ painPoint: "", sellingPoints: ["  "], usageScenario: "通勤" })).toEqual([
       PREPARE_REQUIRED_COPY.pain,
       PREPARE_REQUIRED_COPY.points,
     ]);
-    expect(prepareSubmitErrors({ imageCount: 1, painPoint: "清洗麻烦", sellingPoints: ["杯身可拆"], usageScenario: "" })).toEqual([
+    expect(prepareSubmitErrors({ painPoint: "清洗麻烦", sellingPoints: ["杯身可拆"], usageScenario: "" })).toEqual([
       PREPARE_REQUIRED_COPY.scene,
     ]);
+    expect(prepareSubmitErrors({ painPoint: "清洗麻烦", sellingPoints: ["杯身可拆"], usageScenario: "通勤" })).toEqual([]);
+  });
+
+  it("旧商品草稿里的规格要点读出来就丢掉，不并进卖点", () => {
+    localStorage.setItem("onetake.skuEnrichment.v1", JSON.stringify({
+      prj_a: {
+        pain_point: "痛",
+        selling_points: ["卖点"],
+        usage_scenario: "场景",
+        specs: "30ml",
+        offer: "",
+      },
+    }));
+    const sku = readSkuEnrichment("prj_a");
+    expect(sku).not.toHaveProperty("specs");
+    expect(sku.selling_points).toEqual(["卖点"]);
+    const draft = normalizeStudioDraft({ selling_points: ["杯身可拆"] });
+    expect(draft).not.toHaveProperty("specs");
+    expect(draft.selling_points).toEqual(["杯身可拆"]);
   });
 
   it("presenterId 为 null 时往返仍是无出镜人，同步会清空 character_id", () => {

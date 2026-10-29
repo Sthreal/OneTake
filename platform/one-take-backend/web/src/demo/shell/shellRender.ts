@@ -1,4 +1,4 @@
-/** 壳层生成步提交渲染：复用托管工作台的付费入口，不另起一条出片栈。
+/** 壳层「提交渲染」步：复用托管工作台的付费入口，不另起一条出片栈。
  *
  * 工作台 `DemoApp.produce` 在费用批准之后按路径分叉：
  * - `one_shot` → `requestVideo`（`POST /video`，与 `POST /compose` 同一服务方法）
@@ -67,8 +67,8 @@ export type ShellRenderPhase = "idle" | "queued" | "playable" | "failed";
 
 export interface ShellRenderView {
   phase: ShellRenderPhase;
-  /** 三态文案：排队中 / 可播预览 / 失败可重试。空闲时是尚未提交。 */
-  headline: "排队中" | "可播预览" | "失败可重试" | "尚未提交渲染";
+  /** 排队中 / 待渲染 / 成片可播 / 失败可重试。空闲时是尚未提交。没有地址不叫预览。 */
+  headline: "排队中" | "待渲染" | "成片可播" | "失败可重试" | "尚未提交渲染";
   detail: string;
   playableUrl: string | null;
   /** MOCK_PROVIDERS / provider 名含 mock 的成片。文案必须写明不是 live Wan。 */
@@ -158,10 +158,20 @@ export function describeShellRender(plan: VideoPlan | null, downloadUrl: string 
     };
   }
   if (isDone(plan)) {
+    if (!url) {
+      return {
+        phase: "playable",
+        headline: "待渲染",
+        detail: "渲染状态已结束，但还没有成片地址。这里不提供预览。",
+        playableUrl: null,
+        mockReady: false,
+        errorCode: null,
+      };
+    }
     return {
       phase: "playable",
-      headline: "可播预览",
-      detail: mock ? "Mock 成片就绪。这不是 live Wan。" : "成片可以预览。",
+      headline: "成片可播",
+      detail: mock ? "Mock 成片就绪。这不是 live Wan。" : "成片可以播放。",
       playableUrl: url,
       mockReady: mock,
       errorCode: null,

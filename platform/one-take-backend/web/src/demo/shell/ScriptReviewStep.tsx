@@ -1,4 +1,4 @@
-/** 审稿步：三套角度可选，四维审完后 apply 或 ack，过闸才能确认并进入生成。 */
+/** 审稿步：三套角度可选，四维审完后 apply 或 ack，过闸才能确认并提交渲染。 */
 import { useEffect, useState } from "react";
 
 import type { Project } from "../../features/input/types";
@@ -14,10 +14,7 @@ import {
   selectScript,
 } from "../../shared/api/scriptApi";
 import {
-  DEMO_FEE,
-  REVIEW_FILTERS,
   reviewFeeHint,
-  visibleReviewCells,
   type PresenterOption,
   type StudioDraft,
 } from "./model";
@@ -70,7 +67,6 @@ export function ScriptReviewStep({
   pathHint?: string | null;
   onDismissPathHint?: () => void;
 }) {
-  const [filter, setFilter] = useState<(typeof REVIEW_FILTERS)[number]>("全部");
   const [script, setScript] = useState<ScriptState | null>(null);
   const [review, setReview] = useState<ScriptReviewResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -134,7 +130,6 @@ export function ScriptReviewStep({
   const locked = angleSwitchLocked(script);
   const inFlight = scriptInFlight(script);
   const failed = scriptFailed(script);
-  const cells = visibleReviewCells(filter);
   const name = product?.product_name ?? "已选商品";
   const angleGroup = reviewAngleGroupLabel({ source: presenter.source, path: draft.path });
   const batchKey = angleBatchKey(script);
@@ -299,36 +294,7 @@ export function ScriptReviewStep({
           </div>
           <div className="ot-context">商品 <strong>{name}</strong></div>
         </div>
-        <div className="ot-split">
-          <div className="ot-col">
-            <section className="ot-preview">
-              <div className="ot-preview-bar">
-                <div className="ot-ptabs">
-                  <button type="button">分镜预览</button>
-                  <button type="button">关键帧</button>
-                  <button type="button" className="on">九宫格</button>
-                </div>
-                <div className="ot-meta">{draft.duration} · {draft.ratio} · 9 镜</div>
-              </div>
-              <div className="ot-preview-body">
-                <div className="ot-filters-inline" role="group" aria-label="分镜筛选">
-                  {REVIEW_FILTERS.map((item) => (
-                    <button key={item} type="button" className={item === filter ? "on" : ""} aria-pressed={item === filter} onClick={() => setFilter(item)}>{item}</button>
-                  ))}
-                </div>
-                <div className="ot-nine" role="list" aria-label="审稿九宫格">
-                  {cells.map((cell) => (
-                    <div key={cell.id} role="listitem" className="ot-cell" style={{ minHeight: 96 }}>
-                      <span className={"ot-cell-bg " + cell.tone} />
-                      <span className="ot-cell-tag">镜 {cell.id}<span className="dur">{cell.dur}</span></span>
-                      <span className="ot-cell-cap">{cell.caption}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </section>
-          </div>
-          <div className="ot-side-col">
+        <div className="ot-col">
             <section className="ot-panel" aria-busy={loading || busy !== null}>
               <div className="ot-label-row">
                 <div className="ot-label">{angleGroup}</div>
@@ -407,20 +373,15 @@ export function ScriptReviewStep({
               </section>
             ) : null}
             <section className="ot-panel">
-              <div className="ot-label">费用明细</div>
-              <div className="ot-fee-row"><span>文案与分镜</span><b>已含</b></div>
-              <div className="ot-fee-row"><span>配音合成</span><b>2 积分</b></div>
-              <div className="ot-fee-row"><span>视频生成 · {draft.duration}</span><b>10 积分</b></div>
-              <div className="ot-divider" />
-              <div className="ot-fee-row"><span>合计</span><span className="ot-fee-total">{DEMO_FEE} 积分</span></div>
+              <div className="ot-label">费用</div>
+              <p className="ot-hint">本页不报价。确认后进入渲染，是否扣费以费用闸为准。</p>
               <div className="ot-hint">{reviewFeeHint(presenter)}</div>
             </section>
-          </div>
         </div>
       </div>
       <footer className="ot-sticky">
         <div>
-          <div className="ot-sticky-title">{guard.blocked ? "生成前要先过审稿闸" : "确认后提交渲染"}</div>
+          <div className="ot-sticky-title">{guard.blocked ? "提交渲染前要先过审稿闸" : "确认后提交渲染"}</div>
           <div className="ot-sticky-sub">
             {guard.blocked ? "未 apply / ack 时，付费视频会 409 SCRIPT_REVIEW_REQUIRED" : "下一步提交渲染，不是图片广告"}
           </div>
@@ -428,7 +389,7 @@ export function ScriptReviewStep({
         <div className="ot-sticky-right">
           {soft.hint ? <span className="ot-meta" role="status">{soft.hint}</span> : null}
           <button type="button" className="ot-btn ot-btn-primary ot-btn-lg" disabled={advanceDisabled} onClick={() => void confirmAndAdvance()}>
-            确认并生成成片<span className="ot-fee">· {DEMO_FEE} 积分</span>
+            确认并提交渲染
           </button>
         </div>
       </footer>
