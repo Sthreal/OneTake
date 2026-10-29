@@ -290,7 +290,7 @@ export function ScriptReviewStep({
         <div className="ot-headrow">
           <div>
             <h1 className="ot-page-title">审稿确认</h1>
-            <p className="ot-page-sub">选出一套{angleGroup}并过审稿闸，确认后一键生成。无需先做图片广告。</p>
+            <p className="ot-page-sub">选出一套{angleGroup}并过审稿闸，确认后才提交渲染。无需先做图片广告。</p>
           </div>
           <div className="ot-context">商品 <strong>{name}</strong></div>
         </div>
@@ -415,15 +415,15 @@ export function ScriptReviewStep({
       </div>
       <footer className="ot-sticky">
         <div>
-          <div className="ot-sticky-title">{guard.blocked ? "生成前要先过审稿闸" : "一键生成成片"}</div>
+          <div className="ot-sticky-title">{guard.blocked ? "生成前要先过审稿闸" : "确认后提交渲染"}</div>
           <div className="ot-sticky-sub">
-            {guard.blocked ? "未 apply / ack 时，付费视频会 409 SCRIPT_REVIEW_REQUIRED" : "下一步是生成，不是图片广告"}
+            {guard.blocked ? "未 apply / ack 时，付费视频会 409 SCRIPT_REVIEW_REQUIRED" : "下一步提交渲染，不是图片广告"}
           </div>
         </div>
         <div className="ot-sticky-right">
           {soft.hint ? <span className="ot-meta" role="status">{soft.hint}</span> : null}
           <button type="button" className="ot-btn ot-btn-primary ot-btn-lg" disabled={advanceDisabled} onClick={() => void confirmAndAdvance()}>
-            确认并生成视频<span className="ot-fee">· {DEMO_FEE} 积分</span>
+            确认并生成成片<span className="ot-fee">· {DEMO_FEE} 积分</span>
           </button>
         </div>
       </footer>

@@ -52,6 +52,7 @@ describe("iter18 信息架构", () => {
 
   it("工作室只有准备 → 审稿 → 生成 → 成片，下一步不会进图片广告", () => {
     expect(STUDIO_STEPS.map((step) => step.view)).toEqual(["prepare", "review", "generate", "delivery"]);
+    expect(STUDIO_STEPS.map((step) => step.label)).toEqual(["准备素材", "审稿确认", "生成成片", "成片交付"]);
     expect(nextStudioView("prepare")).toBe("review");
     expect(nextStudioView("review")).toBe("generate");
     expect(nextStudioView("generate")).toBe("delivery");
