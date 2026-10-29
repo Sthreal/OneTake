@@ -60,6 +60,30 @@ vi.mock("../../shared/api/voiceApi", () => ({
   })),
   requestVoice: vi.fn(),
 }));
+vi.mock("../../shared/api/contentPlanApi", () => {
+  const plan = (status: "ready" | "confirmed") => ({
+    plan_id: "cpl_1",
+    project_id: "prj_skin",
+    status,
+    provider: "rules",
+    model: "rules-v1",
+    selected_variant_index: 0,
+    total_duration_seconds: 14,
+    variants: [],
+    error_code: null,
+    created_at: "2026-10-29T00:00:00Z",
+    updated_at: "2026-10-29T00:00:00Z",
+    confirmed_at: status === "confirmed" ? "2026-10-29T00:00:00Z" : null,
+  });
+  return {
+    getContentPlan: vi.fn(async () => null),
+    generateContentPlan: vi.fn(async () => plan("ready")),
+    confirmContentPlan: vi.fn(async () => plan("confirmed")),
+    updateContentPlan: vi.fn(),
+    getContentPlanOptions: vi.fn(),
+    updateSceneCamera: vi.fn(),
+  };
+});
 vi.mock("../../shared/api/subtitleApi", () => ({
   getSubtitle: vi.fn(async () => ({
     version: {
@@ -96,6 +120,7 @@ import type { VideoPlan } from "../../features/video/types";
 import { approveCost } from "../api";
 import { ApiError } from "../../shared/api/client";
 import { listCharacters } from "../../shared/api/characterApi";
+import { confirmContentPlan, generateContentPlan, getContentPlan } from "../../shared/api/contentPlanApi";
 import { listProjects, updateProject } from "../../shared/api/projectApi";
 import {
   createVideoPlan,
@@ -455,6 +480,9 @@ describe("iter18 图片广告与工作室解耦", () => {
     vi.mocked(updateProject).mockResolvedValue(product);
     vi.mocked(ensureShellMainImage).mockReset();
     vi.mocked(ensureShellMainImage).mockResolvedValue(undefined);
+    vi.mocked(getContentPlan).mockClear();
+    vi.mocked(generateContentPlan).mockClear();
+    vi.mocked(confirmContentPlan).mockClear();
     vi.mocked(listCharacters).mockResolvedValue({
       characters: [{
         character_id: "chr_zhou",
@@ -596,7 +624,17 @@ describe("iter18 图片广告与工作室解耦", () => {
     expect(vi.mocked(confirmScript).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(requestVideo).mock.invocationCallOrder[0]);
     expect(startVideoBatch).not.toHaveBeenCalled();
     expect(screen.getByRole("status")).not.toHaveTextContent("VIDEO_CONFLICT");
+    expect(screen.getByRole("status")).not.toHaveTextContent("CONTENT_QA_CONFLICT");
     expect(screen.getByRole("status")).not.toHaveTextContent("请先确认视频分镜");
+    expect(screen.queryByRole("button", { name: "确认分镜" })).not.toBeInTheDocument();
+    expect(generateContentPlan).toHaveBeenCalledWith("prj_skin");
+    expect(confirmContentPlan).toHaveBeenCalledWith("prj_skin");
+    expect(vi.mocked(generateContentPlan).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(confirmContentPlan).mock.invocationCallOrder[0],
+    );
+    expect(vi.mocked(confirmContentPlan).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(createVideoPlan).mock.invocationCallOrder[0],
+    );
     await waitFor(() => expect(screen.getByRole("button", { name: "查看成片" })).toBeEnabled());
 
     await user.click(screen.getByRole("button", { name: "查看成片" }));
@@ -1167,7 +1205,12 @@ describe("iter18 图片广告与工作室解耦", () => {
     expect(status).not.toHaveTextContent("Mock 成片就绪");
     expect(status).not.toHaveTextContent("可播预览");
     expect(status).not.toHaveTextContent("VIDEO_CONFLICT");
+    expect(status).not.toHaveTextContent("CONTENT_QA_CONFLICT");
     expect(status).not.toHaveTextContent("请先确认视频分镜");
+    expect(screen.queryByRole("button", { name: "确认分镜" })).not.toBeInTheDocument();
+    expect(vi.mocked(confirmContentPlan).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(createVideoPlan).mock.invocationCallOrder[0],
+    );
     expect(screen.queryByLabelText("成片预览")).not.toBeInTheDocument();
     expect(createVideoPlan).toHaveBeenCalledWith("prj_skin", "product", "clean", "segmented");
     expect(requestVideo).toHaveBeenCalledWith("prj_skin");
