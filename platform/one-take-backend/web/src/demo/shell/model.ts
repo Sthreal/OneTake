@@ -444,6 +444,8 @@ export interface PrepareImage {
   mime: string;
   size: number;
   preview: string;
+  /** 只活在本次页面内存里，用来在出稿前上传成素材。不进 localStorage。 */
+  file?: File;
 }
 
 export interface SkuEnrichment {
@@ -559,6 +561,13 @@ export function writeSkuEnrichment(projectId: string, fields: SkuEnrichment): Sk
 export function clearSessionImages(projectId?: string): void {
   if (projectId) sessionImages.delete(projectId);
   else sessionImages.clear();
+}
+
+/** 出稿前奏要上传的那张图。本场覆盖优先，否则用商品草稿里还留着的 File。 */
+export function prepareUploadFile(projectId: string): File | null {
+  const session = sessionImages.get(projectId);
+  const stored = session ?? skuImages.get(projectId) ?? [];
+  return stored.find((item) => item.file)?.file ?? null;
 }
 
 export function effectivePrepareFields(projectId: string, draft: StudioDraft): SkuEnrichment {

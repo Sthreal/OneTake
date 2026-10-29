@@ -73,3 +73,17 @@ def test_main_image_api_can_start_after_confirmation(client, db_session: Session
     data = response.json()["data"]["version"]
     assert data["status"] == "queued"
     assert data["png_url"] is None
+
+
+def test_ensure_main_image_without_asset_is_explicit(client) -> None:
+    project = client.post("/api/v1/projects", json={"product_name": "壳层前奏没图"}).json()["data"]
+    blocked = client.post(
+        f"/api/v1/projects/{project['project_id']}/script/generate",
+        json={"pain_point": "清洗麻烦", "selling_points": ["杯身可拆"], "usage_scenario": "通勤路上"},
+    )
+    assert blocked.status_code == 409
+    assert blocked.json()["error"]["message"] == "请先确认主图，再生成文案"
+
+    response = client.post(f"/api/v1/projects/{project['project_id']}/main-image/ensure")
+    assert response.status_code == 422
+    assert "素材" in response.json()["error"]["message"]

@@ -15,6 +15,7 @@ import {
   lengthFailureCopy,
   loadStudioScript,
   mergeReviewedVersion,
+  regenerateStudioScript,
   orderedCandidates,
   paidVideoBlock,
   studioScriptInput,
@@ -191,6 +192,72 @@ describe("工作室审稿闸判断", () => {
     }, { sleep: async () => {} });
     expect(api.generateScript).toHaveBeenCalledTimes(1);
     expect(again.version?.version_id).toBe(ready.version_id);
+  });
+
+  it("没有前奏时，请先确认主图会从 generate 原样抛出", async () => {
+    const api = {
+      getScript: vi.fn(async (): Promise<ScriptState> => ({ version: null, candidates: [], selected_version_id: null })),
+      generateScript: vi.fn(async (): Promise<ScriptState> => {
+        throw new Error("请先确认主图，再生成文案");
+      }),
+    };
+    await expect(loadStudioScript("prj_no_prelude", input, api, { sleep: async () => {} })).rejects.toThrow(
+      "请先确认主图，再生成文案",
+    );
+    expect(api.generateScript).toHaveBeenCalledTimes(1);
+  });
+
+  it("有前奏时先确认主图，再 generate；前奏失败则不出稿", async () => {
+    const order: string[] = [];
+    const ready = version({ status: "ready" });
+    const api = {
+      getScript: vi.fn(async (): Promise<ScriptState> => {
+        order.push("get");
+        return { version: null, candidates: [], selected_version_id: null };
+      }),
+      generateScript: vi.fn(async (): Promise<ScriptState> => {
+        order.push("generate");
+        return { version: ready, candidates: [ready], selected_version_id: ready.version_id };
+      }),
+    };
+    await loadStudioScript("prj_with_prelude", input, api, {
+      sleep: async () => {},
+      ensureMainImage: async () => {
+        order.push("ensure");
+      },
+    });
+    expect(order).toEqual(["get", "ensure", "generate"]);
+
+    const blocked = {
+      getScript: async (): Promise<ScriptState> => ({ version: null, candidates: [], selected_version_id: null }),
+      generateScript: vi.fn(),
+    };
+    await expect(loadStudioScript("prj_prelude_fail", input, blocked, {
+      ensureMainImage: async () => {
+        throw new Error("请先确认主图，再生成文案");
+      },
+    })).rejects.toThrow("请先确认主图，再生成文案");
+    expect(blocked.generateScript).not.toHaveBeenCalled();
+  });
+
+  it("重新生成也会先跑主图前奏", async () => {
+    const order: string[] = [];
+    const ready = version({ status: "ready" });
+    await regenerateStudioScript("prj_regen_prelude", input, {
+      getScript: async () => {
+        throw new Error("重新生成不读旧稿");
+      },
+      generateScript: async () => {
+        order.push("generate");
+        return { version: ready, candidates: [ready], selected_version_id: ready.version_id };
+      },
+    }, {
+      sleep: async () => {},
+      ensureMainImage: async () => {
+        order.push("ensure");
+      },
+    });
+    expect(order).toEqual(["ensure", "generate"]);
   });
 
   it("审稿结果写回当前角度，不丢掉另外两套", () => {
