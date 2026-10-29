@@ -14,6 +14,7 @@ import {
   presenterOptions,
   setPrepareSessionOnly,
   type PrepareImage,
+  type PresenterOption,
   type SkuEnrichment,
   type StudioDraft,
 } from "./model";
@@ -35,14 +36,16 @@ export function PrepareStep(props: {
   loading: boolean;
   error: string | null;
   product: Project | null;
-  presenter: { id: string; name: string; role: string; initial: string };
+  presenter: PresenterOption;
   characters: Character[];
   castOpen: boolean;
   onCastOpen: (open: boolean) => void;
   onDraft: (partial: Partial<StudioDraft>) => void;
   onBrand: () => void;
   onCharacters: () => void;
-  onStart: () => void;
+  onStart: () => void | Promise<void>;
+  syncing?: boolean;
+  syncError?: string | null;
 }) {
   if (!props.product) return <PrepareEmpty {...props} />;
   return <PrepareLoaded key={props.product.project_id} {...props} product={props.product} />;
@@ -60,7 +63,7 @@ function PrepareEmpty({
   requestedProjectId: string | null;
   loading: boolean;
   error: string | null;
-  presenter: { name: string; role: string };
+  presenter: PresenterOption;
   onBrand: () => void;
 }) {
   const pending = Boolean(requestedProjectId) && loading;
@@ -98,17 +101,21 @@ function PrepareLoaded({
   onBrand,
   onCharacters,
   onStart,
+  syncing,
+  syncError,
 }: {
   draft: StudioDraft;
   product: Project;
-  presenter: { id: string; name: string; role: string; initial: string };
+  presenter: PresenterOption;
   characters: Character[];
   castOpen: boolean;
   onCastOpen: (open: boolean) => void;
   onDraft: (partial: Partial<StudioDraft>) => void;
   onBrand: () => void;
   onCharacters: () => void;
-  onStart: () => void;
+  onStart: () => void | Promise<void>;
+  syncing?: boolean;
+  syncError?: string | null;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const errorId = useId();
@@ -352,19 +359,27 @@ function PrepareLoaded({
           <div className="ot-side-col">
             <section className="ot-panel">
               <div className="ot-label">出镜人 · 库选</div>
-              <div className="ot-talent">
-                <div className="ot-talent-avatar">{presenter.initial}</div>
-                <div>
+              {presenter.source === "none" ? (
+                <div className="ot-cast-picked">
                   <b>{presenter.name}</b>
                   <span>{presenter.role}</span>
                 </div>
-              </div>
+              ) : (
+                <div className="ot-talent">
+                  <div className="ot-talent-avatar">{presenter.initial}</div>
+                  <div>
+                    <b>{presenter.name}</b>
+                    <span>{presenter.role}</span>
+                  </div>
+                </div>
+              )}
               <button type="button" className="ot-link" aria-expanded={castOpen} onClick={() => onCastOpen(!castOpen)}>从出镜人库更换 →</button>
               {castOpen ? (
                 <div className="ot-cast">
                   {options.map((option) => (
-                    <button key={option.id} type="button" className={option.id === presenter.id ? "on" : ""} aria-pressed={option.id === presenter.id} onClick={() => onDraft({ presenterId: option.id })}>
-                      {option.name} · {option.role}
+                    <button key={option.id ?? "none"} type="button" className={option.id === presenter.id ? "on" : ""} aria-pressed={option.id === presenter.id} onClick={() => onDraft({ presenterId: option.id })}>
+                      <b>{option.name}</b>
+                      <span>{option.role}</span>
                     </button>
                   ))}
                   <button type="button" onClick={onCharacters}>管理出镜人库</button>
@@ -396,6 +411,8 @@ function PrepareLoaded({
         errors={errors}
         errorId={errorId}
         ready={ready}
+        syncing={syncing}
+        syncError={syncError}
         onStart={onStart}
       />
     </>
@@ -409,15 +426,19 @@ function PrepareFooter({
   errors,
   errorId,
   ready,
+  syncing = false,
+  syncError = null,
   onStart,
 }: {
   draft: StudioDraft;
-  presenter: { name: string; role: string };
+  presenter: PresenterOption;
   productName: string | null;
   errors: string[];
   errorId?: string;
   ready: boolean;
-  onStart: () => void;
+  syncing?: boolean;
+  syncError?: string | null;
+  onStart: () => void | Promise<void>;
 }) {
   return (
     <footer className="ot-sticky">
@@ -429,20 +450,21 @@ function PrepareFooter({
             {errors.map((item) => <li key={item}>{item}</li>)}
           </ul>
         ) : null}
+        {syncError ? <p className="ot-error" role="alert">{syncError}</p> : null}
       </div>
       <div className="ot-sticky-right">
         <div className="ot-chips">
           <span className="ot-chip on">{draft.ratio}</span>
           <span className="ot-chip on">{draft.duration}</span>
-          <span className="ot-chip">{presenter.name} · {presenter.role.split("·")[0].trim()}</span>
+          <span className="ot-chip">{presenter.source === "none" ? presenter.name : `${presenter.name} · ${presenter.role.split("·")[0].trim()}`}</span>
         </div>
         <button
           type="button"
           className="ot-btn ot-btn-primary ot-btn-lg"
-          disabled={!ready}
+          disabled={!ready || syncing}
           aria-describedby={errors.length > 0 ? errorId : undefined}
           onClick={() => {
-            if (ready) onStart();
+            if (ready && !syncing) return onStart();
           }}
         >
           开始制作

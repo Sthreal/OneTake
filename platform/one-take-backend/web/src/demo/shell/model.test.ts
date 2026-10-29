@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { projectUpdateBody } from "../../shared/api/projectApi";
+
 import {
   DEFAULT_STUDIO_DRAFT,
   GS_STEPS,
@@ -16,10 +18,17 @@ import {
   normalizeStudioDraft,
   prepareImageRejection,
   prepareSubmitErrors,
+  PREMADE_PRESENTER,
+  deliveryPresenterCheck,
+  deliveryShowsTalent,
+  generatePresenterCheck,
+  presenterById,
   presenterOptions,
+  projectCharacterSync,
   readSkuEnrichment,
   readStudioDraft,
   resolveSelectedProduct,
+  reviewFeeHint,
   writeSkuEnrichment,
 } from "./model";
 
@@ -54,9 +63,12 @@ describe("iter18 信息架构", () => {
     const options = presenterOptions([
       { character_id: "chr_1", name: "周予", voice_style: "男声 · 库" },
     ]);
-    expect(options.map((item) => item.source)).toEqual(["premade", "library"]);
-    expect(options[0].name).toBe("林晓");
-    expect(options.some((item) => item.id.startsWith("prompt"))).toBe(false);
+    expect(options.map((item) => item.source)).toEqual(["none", "premade", "library"]);
+    expect(options[0]).toMatchObject({ id: null, name: "无出镜人", role: "商品镜头为主，不出现人物" });
+    expect(options[1].name).toBe("林晓");
+    expect(options.some((item) => typeof item.id === "string" && item.id.startsWith("prompt"))).toBe(false);
+    expect(presenterById(null, []).name).toBe("无出镜人");
+    expect(presenterById("chr_1", [{ character_id: "chr_1", name: "周予", voice_style: "男声 · 库" }]).source).toBe("library");
   });
 
   it("工作室草稿没有图片广告字段；没有 id 或 id 不存在时都不偷换", () => {
@@ -151,5 +163,35 @@ describe("准备步草稿与商品富化", () => {
     expect(prepareSubmitErrors({ imageCount: 1, painPoint: "清洗麻烦", sellingPoints: ["杯身可拆"], usageScenario: "" })).toEqual([
       PREPARE_REQUIRED_COPY.scene,
     ]);
+  });
+
+  it("presenterId 为 null 时往返仍是无出镜人，同步会清空 character_id", () => {
+    const draft = normalizeStudioDraft({ ...DEFAULT_STUDIO_DRAFT, presenterId: null });
+    expect(draft.presenterId).toBeNull();
+    localStorage.setItem("onetake.studioDraft.v2", JSON.stringify(draft));
+    expect(readStudioDraft(null).presenterId).toBeNull();
+    expect(readStudioDraft("prj_other").presenterId).toBeNull();
+    expect(normalizeStudioDraft({ presenterId: "" }).presenterId).toBeNull();
+    expect(normalizeStudioDraft({ presenterId: "   " }).presenterId).toBeNull();
+    expect(normalizeStudioDraft({ presenterId: "chr_zhou" }).presenterId).toBe("chr_zhou");
+    expect(normalizeStudioDraft({}).presenterId).toBe(PREMADE_PRESENTER.id);
+
+    expect(projectCharacterSync(null)).toEqual({ characterId: null });
+    expect(projectCharacterSync(PREMADE_PRESENTER.id)).toBeNull();
+    expect(projectCharacterSync("chr_zhou")).toEqual({ characterId: "chr_zhou" });
+    expect(JSON.parse(JSON.stringify(projectUpdateBody({ characterId: null })))).toEqual({ character_id: null });
+    expect(projectUpdateBody({})).not.toHaveProperty("character_id");
+
+    const noneHint = reviewFeeHint({ source: "none", name: "无出镜人" });
+    expect(noneHint).toBe("确认前不扣积分。本场无出镜人 · 口播将以配音/字幕呈现。未过闸不会进入付费生成。");
+    const personHint = reviewFeeHint({ source: "premade", name: "林晓" });
+    expect(personHint).toContain("确认前不扣积分");
+    expect(personHint).toContain("配音人 林晓");
+    expect(personHint).toContain("未过闸不会进入付费生成");
+    expect(generatePresenterCheck({ source: "none", name: "无出镜人", role: "商品镜头为主，不出现人物" })).toBe("出镜：无（纯商品）");
+    expect(generatePresenterCheck({ source: "premade", name: "林晓", role: "女声 · 温和种草 · 预制" })).toBe("出镜人：林晓 · 女声 · 温和种草 · 预制");
+    expect(deliveryPresenterCheck({ source: "none", name: "无出镜人" })).toBe("纯商品镜头 · 无人出镜");
+    expect(deliveryShowsTalent({ source: "none" })).toBe(false);
+    expect(deliveryShowsTalent({ source: "library" })).toBe(true);
   });
 });

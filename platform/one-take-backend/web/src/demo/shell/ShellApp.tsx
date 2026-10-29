@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 
 import { listCharacters, type Character } from "../../shared/api/characterApi";
-import { createProject, listProjects } from "../../shared/api/projectApi";
+import { createProject, listProjects, updateProject } from "../../shared/api/projectApi";
 import type { Project } from "../../features/input/types";
 import type { ShellView, UrlView } from "../urlState";
 import {
@@ -16,11 +16,15 @@ import {
   IMAGE_AD_RATIOS,
   STUDIO_STEPS,
   clearSessionImages,
+  PRESENTER_CLEAR_FAILED,
+  deliveryPresenterCheck,
+  generatePresenterCheck,
   imageAdExportPayload,
   isStudioView,
   markGsDone,
   nextStudioView,
   presenterById,
+  projectCharacterSync,
   readBrands,
   readGsDone,
   readStudioDraft,
@@ -28,6 +32,7 @@ import {
   writeBrands,
   writeStudioDraft,
   type ImageAdRatio,
+  type PresenterOption,
   type StudioDraft,
 } from "./model";
 import { PrepareStep } from "./PrepareStep";
@@ -758,7 +763,7 @@ function Studio({
   loading: boolean;
   error: string | null;
   product: Project | null;
-  presenter: { id: string; name: string; role: string; initial: string };
+  presenter: PresenterOption;
   characters: Character[];
   castOpen: boolean;
   onCastOpen: (open: boolean) => void;
@@ -767,12 +772,44 @@ function Studio({
 }) {
   const stepIndex = STUDIO_STEPS.findIndex((step) => step.view === view);
   const productId = product?.project_id ?? null;
+  const [presenterSyncing, setPresenterSyncing] = useState(false);
+  const [presenterSyncError, setPresenterSyncError] = useState<string | null>(null);
+
   const advance = () => {
     const next = nextStudioView(view);
     if (!next) return;
     if (view === "prepare" && product) onDraft({ projectId: product.project_id });
     onNavigate(next, product?.project_id ?? null);
   };
+
+  async function syncPresenter(projectKey: string): Promise<boolean> {
+    const sync = projectCharacterSync(draft.presenterId);
+    if (!sync) {
+      setPresenterSyncError(null);
+      return true;
+    }
+    setPresenterSyncing(true);
+    setPresenterSyncError(null);
+    try {
+      await updateProject(projectKey, { characterId: sync.characterId });
+      return true;
+    } catch {
+      setPresenterSyncError(
+        sync.characterId === null ? PRESENTER_CLEAR_FAILED : "出镜人没能写入项目，已停止。不会改用预制出镜人。",
+      );
+      return false;
+    } finally {
+      setPresenterSyncing(false);
+    }
+  }
+
+  async function startProduction() {
+    if (!product || presenterSyncing) return;
+    const ok = await syncPresenter(product.project_id);
+    if (!ok) return;
+    onDraft({ projectId: product.project_id });
+    onNavigate("review", product.project_id);
+  }
 
   return (
     <div className="ot-studio">
@@ -812,7 +849,9 @@ function Studio({
           onDraft={onDraft}
           onBrand={() => onNavigate("brand")}
           onCharacters={() => onNavigate("characters")}
-          onStart={advance}
+          onStart={() => { void startProduction(); }}
+          syncing={presenterSyncing}
+          syncError={presenterSyncError}
         />
       ) : null}
       {view === "review" ? (
@@ -843,12 +882,43 @@ function Generate({
   onReview,
 }: {
   product: Project | null;
-  presenter: { name: string; role: string };
+  presenter: PresenterOption;
   draft: StudioDraft;
   onNext: () => void;
   onReview: () => void;
 }) {
   const guard = useScriptGateGuard(product?.project_id ?? null);
+  const projectKey = product?.project_id ?? null;
+  const [syncing, setSyncing] = useState(() => projectCharacterSync(draft.presenterId) !== null && projectKey !== null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const sync = projectCharacterSync(draft.presenterId);
+    if (!sync || !projectKey) {
+      setSyncing(false);
+      return;
+    }
+    let cancelled = false;
+    setSyncing(true);
+    setSyncError(null);
+    void updateProject(projectKey, { characterId: sync.characterId })
+      .then(() => {
+        if (!cancelled) setSyncError(null);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSyncError(sync.characterId === null ? PRESENTER_CLEAR_FAILED : "出镜人没能写入项目，已停止。不会改用预制出镜人。");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setSyncing(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectKey, draft.presenterId]);
+
+  const held = guard.loading || guard.blocked || syncing || syncError !== null;
   return (
     <>
       <div className="ot-content">
@@ -858,10 +928,11 @@ function Generate({
         </div>
         <section className="ot-panel">
           <div className="ot-checkline">商品：{product?.product_name ?? "未选择"}</div>
-          <div className="ot-checkline">出镜人：{presenter.name} · {presenter.role}</div>
+          <div className="ot-checkline">{generatePresenterCheck(presenter)}</div>
           <div className="ot-checkline">规格：{draft.ratio} · {draft.duration}</div>
           <div className="ot-checkline">图片广告：未使用，也不是本步的前置条件</div>
         </section>
+        {syncError ? <p className="ot-error" role="alert">{syncError}</p> : null}
         {guard.loading ? <p className="ot-hint" role="status">正在核对审稿闸…</p> : null}
         {!guard.loading && guard.blocked ? (
           <section className="ot-panel" role="alert">
@@ -879,7 +950,7 @@ function Generate({
             {guard.blocked ? "未 apply / ack 不会进入下一步" : "付费渲染在托管工作台。外壳单独走完不会出视频。"}
           </div>
         </div>
-        <button type="button" className="ot-btn ot-btn-primary ot-btn-lg" disabled={guard.loading || guard.blocked} onClick={onNext}>查看交付说明</button>
+        <button type="button" className="ot-btn ot-btn-primary ot-btn-lg" disabled={held} onClick={onNext}>查看交付说明</button>
       </footer>
     </>
   );
@@ -892,7 +963,7 @@ function Delivery({
   onNavigate,
 }: {
   product: Project | null;
-  presenter: { name: string };
+  presenter: PresenterOption;
   draft: StudioDraft;
   onNavigate: (view: UrlView, projectId?: string | null) => void;
 }) {
@@ -905,7 +976,7 @@ function Delivery({
         </div>
         <section className="ot-panel">
           <div className="ot-checkline">商品：{product?.product_name ?? "未选择"}</div>
-          <div className="ot-checkline">出镜人：{presenter.name}</div>
+          <div className="ot-checkline">{deliveryPresenterCheck(presenter)}</div>
           <div className="ot-checkline">规格：{draft.ratio} · {draft.duration}</div>
           <div className="ot-checkline">发布：有机发布尚未接线，去了也发不出去</div>
         </section>

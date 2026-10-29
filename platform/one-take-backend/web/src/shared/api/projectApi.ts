@@ -31,18 +31,27 @@ export async function updateProject(
   input: {
     productName?: string;
     productNote?: string | null;
-    /** 出镜人：传 id = 选用；传 "" = 取消（后端按"字段是否出现"区分"没提"与"清空"）。 */
-    characterId?: string;
+    /** 出镜人：传库 id = 选用；传 null 或 "" = 清空。字段缺省则不动。 */
+    characterId?: string | null;
   },
 ): Promise<Project> {
   return apiRequest<Project>(`/api/v1/projects/${projectId}`, {
     method: "PATCH",
-    body: JSON.stringify({
-      ...(input.productName !== undefined ? { product_name: input.productName.trim() } : {}),
-      ...(input.productNote !== undefined ? { product_note: input.productNote?.trim() || null } : {}),
-      ...(input.characterId !== undefined ? { character_id: input.characterId } : {}),
-    }),
+    body: JSON.stringify(projectUpdateBody(input)),
   });
+}
+
+/** null 必须留在 JSON 里，后端才把 character_id 当成「显式清空」而不是「没提」。 */
+export function projectUpdateBody(input: {
+  productName?: string;
+  productNote?: string | null;
+  characterId?: string | null;
+}): Record<string, unknown> {
+  return {
+    ...(input.productName !== undefined ? { product_name: input.productName.trim() } : {}),
+    ...(input.productNote !== undefined ? { product_note: input.productNote?.trim() || null } : {}),
+    ...(input.characterId !== undefined ? { character_id: input.characterId } : {}),
+  };
 }
 
 export async function getProject(projectId: string): Promise<Project> {

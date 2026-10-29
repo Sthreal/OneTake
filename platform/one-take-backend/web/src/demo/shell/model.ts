@@ -124,16 +124,26 @@ export const PREMADE_PRESENTER = {
   initial: "林",
 } as const;
 
+/** 显式「无出镜人」。id 用 null，不用哨兵字符串，避免再被当成库 id 写进项目。 */
+export const NO_PRESENTER = {
+  id: null,
+  name: "无出镜人",
+  role: "商品镜头为主，不出现人物",
+  initial: "",
+  source: "none",
+} as const;
+
 export interface PresenterOption {
-  id: string;
+  id: string | null;
   name: string;
   role: string;
   initial: string;
-  source: "premade" | "library";
+  source: "none" | "premade" | "library";
 }
 
 export function presenterOptions(characters: { character_id: string; name: string; voice_style: string | null }[]): PresenterOption[] {
   return [
+    { ...NO_PRESENTER },
     { ...PREMADE_PRESENTER, source: "premade" },
     ...characters.map((character) => ({
       id: character.character_id,
@@ -147,7 +157,48 @@ export function presenterOptions(characters: { character_id: string; name: strin
 
 export function presenterById(id: string | null, characters: { character_id: string; name: string; voice_style: string | null }[]): PresenterOption {
   const options = presenterOptions(characters);
-  return options.find((item) => item.id === id) ?? options[0];
+  if (id === null || id === "") return options.find((item) => item.source === "none") ?? { ...NO_PRESENTER };
+  return options.find((item) => item.id === id) ?? { ...PREMADE_PRESENTER, source: "premade" };
+}
+
+export function isLibraryPresenterId(presenterId: string | null): presenterId is string {
+  return typeof presenterId === "string" && presenterId.length > 0 && !presenterId.startsWith("premade:");
+}
+
+/**
+ * 开始制作 / 进入生成前要写回项目的 character_id。
+ * null = 显式清空。预制人不是人物库 id，不能写进项目，也不能在没选人时拿来顶上。
+ * 关键帧 / 分镜在 character_id 为空时走已有无人物分支。
+ */
+export function projectCharacterSync(presenterId: string | null): { characterId: string | null } | null {
+  if (presenterId === null) return { characterId: null };
+  if (isLibraryPresenterId(presenterId)) return { characterId: presenterId };
+  return null;
+}
+
+export const PRESENTER_CLEAR_FAILED = "没能清空项目里的出镜人，已停止。不会改用预制出镜人。";
+
+/** 审稿费用旁注。闸门两句（确认前不扣积分 / 未过闸不会进入付费生成）有人和无人都保留。 */
+export function reviewFeeHint(presenter: { source: PresenterOption["source"]; name: string }): string {
+  const voice = presenter.source === "none"
+    ? "本场无出镜人 · 口播将以配音/字幕呈现"
+    : `配音人 ${presenter.name}`;
+  return `确认前不扣积分。${voice}。未过闸不会进入付费生成。`;
+}
+
+export function generatePresenterCheck(presenter: { source: PresenterOption["source"]; name: string; role: string }): string {
+  if (presenter.source === "none") return "出镜：无（纯商品）";
+  return `出镜人：${presenter.name} · ${presenter.role}`;
+}
+
+/** 无人时交付页不渲染人才卡，只留纯商品说明。 */
+export function deliveryPresenterCheck(presenter: { source: PresenterOption["source"]; name: string }): string {
+  if (presenter.source === "none") return "纯商品镜头 · 无人出镜";
+  return `出镜人：${presenter.name}`;
+}
+
+export function deliveryShowsTalent(presenter: { source: PresenterOption["source"] }): boolean {
+  return presenter.source !== "none";
 }
 
 export interface ShelfProduct {
@@ -163,7 +214,8 @@ export function resolveSelectedProduct<T extends ShelfProduct>(projectId: string
 
 export interface StudioDraft {
   projectId: string | null;
-  presenterId: string;
+  /** null = 无出镜人。空字符串也会收成 null，不再回退预制人。缺省（旧稿没这个字段）仍是预制人。 */
+  presenterId: string | null;
   ratio: StudioRatio;
   duration: StudioDuration;
   /** 勾选后，下面的文本只覆盖这一次出片，不写回商品草稿。 */
@@ -212,11 +264,21 @@ function nullablePoints(value: unknown): string[] | null {
   return value.filter((item): item is string => typeof item === "string").slice(0, 5);
 }
 
+/** 空 / null 是无出镜人。只有字段根本没出现时才用默认预制人（旧稿）。 */
+function normalizePresenterId(value: unknown): string | null {
+  if (value === null) return null;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed ? trimmed : null;
+  }
+  return DEFAULT_STUDIO_DRAFT.presenterId;
+}
+
 /** 旧 v1 的 `points`（checkbox id）直接丢掉，不映射成卖点文案。 */
 export function normalizeStudioDraft(raw: (Partial<StudioDraft> & { points?: unknown }) | null | undefined): StudioDraft {
   return {
     projectId: typeof raw?.projectId === "string" && raw.projectId ? raw.projectId : null,
-    presenterId: typeof raw?.presenterId === "string" && raw.presenterId ? raw.presenterId : PREMADE_PRESENTER.id,
+    presenterId: normalizePresenterId(raw?.presenterId),
     ratio: isRatio(raw?.ratio) ? raw.ratio : DEFAULT_STUDIO_DRAFT.ratio,
     duration: isDuration(raw?.duration) ? raw.duration : DEFAULT_STUDIO_DRAFT.duration,
     sessionOnly: raw?.sessionOnly === true,
