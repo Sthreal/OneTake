@@ -26,11 +26,7 @@ class Settings(BaseSettings):
     composition_provider: Literal["mock", "shotstack", "local"] = "mock"
     creative_planner_provider: Literal["rules", "qwen"] = "rules"
     wan_i2v_provider: Literal["mock", "real"] = "mock"
-    # 数字人（avatar）档位已于 2026-10-14 下线（档案 M4-04）：本开关**已无消费者**
-    # （provider 能力清单与估算分支都已摘除）。保留字段只为兼容既有 .env / compose
-    # （删它要同步改 docker-compose 的 api+worker 两处）；移除条件：部署侧确认不再设置
-    # AVATAR_VIDEO_PROVIDER 后，由清理类切片（S2/S4 一类）删除。
-    avatar_video_provider: Literal["mock", "real"] = "mock"
+    # 数字人（avatar / Wan S2V）配置已删除。mode=avatar 仍由 video_plan 明确拒绝，不静默降级。
     content_qa_provider: Literal["rules", "qwen"] = "rules"
     recognition_model: str = "qwen3-vl-plus"
     recognition_endpoint: str = "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
@@ -66,11 +62,6 @@ class Settings(BaseSettings):
     wan_i2v_with_audio: bool = False
     wan_i2v_max_seconds: int = 5
     wan_i2v_price_per_second: float = 0.15
-    wan_s2v_model: str = ""
-    wan_s2v_resolution: Literal["480P", "720P"] = "720P"
-    wan_s2v_max_seconds: int = 30
-    wan_s2v_price_per_second: float | str | None = None
-    wan_s2v_avatar_path: str = ""
     alibaba_cloud_access_key_id: str = ""
     alibaba_cloud_access_key_secret: str = ""
     alibaba_cloud_region_id: str = "cn-shanghai"

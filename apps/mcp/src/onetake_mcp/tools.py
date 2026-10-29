@@ -12,6 +12,13 @@ from onetake_mcp.client import OneTakeClient
 from onetake_mcp.config import Settings
 
 
+def require_video_mode(mode: str) -> str:
+    """数字人档位已下线：只接受 product。传 avatar 明确拒绝，不转发给成片接口。"""
+    if mode != "product":
+        raise ValueError("mode 必须是 product；avatar 档位已下线，拒绝数字人路径")
+    return mode
+
+
 def build_mcp(
     client: OneTakeClient,
     *,
@@ -136,8 +143,7 @@ def build_mcp(
             template_id: str | None = None,
         ) -> Any:
             """Create a video plan for an existing project."""
-            if mode not in {'avatar', 'product'}:
-                raise ValueError('mode 必须是 avatar 或 product')
+            require_video_mode(mode)
             return await client.create_video_plan(
                 project_id,
                 mode=mode,

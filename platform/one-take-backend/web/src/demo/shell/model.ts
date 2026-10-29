@@ -8,8 +8,8 @@ import type { ShellView } from "../urlState";
 export const STUDIO_STEPS = [
   { view: "prepare", label: "准备素材", short: "准备" },
   { view: "review", label: "审稿确认", short: "审稿" },
-  { view: "generate", label: "生成中", short: "生成" },
-  { view: "delivery", label: "成片交付", short: "成片" },
+  { view: "generate", label: "编排预览", short: "编排" },
+  { view: "delivery", label: "交付说明", short: "说明" },
 ] as const;
 
 export type StudioView = (typeof STUDIO_STEPS)[number]["view"];
@@ -51,7 +51,7 @@ export const GS_STEPS: readonly GsStep[] = [
     dest: "image",
     cta: "去图片广告",
     title: "图片广告",
-    description: "独立能力：用已绑商品生成静图广告预览。与工作室出片互不依赖。",
+    description: "独立能力：3×3 九宫格是演示占位，不是真实出图。与工作室出片互不依赖。",
   },
   {
     id: 3,
@@ -59,7 +59,7 @@ export const GS_STEPS: readonly GsStep[] = [
     dest: "prepare",
     cta: "进入工作室",
     title: "生成视频",
-    description: "打开工作室，选用已有商品与出镜人后出片。清单里只有这一步会进工作台。",
+    description: "打开工作室做编排预览。付费成片在托管工作台，外壳单独走完不会出视频。",
   },
   {
     id: 4,
@@ -67,7 +67,7 @@ export const GS_STEPS: readonly GsStep[] = [
     dest: "connect",
     cta: "连接并发布",
     title: "发布广告",
-    description: "把成片发到抖音 / 小红书有机渠道。可跳过，不影响图片广告与出片主路径。",
+    description: "入口保留。抖音 / 小红书有机发布尚未接线，打开后也不能发出去。可跳过。",
     optional: true,
   },
 ];
@@ -273,11 +273,12 @@ export function imageAdExportPayload(input: { caption: string; ratio: string; pr
   return {
     filename: `图片广告-${safe}.txt`,
     text: [
-      "OneTake 图片广告",
+      "OneTake 图片广告 · 演示预览说明",
       `商品：${input.productName}`,
       `画幅：${input.ratio}`,
-      `画面：${input.caption}`,
-      "独立导出。视频工作室不读取本文件，也不把图片广告当作前置步骤。",
+      `画面占位：${input.caption}`,
+      "这不是真实图片，也不是导出的成图。",
+      "独立说明。视频工作室不读取本文件，也不把图片广告当作前置步骤。",
     ].join("\n"),
   };
 }

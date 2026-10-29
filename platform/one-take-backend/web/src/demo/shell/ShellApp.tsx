@@ -146,7 +146,7 @@ export function ShellApp({
               const cell = IMAGE_AD_CELLS.find((item) => item.id === imageCellId) ?? IMAGE_AD_CELLS[0];
               const payload = imageAdExportPayload({ caption: cell.caption, ratio: imageRatio, productName: imageName });
               downloadText(payload.filename, payload.text);
-              setExportNote(`已导出选中图：${cell.caption}`);
+              setExportNote(`已下载预览说明（不是图片）：${cell.caption}`);
             }}
             onNavigate={(next) => onNavigate(next, next === "prepare" ? imageProduct?.project_id ?? null : null)}
           />
@@ -374,16 +374,16 @@ function Home({
         </section>
         <h2 className="ot-section">创作工具</h2>
         <div className="ot-tools" role="region" aria-label="创作工具">
-          <ToolCard badge="主路径" name="快速出片" mode="模式 · 工作台" desc="选用商品与出镜人库，生成 9:16 种草成片。不经过图片广告。" onClick={() => onNavigate("prepare")} icon={<Ico size={20}><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M10 10l5 2-5 2v-4z" /></Ico>} />
-          <ToolCard name="图片广告" mode="模式 · 图片" desc="独立静图广告能力：九宫格初图预览，与视频工作室解耦。" onClick={() => onNavigate("image")} icon={<Ico size={20}><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></Ico>} />
+          <ToolCard badge="主路径" name="快速出片" mode="模式 · 工作台" desc="选用商品与出镜人，走编排预览。付费成片在托管工作台，不经过图片广告。" onClick={() => onNavigate("prepare")} icon={<Ico size={20}><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M10 10l5 2-5 2v-4z" /></Ico>} />
+          <ToolCard name="图片广告" mode="模式 · 图片" desc="演示预览：九宫格是占位，不是真实出图。与视频工作室解耦。" onClick={() => onNavigate("image")} icon={<Ico size={20}><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></Ico>} />
           <ToolCard name="品牌空间" mode="模式 · 素材库" desc="管理品牌 DNA、商品主图与卖点，供工作室与图片广告复用。" onClick={() => onNavigate("brand")} icon={<Ico size={20}><path d="M12 2 2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></Ico>} />
-          <ToolCard name="有机种草" mode="模式 · 发布" desc="连接抖音 / 小红书，把成片发到有机渠道。" onClick={() => onNavigate("connect")} icon={<Ico size={20}><path d="M4 12c2-4 6-6 8-6s6 2 8 6c-2 4-6 6-8 6s-6-2-8-6z" /><circle cx="12" cy="12" r="2.5" /></Ico>} />
+          <ToolCard name="有机种草" mode="模式 · 发布" desc="入口保留。抖音 / 小红书有机发布尚未接线。" onClick={() => onNavigate("connect")} icon={<Ico size={20}><path d="M4 12c2-4 6-6 8-6s6 2 8 6c-2 4-6 6-8 6s-6-2-8-6z" /><circle cx="12" cy="12" r="2.5" /></Ico>} />
         </div>
         <h2 className="ot-section">最近动态</h2>
         <div className="ot-wn">
           <article className="ot-wn-card"><div className="ot-wn-thumb" /><div className="ot-wn-title">图片广告独立成能力</div><div className="ot-wn-desc">静图广告与工作室出片解耦；出片不必先出图。</div></article>
           <article className="ot-wn-card"><div className="ot-wn-thumb" /><div className="ot-wn-title">主按钮写清积分</div><div className="ot-wn-desc">「确认并生成视频 · 12 积分」，生成前不扣费。</div></article>
-          <article className="ot-wn-card"><div className="ot-wn-thumb" /><div className="ot-wn-title">聚焦有机种草</div><div className="ot-wn-desc">不做 Meta 投放主路径；抖音 / 小红书优先。</div></article>
+          <article className="ot-wn-card"><div className="ot-wn-thumb" /><div className="ot-wn-title">聚焦有机种草</div><div className="ot-wn-desc">入口在，发布还没接线。不做 Meta 投放主路径。</div></article>
         </div>
       </div>
     </>
@@ -472,14 +472,14 @@ function ImageAds({
         <h1 className="ot-title">图片广告</h1>
         <div className="ot-actions">
           <button type="button" className="ot-btn ot-btn-secondary" onClick={() => onNavigate("home")}>返回首页</button>
-          <button type="button" className="ot-btn ot-btn-primary" onClick={onExport}>导出选中图</button>
+          <button type="button" className="ot-btn ot-btn-primary" onClick={onExport}>下载预览说明（演示）</button>
         </div>
       </header>
       <div className="ot-body">
         <div className="ot-image-layout">
           <section className="ot-card">
             <h2>商品 → 图片广告预览</h2>
-            <p>独立图片广告能力：选用品牌空间商品后，左侧以 3×3 九宫格展示初图。与工作室视频流程解耦，不强制进台。</p>
+            <p>演示预览：左侧 3×3 九宫格是占位，不会真实出图。与工作室视频流程解耦，不强制进台。</p>
             <div className="ot-specs">
               {IMAGE_AD_RATIOS.map((item) => (
                 <button key={item} type="button" className={item === ratio ? "on" : ""} aria-pressed={item === ratio} onClick={() => onRatio(item)}>{item}</button>
@@ -498,18 +498,18 @@ function ImageAds({
                 </div>
               ))}
             </div>
-            <div className="ot-hint">假预览 · 9 张图片广告初图 · 点击选中 · 不真实生成</div>
+            <div className="ot-hint">演示预览 · 九宫格是占位 · 点击只是选中 · 不真实出图</div>
           </section>
           <section className="ot-card">
-            <h2>本页即可交付</h2>
-            <p>图片广告是独立交付物。工作室出片另走「快速出片」，不必先过本页。</p>
+            <h2>只有预览，不能当成交图</h2>
+            <p>下载的是一段文字说明，不是图片文件。工作室出片另走「快速出片」，不必先过本页。</p>
             <div className="ot-stack">
-              <button type="button" className="ot-btn ot-btn-primary" data-entry="image-export-main" onClick={onExport}>导出选中图（演示）</button>
+              <button type="button" className="ot-btn ot-btn-primary" data-entry="image-export-main" onClick={onExport}>导出预览说明（演示）</button>
               <button type="button" className="ot-btn ot-btn-secondary" onClick={() => onNavigate("brand")}>换商品</button>
-              <button type="button" className="ot-btn ot-btn-secondary" onClick={() => onNavigate("connect")}>连接并发布（可选）</button>
+              <button type="button" className="ot-btn ot-btn-secondary" onClick={() => onNavigate("connect")}>发布入口（未接线）</button>
               <button type="button" className="ot-btn ot-btn-secondary" data-entry="image-prepare-optional" onClick={() => onNavigate("prepare")}>可选 · 另开工作室出片</button>
             </div>
-            <div className="ot-note">假数据：{productName} · 本页无真实生成 · 工作室四步不依赖本页结果。</div>
+            <div className="ot-note">演示数据：{productName} · 本页无真实生成 · 工作室四步不依赖本页结果。</div>
             {exportNote ? <div className="ot-status" role="status">{exportNote}</div> : null}
           </section>
         </div>
@@ -693,14 +693,14 @@ function Connect({ onNavigate }: { onNavigate: (view: UrlView, projectId?: strin
       </header>
       <div className="ot-body">
         <div className="ot-placeholder">
-          <h2>连接并发布（可选）</h2>
-          <p>把成片发到抖音 / 小红书有机渠道。可随时跳过。没有 Meta，也没有付费投放主路径。</p>
+          <h2>有机发布尚未接线</h2>
+          <p>这个入口保留着，但抖音 / 小红书都还没接上。按钮点不了，也不会把成片发出去。没有 Meta，也没有付费投放主路径。</p>
           <div className="ot-channels">
-            <span className="ot-channel">抖音 · 未连接</span>
-            <span className="ot-channel">小红书 · 未连接</span>
+            <span className="ot-channel">抖音 · 未接入</span>
+            <span className="ot-channel">小红书 · 未接入</span>
           </div>
           <div className="ot-cta-row" style={{ justifyContent: "center" }}>
-            <button type="button" className="ot-btn ot-btn-primary" disabled>连接并发布（演示禁用）</button>
+            <button type="button" className="ot-btn ot-btn-primary" disabled>连接并发布（尚未接入）</button>
             <button type="button" className="ot-btn ot-btn-secondary" onClick={() => onNavigate("home")}>跳过</button>
           </div>
         </div>
@@ -980,8 +980,8 @@ function Generate({
     <>
       <div className="ot-content">
         <div>
-          <h1 className="ot-page-title">生成中</h1>
-          <p className="ot-page-sub">按已选商品和出镜人生成成片 · 不经过图片广告 · 本页不发起新的出图</p>
+          <h1 className="ot-page-title">编排预览</h1>
+          <p className="ot-page-sub">外壳只核对审稿并展示编排，不会在这里跑完付费视频。成片请到托管工作台。不经过图片广告，本页也不出图。</p>
         </div>
         <section className="ot-panel">
           <div className="ot-checkline">商品：{product?.product_name ?? "未选择"}</div>
@@ -1001,12 +1001,12 @@ function Generate({
       </div>
       <footer className="ot-sticky">
         <div>
-          <div className="ot-sticky-title">{guard.blocked ? "生成前要先过审稿闸" : "生成步骤已完成编排"}</div>
+          <div className="ot-sticky-title">{guard.blocked ? "生成前要先过审稿闸" : "这是编排预览，还没有成片"}</div>
           <div className="ot-sticky-sub">
-            {guard.blocked ? "未 apply / ack 不会进入成片" : "真实渲染仍可稍后从成片页进入托管工作台"}
+            {guard.blocked ? "未 apply / ack 不会进入下一步" : "付费渲染在托管工作台。外壳单独走完不会出视频。"}
           </div>
         </div>
-        <button type="button" className="ot-btn ot-btn-primary ot-btn-lg" disabled={guard.loading || guard.blocked} onClick={onNext}>查看成片</button>
+        <button type="button" className="ot-btn ot-btn-primary ot-btn-lg" disabled={guard.loading || guard.blocked} onClick={onNext}>查看交付说明</button>
       </footer>
     </>
   );
@@ -1027,26 +1027,26 @@ function Delivery({
     <>
       <div className="ot-content">
         <div>
-          <h1 className="ot-page-title">成片交付</h1>
-          <p className="ot-page-sub">工作室四步已走完（准备 → 审稿 → 生成 → 成片），没有经过图片广告。</p>
+          <h1 className="ot-page-title">交付说明</h1>
+          <p className="ot-page-sub">工作室外壳走到这里只是预览编排（准备 → 审稿 → 编排 → 说明），没有生成付费成片，也没有经过图片广告。</p>
         </div>
         <section className="ot-panel">
           <div className="ot-checkline">商品：{product?.product_name ?? "未选择"}</div>
           <div className="ot-checkline">出镜人：{presenter.name}</div>
           <div className="ot-checkline">规格：{draft.ratio} · {draft.duration}</div>
-          <div className="ot-checkline">发布：可选，抖音 / 小红书有机渠道</div>
+          <div className="ot-checkline">发布：有机发布尚未接线，去了也发不出去</div>
         </section>
       </div>
       <footer className="ot-sticky">
         <div>
-          <div className="ot-sticky-title">{product?.product_name ?? "成片"}</div>
-          <div className="ot-sticky-sub">这条路径不依赖图片广告的九宫格结果</div>
+          <div className="ot-sticky-title">{product?.product_name ?? "还没有成片"}</div>
+          <div className="ot-sticky-sub">外壳没有出片。要渲染请打开托管工作台。这条路径不依赖图片广告。</div>
         </div>
         <div className="ot-sticky-right">
           {product ? (
-            <button type="button" className="ot-btn ot-btn-secondary" onClick={() => onNavigate("workbench", product.project_id)}>托管工作台继续渲染</button>
+            <button type="button" className="ot-btn ot-btn-secondary" onClick={() => onNavigate("workbench", product.project_id)}>去托管工作台渲染</button>
           ) : null}
-          <button type="button" className="ot-btn ot-btn-secondary" onClick={() => onNavigate("connect")}>去发布（可选）</button>
+          <button type="button" className="ot-btn ot-btn-secondary" onClick={() => onNavigate("connect")}>打开发布入口（未接线）</button>
           <button type="button" className="ot-btn ot-btn-primary ot-btn-lg" onClick={() => onNavigate("home")}>回到首页</button>
         </div>
       </footer>

@@ -91,31 +91,33 @@ def test_avatar_mode_has_no_dedicated_estimate_after_downgrade() -> None:
     """M4-04：avatar 档位下线后**不得再有** S2V 专属估算路径。
 
     这里**刻意**直接构造 mode="avatar" 的计划（绕过请求层契约），用来证明域层也没有残留分支：
-    即使被硬塞进来，也不会走 S2V 估算，也不会再报 WAN_S2V_PRICE_PER_SECOND 缺价。
+    即使被硬塞进来，也不会走出片估算，也不会再报已删除的 WAN_S2V_PRICE_PER_SECOND 缺价。
     """
     settings = Settings(
         mock_providers=False,
         wan_i2v_provider="mock",
         composition_provider="local",
-        wan_s2v_price_per_second=0.15,
     )
     estimate = estimate_video_generation(_plan(mode="avatar", template_id=None, duration_seconds=12.1), settings)
     assert estimate.wan_clip_count == 0
     assert estimate.wan_generated_seconds == 0
     assert estimate.estimated_wan_cost == 0.0
+    assert estimate.is_paid is False
     assert "WAN_S2V_PRICE_PER_SECOND" not in estimate.missing_price_config
 
 
 def test_avatar_mode_never_reports_s2v_missing_price() -> None:
-    """同上：S2V 单价缺失也不再可能出现在估算结果里（那条分支已被摘除）。"""
+    """S2V 单价配置已删除，估算结果里也不再可能出现这条缺价。"""
     settings = Settings(
         mock_providers=False,
-        wan_i2v_provider="mock",
+        wan_i2v_provider="real",
+        wan_i2v_model="wan2.6-i2v",
         composition_provider="local",
-        wan_s2v_price_per_second=None,
+        dashscope_api_key="configured",
     )
     estimate = estimate_video_generation(_plan(mode="avatar", template_id=None, duration_seconds=18), settings)
     assert estimate.wan_clip_count == 0
+    assert estimate.estimated_wan_cost == 0.0
     assert "WAN_S2V_PRICE_PER_SECOND" not in estimate.missing_price_config
 
 

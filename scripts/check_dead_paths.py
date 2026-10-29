@@ -44,6 +44,17 @@ MAX_BYTES = 1_500_000  # 超大文本文件跳过（本仓最大的源码约 780
 DELETED_GUARDS: dict[str, str] = {
     "apps/worker": "S4（2026-10-14）删除：零引用 stub；备份 2026-10-14_s4_apps_worker.zip",
     "mvp": "S4（2026-10-14）删除：本地静态原型（原本就被 gitignore）；备份 2026-10-14_s4_mvp_local.zip",
+    "apps/api/src/onetake_api/modules/avatar_video": "清理切片：数字人端口已无调用方",
+    "apps/api/src/onetake_api/integrations/wan_s2v": "清理切片：Wan S2V 适配器已无调用方",
+    "apps/api/tests/unit/test_wan_s2v_adapter.py": "清理切片：随适配器删除；拒绝 avatar 的契约仍在 test_avatar_video_service.py",
+    "scripts/probe_grid_threshold.py": "清理切片：一次性探针，仓库内 0 引用",
+    "scripts/probe_storyboard_grid.py": "清理切片：一次性探针，仓库内 0 引用",
+    "scripts/mock_e2e.py": "清理切片：一次性脚本，仓库内 0 引用",
+    "scripts/real_voice_final.py": "清理切片：一次性脚本，仓库内 0 引用",
+    "platform/one-take-backend/web/src/shared/api/contentQualityApi.ts": "清理切片：0 调用方",
+    "platform/one-take-backend/web/src/shared/api/mainImageApi.ts": "清理切片：0 调用方",
+    "platform/one-take-backend/web/src/features/content-quality/types.ts": "清理切片：只被已删的 contentQualityApi 引用",
+    "platform/one-take-backend/web/src/features/main-image/types.ts": "清理切片：只被已删的 mainImageApi 引用",
 }
 
 # ---- 已登记但**不删**的路径（实测有活引用，或用户口径为保留）----

@@ -80,16 +80,14 @@ def test_shotstack_composition_requires_key() -> None:
 def test_avatar_video_capability_is_no_longer_advertised() -> None:
     """M4-04：数字人档位下线后，Provider 能力清单**不得再出现** avatar_video。
 
-    这里刻意把 S2V 相关配置**全部填满**再断言能力不存在 —— 证明它是被真正摘掉的，
-    而不是"因为没配 key 所以显示成不可用"。保留一个已下线能力会让前端/CLI 看到
-    "可用但不存在"的选项。
+    S2V 配置项已经删除。这里把仍在用的 DashScope key 填上，证明缺的不是「没配 key」，
+    而是能力本身不在清单里。保留一个已下线能力会让前端/CLI 看到「可用但不存在」的选项。
     """
     settings = Settings(
         mock_providers=False,
-        avatar_video_provider="real",
         dashscope_api_key="configured",
-        wan_s2v_model="wan2.2-s2v",
-        wan_s2v_avatar_path="avatar.png",
+        wan_i2v_provider="real",
+        wan_i2v_model="wan2.6-i2v",
     )
     capabilities = [item.capability for item in get_provider_statuses(settings)]
     assert "avatar_video" not in capabilities

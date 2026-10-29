@@ -35,6 +35,7 @@ describe("iter18 信息架构", () => {
     expect(IMAGE_AD_CELLS).toHaveLength(9);
     const payload = imageAdExportPayload({ caption: "白底棚拍", ratio: "1:1", productName: "春季护肤精华液" });
     expect(payload.filename).toContain("白底棚拍");
+    expect(payload.text).toContain("这不是真实图片");
     expect(payload.text).toContain("不把图片广告当作前置步骤");
   });
 
