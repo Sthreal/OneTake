@@ -64,12 +64,12 @@ const defaultClient = {
 
 export type ShellRenderClient = typeof defaultClient;
 
-export type ShellRenderPhase = "idle" | "queued" | "playable" | "failed";
+export type ShellRenderPhase = "idle" | "queued" | "playable" | "failed" | "unavailable";
 
 export interface ShellRenderView {
   phase: ShellRenderPhase;
   /** 排队中 / 待渲染 / 成片可播 / 失败可重试。空闲时是尚未提交。没有地址不叫预览。 */
-  headline: "排队中" | "待渲染" | "成片可播" | "失败可重试" | "尚未提交渲染";
+  headline: "排队中" | "待渲染" | "成片可播" | "失败可重试" | "尚未提交渲染" | "无法获取进度";
   detail: string;
   playableUrl: string | null;
   /** MOCK_PROVIDERS / provider 名含 mock 的成片。文案必须写明不是 live Wan。 */
@@ -90,6 +90,19 @@ const IDLE_VIEW: ShellRenderView = {
   mockReady: false,
   errorCode: null,
 };
+
+export const SHELL_RENDER_POLL_FAILURE_LIMIT = 3;
+
+export function shellRenderProgressUnavailable(failureCount = SHELL_RENDER_POLL_FAILURE_LIMIT): ShellRenderView {
+  return {
+    phase: "unavailable",
+    headline: "无法获取进度",
+    detail: `连续 ${failureCount} 次没有读到渲染状态。渲染任务没有被判失败，请刷新进度确认。`,
+    playableUrl: null,
+    mockReady: false,
+    errorCode: "SHELL_RENDER_PROGRESS_UNAVAILABLE",
+  };
+}
 
 const inflight = new Map<string, Promise<ShellRenderView>>();
 
@@ -205,6 +218,22 @@ export const SHELL_VOICE_REQUEST: VoiceRequestInput = {
 
 export const VOICE_PENDING_COPY = "配音还没就绪，暂时不能提交渲染。";
 export const SUBTITLE_PENDING_COPY = "字幕还没就绪，暂时不能提交渲染。";
+export const AUDIO_SUBTITLE_CONFIRM_COPY = "这组配音与字幕需要你确认后才能提交渲染。";
+
+export class AudioSubtitleConfirmationRequiredError extends Error {
+  readonly code = "AUDIO_SUBTITLE_CONFIRMATION_REQUIRED";
+  readonly reason: string;
+  readonly voice: VoiceRun;
+  readonly subtitle: SubtitleVersion;
+
+  constructor(reason: string, voice: VoiceRun, subtitle: SubtitleVersion) {
+    super(`${AUDIO_SUBTITLE_CONFIRM_COPY}${reason}`);
+    this.name = "AudioSubtitleConfirmationRequiredError";
+    this.reason = reason;
+    this.voice = voice;
+    this.subtitle = subtitle;
+  }
+}
 
 const AUDIO_POLL_INTERVAL_MS = 500;
 const AUDIO_POLL_LIMIT = 40;
@@ -318,14 +347,19 @@ export async function ensureAudioSubtitleBeforeRender(
 
   if (run.status === "confirmed" && version.status === "confirmed") return;
 
-  if (run.status !== "confirmed") {
+  if (run.status !== "confirmed" || version.status !== "confirmed") {
     // 与 DemoApp.loadReviewData 一样不拿分镜时长做偏差闸：壳层这时还没有分镜。
     const decision = voiceSubtitleAutoApprovable(run.duration_seconds, version.segments.length, null);
     if (!decision.auto) {
-      throw new Error(`需要你确认配音与字幕：${decision.reason}`);
+      throw new AudioSubtitleConfirmationRequiredError(decision.reason, run, version);
     }
   }
   await client.confirmAudioSubtitle(projectId);
+}
+
+/** 生成页人工确认入口：只确认已生成并展示给用户的这组配音字幕。 */
+export function confirmShellAudioSubtitle(projectId: string): Promise<unknown> {
+  return confirmAudioSubtitle(projectId);
 }
 
 type ContentPlanPreludeClient = Pick<

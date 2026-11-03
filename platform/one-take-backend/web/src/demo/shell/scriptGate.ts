@@ -85,8 +85,9 @@ export function angleLabel(version: ScriptVersion): string {
   return version.angle_label || ANGLE_LABELS[version.angle ?? ""] || "口播";
 }
 
-export const ANGLE_PICK_HINT = "请先选择角度";
-export const ANGLE_PICK_GUIDE = "先点选一套角度，再审稿确认";
+export const ANGLE_PICK_HINT = "当前高亮角度已选中";
+export const ANGLE_PICK_GUIDE = "当前高亮角度已选中；可直接审稿，也可以先切换角度";
+export const PREPARE_FACTS_CHANGED_HINT = "准备步的事实已变更；当前审稿仍基于旧稿。可按新事实重新生成。";
 
 /**
  * 纯商品，或当前无人，用「旁白角度」。有出镜人仍是「口播角度」。
@@ -121,9 +122,8 @@ export interface AngleConfirmSoftForce {
 }
 
 /**
- * 新一批 ready 之后，服务端默认高亮的角 0 不算用户选过。
- * 点任意角（含已经高亮的角 0）后解除。已确认、还在生成、整批失败都不挡。
- * 只影响确认按钮，不改 confirm / select 接口。
+ * 服务端默认高亮的角就是已选角。高亮与确认门禁必须表达同一件事，
+ * 不再要求用户为了解除门禁重复点击当前角。
  */
 export function angleConfirmSoftForce(input: {
   path?: StudioCreationPath | null;
@@ -135,8 +135,8 @@ export function angleConfirmSoftForce(input: {
   if (!explicitAngleRequired(input.path)) return { blocked: false, hint: null };
   if (input.selectedStatus === "confirmed") return { blocked: false, hint: null };
   if (!input.hasSelectableCandidate) return { blocked: false, hint: null };
-  if (input.batchKey && input.pickedBatchKey === input.batchKey) return { blocked: false, hint: null };
-  return { blocked: true, hint: ANGLE_PICK_HINT };
+  if (input.batchKey && input.selectedStatus) return { blocked: false, hint: ANGLE_PICK_HINT };
+  return { blocked: false, hint: null };
 }
 
 export function gateSummary(version: ScriptVersion | null | undefined): ReviewGateSummary {
@@ -294,6 +294,25 @@ export function reviewFacts(review: ScriptReviewResult | null, version: ScriptVe
   };
 }
 
+function normalizedPoints(points: string[]): string {
+  return points.map((item) => item.trim()).filter(Boolean).join("\n");
+}
+
+/** 准备步事实与当前稿件 facts 的差异；只提示，不自动重出。 */
+export function scriptFactChanges(
+  version: ScriptVersion | null,
+  input: GenerateScriptInput,
+): string[] {
+  if (!version) return [];
+  const facts = version.facts;
+  const changes: string[] = [];
+  if (facts.pain_point.trim() !== input.painPoint.trim()) changes.push("痛点");
+  if (normalizedPoints(facts.selling_points) !== normalizedPoints(input.sellingPoints)) changes.push("卖点");
+  if (facts.usage_scenario.trim() !== input.usageScenario.trim()) changes.push("使用场景");
+  if ((facts.offer?.trim() || "") !== (input.offer?.trim() || "")) changes.push("优惠活动");
+  return changes;
+}
+
 export interface PrepareSkuInput {
   /** 传入后，本场覆盖只在 draft.projectId 对得上时生效，避免两件商品串味。 */
   project_id?: string | null;
@@ -388,7 +407,24 @@ async function settleScript(
     await sleep(intervalMs);
     current = await api.getScript(projectId);
   }
+  if (scriptInFlight(current)) {
+    throw new ScriptPollingTimeoutError(current, maxPolls);
+  }
   return current;
+}
+
+/** 轮询耗尽不是失败，更不是永远生成中。调用方据此露出继续等待、重出稿和返回准备。 */
+export class ScriptPollingTimeoutError extends Error {
+  readonly code = "SCRIPT_POLLING_TIMEOUT";
+  readonly state: ScriptState;
+  readonly maxPolls: number;
+
+  constructor(state: ScriptState, maxPolls: number) {
+    super(`口播生成超过等待上限（已轮询 ${maxPolls} 次）。可以继续等待、重新生成或回准备步。`);
+    this.name = "ScriptPollingTimeoutError";
+    this.state = state;
+    this.maxPolls = maxPolls;
+  }
 }
 
 /** 没有稿就 generate 一次；排队中则轮询 GET，直到 ready / failed 或次数用尽。 */

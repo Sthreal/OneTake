@@ -2,12 +2,11 @@
 import { useEffect, useState } from "react";
 
 import type { Project } from "../../features/input/types";
-import type { EditScriptInput, ScriptReviewResult, ScriptState, ScriptVersion } from "../../features/script/types";
+import type { ScriptReviewResult, ScriptState, ScriptVersion } from "../../features/script/types";
 import { ApiError } from "../../shared/api/client";
 import {
   applyScriptReview,
   confirmScript,
-  editScript,
   generateScript,
   getScript,
   reviewScriptGate,
@@ -15,6 +14,7 @@ import {
 } from "../../shared/api/scriptApi";
 import {
   reviewFeeHint,
+  TALKING_HEAD_LIBRARY_PRESENTER_REQUIRED,
   type PresenterOption,
   type StudioDraft,
 } from "./model";
@@ -27,7 +27,7 @@ import {
   angleLabel,
   angleSwitchLocked,
   applyAllowed,
-  editResetGate,
+  explicitAngleRequired,
   gateHeadline,
   gateSummary,
   lengthFailureCopy,
@@ -35,17 +35,18 @@ import {
   mergeReviewedVersion,
   orderedCandidates,
   paidVideoBlock,
+  PREPARE_FACTS_CHANGED_HINT,
   regenerateStudioScript,
   reviewAngleGroupLabel,
   reviewFacts,
-  REVIEW_DIMENSIONS,
-  sameEdit,
   prepareScriptInput,
+  REVIEW_DIMENSIONS,
+  ScriptPollingTimeoutError,
   scriptFailed,
+  scriptFactChanges,
   scriptInFlight,
   scriptInputReady,
   scriptVersions,
-  toEditInput,
 } from "./scriptGate";
 import { ensureShellMainImage } from "./mainImagePrelude";
 
@@ -56,6 +57,7 @@ export function ScriptReviewStep({
   presenter,
   draft,
   onAdvance,
+  onBackToPrepare,
   pathHint = null,
   onDismissPathHint,
 }: {
@@ -63,6 +65,7 @@ export function ScriptReviewStep({
   presenter: Pick<PresenterOption, "name" | "source">;
   draft: StudioDraft;
   onAdvance: () => void;
+  onBackToPrepare: () => void;
   /** 路径改过且已有稿。不自动重出，只提示用户自己点重新生成。 */
   pathHint?: string | null;
   onDismissPathHint?: () => void;
@@ -74,14 +77,9 @@ export function ScriptReviewStep({
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  /** 用户在这一批里点过角卡片。默认高亮不算。换 project 或重新生成会清掉。 */
-  const [pickedBatchKey, setPickedBatchKey] = useState<string | null>(null);
+  const [timedOut, setTimedOut] = useState(false);
 
   const projectId = product?.project_id ?? null;
-
-  useEffect(() => {
-    setPickedBatchKey(null);
-  }, [projectId]);
 
   useEffect(() => {
     if (!projectId || !product) {
@@ -92,6 +90,7 @@ export function ScriptReviewStep({
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setTimedOut(false);
     void (async () => {
       try {
         const existing = await getScript(projectId);
@@ -107,7 +106,13 @@ export function ScriptReviewStep({
         });
         if (!cancelled) setScript(next);
       } catch (err) {
-        if (!cancelled) setError(messageOf(err));
+        if (!cancelled) {
+          if (err instanceof ScriptPollingTimeoutError) {
+            setScript(err.state);
+            setTimedOut(true);
+          }
+          setError(messageOf(err));
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -132,22 +137,20 @@ export function ScriptReviewStep({
   const failed = scriptFailed(script);
   const name = product?.product_name ?? "已选商品";
   const angleGroup = reviewAngleGroupLabel({ source: presenter.source, path: draft.path });
+  const presenterInvalid = draft.path === "talking_head" && presenter.source !== "library";
   const batchKey = angleBatchKey(script);
   const soft = angleConfirmSoftForce({
     path: draft.path,
     batchKey,
-    pickedBatchKey,
+    pickedBatchKey: null,
     selectedStatus: version?.status,
     hasSelectableCandidate: candidates.some((item) => item.status === "ready"),
   });
-
-  function markAnglePicked() {
-    if (batchKey) setPickedBatchKey(batchKey);
-  }
+  const currentInput = product ? prepareScriptInput(product, draft) : null;
+  const factChanges = currentInput ? scriptFactChanges(version, currentInput) : [];
 
   async function choose(nextVersion: ScriptVersion) {
     if (!projectId || !script) return;
-    markAnglePicked();
     if (nextVersion.version_id === script.selected_version_id) return;
     setBusy("select");
     setConflict(null);
@@ -203,29 +206,12 @@ export function ScriptReviewStep({
     }
   }
 
-  async function saveEdit(input: EditScriptInput) {
-    if (!projectId || !version) return;
-    const before = gateSummary(version);
-    setBusy("edit");
-    setError(null);
-    try {
-      const next = await editScript(projectId, input);
-      setScript(next);
-      setReview(null);
-      if (editResetGate(before, gateSummary(next.version))) {
-        setNotice("手改文案已清掉审稿闸，需要重新审稿。");
-      } else {
-        setNotice("文案已保存。");
-      }
-    } catch (err) {
-      setError(messageOf(err));
-    } finally {
-      setBusy(null);
-    }
-  }
-
   async function confirmAndAdvance() {
     if (!projectId || !version) return;
+    if (presenterInvalid) {
+      setNotice("口播出镜必须先从当前出镜人库选择角色。请回准备步选择。");
+      return;
+    }
     if (soft.blocked) {
       setNotice(ANGLE_PICK_HINT);
       return;
@@ -265,24 +251,55 @@ export function ScriptReviewStep({
     }
     setBusy("generate");
     setError(null);
+    setTimedOut(false);
     try {
       const next = await regenerateStudioScript(projectId, input, scriptClient, {
         ensureMainImage: ensureShellMainImage,
       });
-      setPickedBatchKey(null);
       setScript(next);
       setReview(null);
       setNotice(null);
       setConflict(null);
       onDismissPathHint?.();
     } catch (err) {
+      if (err instanceof ScriptPollingTimeoutError) {
+        setScript(err.state);
+        setTimedOut(true);
+      }
       setError(messageOf(err));
     } finally {
       setBusy(null);
     }
   }
 
-  const advanceDisabled = !version || guard.blocked || busy !== null || inFlight || version.status === "failed" || soft.blocked;
+  async function continueWaiting() {
+    if (!projectId || !product) return;
+    const input = prepareScriptInput(product, draft);
+    if (!scriptInputReady(input)) {
+      setError("请先在准备步填写痛点、卖点和使用场景");
+      return;
+    }
+    setBusy("wait");
+    setError(null);
+    try {
+      const next = await loadStudioScript(projectId, input, scriptClient, {
+        ensureMainImage: ensureShellMainImage,
+      });
+      setScript(next);
+      setTimedOut(false);
+      setNotice("已重新拿到口播状态。");
+    } catch (err) {
+      if (err instanceof ScriptPollingTimeoutError) {
+        setScript(err.state);
+        setTimedOut(true);
+      }
+      setError(messageOf(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const advanceDisabled = !version || guard.blocked || busy !== null || inFlight || version.status === "failed" || soft.blocked || presenterInvalid;
 
   return (
     <>
@@ -300,8 +317,23 @@ export function ScriptReviewStep({
                 <div className="ot-label">{angleGroup}</div>
                 {locked ? <span className="ot-meta">已确认，再切会冲突</span> : null}
               </div>
-              {soft.blocked ? <p className="ot-hint">{ANGLE_PICK_GUIDE}</p> : null}
+              {explicitAngleRequired(draft.path) && candidates.length > 0 ? <p className="ot-hint">{ANGLE_PICK_GUIDE}</p> : null}
               {pathHint ? <p className="ot-hint" role="status">{pathHint}</p> : null}
+              {factChanges.length > 0 ? (
+                <div className="ot-banner" role="status">
+                  <p>{PREPARE_FACTS_CHANGED_HINT}</p>
+                  <p>变更字段：{factChanges.join("、")}</p>
+                  <button type="button" className="ot-btn ot-btn-secondary ot-btn-sm" disabled={busy !== null} onClick={() => void retryGenerate()}>
+                    按新事实重新生成
+                  </button>
+                </div>
+              ) : null}
+              {presenterInvalid ? (
+                <div className="ot-banner" role="alert">
+                  <p>{TALKING_HEAD_LIBRARY_PRESENTER_REQUIRED}。请回准备步选择。</p>
+                  <button type="button" className="ot-btn ot-btn-secondary ot-btn-sm" onClick={onBackToPrepare}>回准备步选择出镜人</button>
+                </div>
+              ) : null}
               {!product ? <p className="ot-hint">先在准备步选用商品，才能生成三套口播。</p> : null}
               {loading ? <p className="ot-hint">正在确认主图并准备三套口播…</p> : null}
               {error ? <p className="ot-error">{error}</p> : null}
@@ -334,7 +366,20 @@ export function ScriptReviewStep({
                   })}
                 </div>
               ) : null}
-              {failed || error || pathHint ? (
+              {timedOut ? (
+                <div className="ot-cta-row" role="group" aria-label="口播生成超时恢复">
+                  <button type="button" className="ot-btn ot-btn-primary ot-btn-sm" disabled={busy !== null} onClick={() => void continueWaiting()}>
+                    {busy === "wait" ? "继续等待中…" : "继续等待"}
+                  </button>
+                  <button type="button" className="ot-btn ot-btn-secondary ot-btn-sm" disabled={busy !== null} onClick={() => void retryGenerate()}>
+                    重新生成
+                  </button>
+                  <button type="button" className="ot-btn ot-btn-secondary ot-btn-sm" disabled={busy !== null} onClick={onBackToPrepare}>
+                    回准备步
+                  </button>
+                </div>
+              ) : null}
+              {!timedOut && (failed || error || pathHint || factChanges.length > 0) ? (
                 <button type="button" className="ot-btn ot-btn-secondary ot-btn-sm" disabled={busy !== null} onClick={() => void retryGenerate()}>重新生成三套口播</button>
               ) : null}
             </section>
@@ -359,19 +404,13 @@ export function ScriptReviewStep({
               ) : null}
               {review?.revised ? <div className="ot-script">{review.revised.hook}</div> : null}
               <div className="ot-cta-row">
-                <button type="button" className="ot-btn ot-btn-secondary ot-btn-sm" disabled={!version || inFlight || busy !== null || version.status === "failed"} onClick={() => void runReview()}>
+                <button type="button" className="ot-btn ot-btn-secondary ot-btn-sm" disabled={!version || inFlight || timedOut || busy !== null || version.status === "failed"} onClick={() => void runReview()}>
                   {gate.status === "passed" || gate.status === "reviewed" || gate.status === "failed" ? "重新审稿" : "审稿"}
                 </button>
                 <button type="button" className="ot-btn ot-btn-secondary ot-btn-sm" disabled={!canApply || busy !== null} onClick={() => void decide("apply")}>应用改写</button>
                 <button type="button" className="ot-btn ot-btn-secondary ot-btn-sm" disabled={!canAck || busy !== null} onClick={() => void decide("ack")}>保留原稿</button>
               </div>
             </section>
-            {version && !inFlight && version.status !== "failed" ? (
-              <section className="ot-panel">
-                <div className="ot-label">手改口播</div>
-                <CopyEditor version={version} disabled={busy !== null} onSave={saveEdit} />
-              </section>
-            ) : null}
             <section className="ot-panel">
               <div className="ot-label">费用</div>
               <p className="ot-hint">本页不报价。确认后进入渲染，是否扣费以费用闸为准。</p>
@@ -387,65 +426,12 @@ export function ScriptReviewStep({
           </div>
         </div>
         <div className="ot-sticky-right">
-          {soft.hint ? <span className="ot-meta" role="status">{soft.hint}</span> : null}
           <button type="button" className="ot-btn ot-btn-primary ot-btn-lg" disabled={advanceDisabled} onClick={() => void confirmAndAdvance()}>
             确认并提交渲染
           </button>
         </div>
       </footer>
     </>
-  );
-}
-
-function CopyEditor({
-  version,
-  disabled,
-  onSave,
-}: {
-  version: ScriptVersion;
-  disabled: boolean;
-  onSave: (input: EditScriptInput) => Promise<void>;
-}) {
-  const [form, setForm] = useState<EditScriptInput>(() => toEditInput(version));
-  useEffect(() => {
-    setForm(toEditInput(version));
-  }, [version]);
-  const dirty = !sameEdit(form, version);
-  const pointsText = form.sellingPoints.join("\n");
-  return (
-    <form
-      className="ot-fields"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (!dirty || disabled) return;
-        const sellingPoints = pointsText.split("\n").map((item) => item.trim()).filter(Boolean).slice(0, 5);
-        if (sellingPoints.length === 0) return;
-        void onSave({ ...form, sellingPoints });
-      }}
-    >
-      <label>
-        钩子
-        <input value={form.hook} disabled={disabled} onChange={(event) => setForm({ ...form, hook: event.target.value })} />
-      </label>
-      <label>
-        痛点
-        <input value={form.painPoint} disabled={disabled} onChange={(event) => setForm({ ...form, painPoint: event.target.value })} />
-      </label>
-      <label>
-        卖点
-        <textarea rows={2} value={pointsText} disabled={disabled} onChange={(event) => setForm({ ...form, sellingPoints: event.target.value.split("\n") })} />
-      </label>
-      <label>
-        场景
-        <input value={form.usageScenario} disabled={disabled} onChange={(event) => setForm({ ...form, usageScenario: event.target.value })} />
-      </label>
-      <label>
-        行动号召
-        <input value={form.cta} disabled={disabled} onChange={(event) => setForm({ ...form, cta: event.target.value })} />
-      </label>
-      <button type="submit" className="ot-btn ot-btn-secondary ot-btn-sm" disabled={disabled || !dirty}>保存手改</button>
-      <p className="ot-hint">手改会清掉审稿闸，保存后要重新审稿。</p>
-    </form>
   );
 }
 

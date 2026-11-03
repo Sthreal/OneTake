@@ -19,10 +19,12 @@ import {
   clearSessionImages,
   PATH_CHANGED_HINT,
   PRESENTER_CLEAR_FAILED,
+  TALKING_HEAD_LIBRARY_PRESENTER_REQUIRED,
   deliveryPresenterCheck,
   generatePresenterCheck,
   imageAdExportPayload,
   isStudioView,
+  libraryPresenterStartError,
   markGsDone,
   nextStudioView,
   presenterById,
@@ -42,9 +44,14 @@ import {
 import { PrepareStep } from "./PrepareStep";
 import { ScriptReviewStep, useScriptGateGuard } from "./ScriptReviewStep";
 import { hasReusableScript } from "./scriptGate";
+import { ensureShellMainImage } from "./mainImagePrelude";
 import {
+  AudioSubtitleConfirmationRequiredError,
+  confirmShellAudioSubtitle,
   enqueueShellRender,
   readShellRender,
+  SHELL_RENDER_POLL_FAILURE_LIMIT,
+  shellRenderProgressUnavailable,
   shellVoiceCopy,
   type ShellRenderView,
 } from "./shellRender";
@@ -67,6 +74,8 @@ export function ShellApp({
   const [productsError, setProductsError] = useState<string | null>(null);
   const [productsLoading, setProductsLoading] = useState(false);
   const [characters, setCharacters] = useState<Character[]>([]);
+  const [charactersLoading, setCharactersLoading] = useState(() => isStudioView(view));
+  const [charactersError, setCharactersError] = useState<string | null>(null);
   const [castOpen, setCastOpen] = useState(false);
   const [imageCellId, setImageCellId] = useState<string>(IMAGE_AD_CELLS[0].id);
   const [imageRatio, setImageRatio] = useState<ImageAdRatio>("1:1");
@@ -112,20 +121,24 @@ export function ShellApp({
     });
   }, [projectId]);
 
+  const reloadCharacters = useCallback(async () => {
+    setCharactersLoading(true);
+    setCharactersError(null);
+    try {
+      const list = await listCharacters();
+      setCharacters(list.characters);
+    } catch (error) {
+      setCharacters([]);
+      setCharactersError(error instanceof Error && error.message ? error.message : "暂时无法读取出镜人库");
+    } finally {
+      setCharactersLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!isStudioView(view)) return;
-    let cancelled = false;
-    void listCharacters()
-      .then((list) => {
-        if (!cancelled) setCharacters(list.characters);
-      })
-      .catch(() => {
-        if (!cancelled) setCharacters([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [view]);
+    void reloadCharacters();
+  }, [view, reloadCharacters]);
 
   function patchDraft(partial: Partial<StudioDraft>) {
     setDraft((current) => writeStudioDraft({ ...current, ...partial }));
@@ -228,8 +241,11 @@ export function ShellApp({
             product={studioProduct}
             presenter={presenter}
             characters={characters}
+            charactersLoading={charactersLoading}
+            charactersError={charactersError}
             castOpen={castOpen}
             onCastOpen={setCastOpen}
+            onReloadCharacters={() => { void reloadCharacters(); }}
             onDraft={patchDraft}
             onNavigate={onNavigate}
           />
@@ -767,8 +783,11 @@ function Studio({
   product,
   presenter,
   characters,
+  charactersLoading,
+  charactersError,
   castOpen,
   onCastOpen,
+  onReloadCharacters,
   onDraft,
   onNavigate,
 }: {
@@ -780,8 +799,11 @@ function Studio({
   product: Project | null;
   presenter: PresenterOption;
   characters: Character[];
+  charactersLoading: boolean;
+  charactersError: string | null;
   castOpen: boolean;
   onCastOpen: (open: boolean) => void;
+  onReloadCharacters: () => void;
   onDraft: (partial: Partial<StudioDraft>) => void;
   onNavigate: (view: UrlView, projectId?: string | null) => void;
 }) {
@@ -789,6 +811,7 @@ function Studio({
   const productId = product?.project_id ?? null;
   const [presenterSyncing, setPresenterSyncing] = useState(false);
   const [presenterSyncError, setPresenterSyncError] = useState<string | null>(null);
+  const [startError, setStartError] = useState<string | null>(null);
   const [pathHint, setPathHint] = useState<string | null>(null);
   const pathHintRequest = useRef(0);
 
@@ -848,6 +871,28 @@ function Studio({
 
   async function startProduction() {
     if (!product || presenterSyncing) return;
+    setPresenterSyncing(true);
+    setStartError(null);
+    setPresenterSyncError(null);
+    if (charactersLoading || charactersError) {
+      setStartError(charactersError ? `出镜人库加载失败：${charactersError}` : "正在读取出镜人库，请稍后再开始。");
+      setPresenterSyncing(false);
+      return;
+    }
+    const presenterError = libraryPresenterStartError(draft, characters);
+    if (presenterError) {
+      setStartError(presenterError);
+      if (draft.path === "talking_head") setCastOpen(true);
+      setPresenterSyncing(false);
+      return;
+    }
+    try {
+      await ensureShellMainImage(product.project_id);
+    } catch (error) {
+      setStartError(error instanceof Error && error.message ? error.message : "主图校验失败");
+      setPresenterSyncing(false);
+      return;
+    }
     const ok = await syncPresenter(product.project_id);
     if (!ok) return;
     onDraft({ projectId: product.project_id });
@@ -887,16 +932,22 @@ function Studio({
           product={product}
           presenter={presenter}
           characters={characters}
+          charactersLoading={charactersLoading}
+          charactersError={charactersError}
           castOpen={castOpen}
           onCastOpen={onCastOpen}
+          onReloadCharacters={onReloadCharacters}
           onDraft={onDraft}
-          onPath={(path) => { void changePath(path); }}
+          onPath={(path) => {
+            if (path === "talking_head" && !draft.presenterId) onCastOpen(true);
+            void changePath(path);
+          }}
           pathHint={pathHint}
           onBrand={() => onNavigate("brand")}
           onCharacters={() => onNavigate("characters")}
           onStart={() => { void startProduction(); }}
           syncing={presenterSyncing}
-          syncError={presenterSyncError}
+          syncError={presenterSyncError ?? startError}
         />
       ) : null}
       {view === "review" ? (
@@ -905,6 +956,7 @@ function Studio({
           presenter={presenter}
           draft={draft}
           onAdvance={advance}
+          onBackToPrepare={() => onNavigate("prepare", productId)}
           pathHint={pathHint}
           onDismissPathHint={() => setPathHint(null)}
         />
@@ -916,6 +968,7 @@ function Studio({
           draft={draft}
           onNext={advance}
           onReview={() => onNavigate("review", productId)}
+          onPrepare={() => onNavigate("prepare", productId)}
         />
       ) : null}
       {view === "delivery" ? (
@@ -935,24 +988,49 @@ const SUBMITTING_RENDER: ShellRenderView = {
   errorCode: null,
 };
 
-function useShellRender(projectId: string | null, enabled: boolean) {
+interface ManualAudioSubtitle {
+  reason: string;
+  voiceDuration: number | null;
+  subtitleSegments: { text: string }[];
+}
+
+function useShellRender(projectId: string | null) {
   const [view, setView] = useState<ShellRenderView>({
     phase: "idle",
     headline: "尚未提交渲染",
-    detail: "确认过闸后会提交渲染。",
+    detail: "尚未提交渲染。生成页需要你明确确认后才会提交。",
     playableUrl: null,
     mockReady: false,
     errorCode: null,
   });
   const [busy, setBusy] = useState(false);
-  const submitted = useRef<string | null>(null);
+  const [reading, setReading] = useState(Boolean(projectId));
+  const [manualAudioSubtitle, setManualAudioSubtitle] = useState<ManualAudioSubtitle | null>(null);
+  const pollFailures = useRef(0);
 
   const submit = useCallback(async (force = false) => {
     if (!projectId) return;
     setBusy(true);
+    setManualAudioSubtitle(null);
     try {
       setView(await enqueueShellRender(projectId, undefined, { force }));
     } catch (error) {
+      if (error instanceof AudioSubtitleConfirmationRequiredError) {
+        setManualAudioSubtitle({
+          reason: error.reason,
+          voiceDuration: error.voice.duration_seconds,
+          subtitleSegments: error.subtitle.segments,
+        });
+        setView({
+          phase: "idle",
+          headline: "尚未提交渲染",
+          detail: "配音与字幕已生成，等待你确认后再提交。",
+          playableUrl: null,
+          mockReady: false,
+          errorCode: error.code,
+        });
+        return;
+      }
       const code = error instanceof ApiError ? error.code : null;
       const message = error instanceof Error && error.message ? error.message : "渲染提交失败";
       setView({
@@ -968,35 +1046,90 @@ function useShellRender(projectId: string | null, enabled: boolean) {
     }
   }, [projectId]);
 
-  useEffect(() => {
-    if (!enabled || !projectId) return;
-    if (submitted.current === projectId) return;
-    submitted.current = projectId;
-    void submit(false);
-  }, [enabled, projectId, submit]);
+  const refresh = useCallback(async () => {
+    if (!projectId) return;
+    setReading(true);
+    try {
+      const next = await readShellRender(projectId);
+      pollFailures.current = 0;
+      setView(next);
+    } catch {
+      setView(shellRenderProgressUnavailable(pollFailures.current || 1));
+    } finally {
+      setReading(false);
+    }
+  }, [projectId]);
 
   useEffect(() => {
-    if (!enabled || !projectId || view.phase !== "queued") return;
+    pollFailures.current = 0;
+    setManualAudioSubtitle(null);
+    setView({
+      phase: "idle",
+      headline: "尚未提交渲染",
+      detail: "尚未提交渲染。生成页需要你明确确认后才会提交。",
+      playableUrl: null,
+      mockReady: false,
+      errorCode: null,
+    });
+    setReading(Boolean(projectId));
+    void refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    if (!projectId || view.phase !== "queued") return;
     let cancelled = false;
     const timer = window.setInterval(() => {
       void readShellRender(projectId)
         .then((next) => {
-          if (!cancelled) setView(next);
+          if (cancelled) return;
+          pollFailures.current = 0;
+          setView(next);
         })
         .catch(() => {
-          /* 下一轮再读，不把轮询失败说成成片 */
+          if (cancelled) return;
+          pollFailures.current += 1;
+          if (pollFailures.current >= SHELL_RENDER_POLL_FAILURE_LIMIT) {
+            setView(shellRenderProgressUnavailable(pollFailures.current));
+          }
         });
     }, 2000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [enabled, projectId, view.phase]);
+  }, [projectId, view.phase]);
+
+  const confirmAudioSubtitle = useCallback(async () => {
+    if (!projectId || !manualAudioSubtitle) return;
+    setBusy(true);
+    try {
+      await confirmShellAudioSubtitle(projectId);
+      setManualAudioSubtitle(null);
+      setView(await enqueueShellRender(projectId));
+    } catch (error) {
+      const code = error instanceof ApiError ? error.code : null;
+      setView({
+        phase: "failed",
+        headline: "失败可重试",
+        detail: error instanceof Error && error.message ? error.message : "确认配音字幕失败",
+        playableUrl: null,
+        mockReady: false,
+        errorCode: code,
+      });
+    } finally {
+      setBusy(false);
+    }
+  }, [projectId, manualAudioSubtitle]);
 
   return {
     view: busy && view.phase === "idle" ? SUBMITTING_RENDER : view,
     busy,
+    reading,
+    manualAudioSubtitle,
+    submit: () => submit(false),
     retry: () => submit(true),
+    refresh,
+    confirmAudioSubtitle,
   };
 }
 
@@ -1011,13 +1144,15 @@ function VoiceLine({ draft }: { draft: Pick<StudioDraft, "presenterId" | "path">
 }
 
 function RenderSlot({
-  projectId,
-  enabled,
+  renderJob,
+  allowSubmit,
+  onBackToGenerate,
 }: {
-  projectId: string | null;
-  enabled: boolean;
+  renderJob: ReturnType<typeof useShellRender>;
+  /** 只有生成页能提交新渲染；交付页只读已有渲染。 */
+  allowSubmit: boolean;
+  onBackToGenerate?: () => void;
 }) {
-  const renderJob = useShellRender(enabled ? projectId : null, enabled);
   const { view } = renderJob;
   return (
     <section className="ot-panel" aria-label="成片">
@@ -1029,9 +1164,38 @@ function RenderSlot({
       {view.playableUrl ? (
         <video className="ot-player" controls playsInline src={view.playableUrl} aria-label="成片播放" />
       ) : null}
-      {view.phase === "failed" ? (
+      {renderJob.manualAudioSubtitle ? (
+        <section className="ot-banner" role="alert" aria-label="人工确认配音与字幕">
+          <h3>需要确认配音与字幕</h3>
+          <p>{renderJob.manualAudioSubtitle.reason}</p>
+          <p>配音时长：{renderJob.manualAudioSubtitle.voiceDuration == null ? "未知" : `${renderJob.manualAudioSubtitle.voiceDuration.toFixed(1)}s`}</p>
+          <p>
+            字幕：{renderJob.manualAudioSubtitle.subtitleSegments.length} 段
+            {renderJob.manualAudioSubtitle.subtitleSegments[0]?.text ? ` · ${renderJob.manualAudioSubtitle.subtitleSegments[0].text}` : " · 暂无文字"}
+          </p>
+          <button type="button" className="ot-btn ot-btn-primary ot-btn-sm" disabled={renderJob.busy} onClick={() => void renderJob.confirmAudioSubtitle()}>
+            {renderJob.busy ? "确认中…" : "确认配音与字幕并提交"}
+          </button>
+        </section>
+      ) : null}
+      {view.phase === "failed" && allowSubmit ? (
         <button type="button" className="ot-btn ot-btn-primary ot-btn-sm" disabled={renderJob.busy} onClick={() => void renderJob.retry()}>
           重试渲染
+        </button>
+      ) : null}
+      {view.phase === "unavailable" ? (
+        <button type="button" className="ot-btn ot-btn-secondary ot-btn-sm" disabled={renderJob.busy} onClick={() => void renderJob.refresh()}>
+          刷新进度
+        </button>
+      ) : null}
+      {view.phase === "idle" && allowSubmit && !renderJob.manualAudioSubtitle ? (
+        <button type="button" className="ot-btn ot-btn-primary ot-btn-lg" disabled={renderJob.busy || renderJob.reading} onClick={() => void renderJob.submit()}>
+          {renderJob.busy ? "提交中…" : renderJob.reading ? "读取已有渲染…" : "确认提交渲染"}
+        </button>
+      ) : null}
+      {view.phase === "idle" && !allowSubmit && onBackToGenerate ? (
+        <button type="button" className="ot-btn ot-btn-secondary ot-btn-sm" onClick={onBackToGenerate}>
+          回生成页确认提交
         </button>
       ) : null}
     </section>
@@ -1044,15 +1208,18 @@ function Generate({
   draft,
   onNext,
   onReview,
+  onPrepare,
 }: {
   product: Project | null;
   presenter: PresenterOption;
   draft: StudioDraft;
   onNext: () => void;
   onReview: () => void;
+  onPrepare: () => void;
 }) {
   const projectId = product?.project_id ?? null;
   const guard = useScriptGateGuard(projectId);
+  const renderJob = useShellRender(projectId);
   const [syncing, setSyncing] = useState(() => projectCharacterSync(draft.presenterId) !== null && projectId !== null);
   const [syncError, setSyncError] = useState<string | null>(null);
 
@@ -1082,8 +1249,13 @@ function Generate({
     };
   }, [projectId, draft.presenterId]);
 
-  const held = guard.loading || guard.blocked || syncing || syncError !== null;
+  const presenterError = draft.path === "talking_head" && presenter.source !== "library"
+    ? TALKING_HEAD_LIBRARY_PRESENTER_REQUIRED
+    : talkingHeadStartError(draft);
+  const held = guard.loading || guard.blocked || syncing || syncError !== null || presenterError !== null;
   const ready = !held;
+  const playable = renderJob.view.phase === "playable" && Boolean(renderJob.view.playableUrl);
+  const nextLabel = playable ? "查看成片" : "查看进度";
   return (
     <>
       <div className="ot-content">
@@ -1098,6 +1270,13 @@ function Generate({
           <VoiceLine draft={draft} />
           <div className="ot-checkline">图片广告：未使用，也不是本步的前置条件</div>
         </section>
+        {presenterError ? (
+          <section className="ot-panel" role="alert">
+            <h2 className="ot-gate">出镜人未通过启动校验</h2>
+            <p className="ot-page-sub">{presenterError}。请回准备步从当前出镜人库选择角色。</p>
+            <button type="button" className="ot-btn ot-btn-primary" onClick={onPrepare}>回准备步选择</button>
+          </section>
+        ) : null}
         {syncError ? <p className="ot-error" role="alert">{syncError}</p> : null}
         {guard.loading ? <p className="ot-hint" role="status">正在核对审稿闸…</p> : null}
         {!guard.loading && guard.blocked ? (
@@ -1107,16 +1286,18 @@ function Generate({
             <button type="button" className="ot-btn ot-btn-primary" onClick={onReview}>回到审稿过闸</button>
           </section>
         ) : null}
-        {ready ? <RenderSlot projectId={projectId} enabled /> : null}
+        {ready ? <RenderSlot renderJob={renderJob} allowSubmit /> : null}
       </div>
       <footer className="ot-sticky">
         <div>
-          <div className="ot-sticky-title">{guard.blocked ? "提交渲染前要先过审稿闸" : "渲染提交后才能看到成片"}</div>
+          <div className="ot-sticky-title">{guard.blocked ? "提交渲染前要先过审稿闸" : playable ? "成片可播" : "渲染提交后才能看到成片"}</div>
           <div className="ot-sticky-sub">
-            {guard.blocked ? "未 apply / ack 不会提交渲染，付费视频会 409 SCRIPT_REVIEW_REQUIRED" : "排队中还不是成片。可播后再进交付。"}
+            {guard.blocked ? "未 apply / ack 不会提交渲染，付费视频会 409 SCRIPT_REVIEW_REQUIRED" : playable ? "可以进入交付页查看已有成片。" : "当前不是成片，进入交付页查看只读进度。"}
           </div>
         </div>
-        <button type="button" className="ot-btn ot-btn-primary ot-btn-lg" disabled={held} onClick={onNext}>查看成片</button>
+        <button type="button" className={"ot-btn ot-btn-lg " + (playable ? "ot-btn-primary" : "ot-btn-secondary")} disabled={held || !product} onClick={onNext}>
+          {nextLabel}
+        </button>
       </footer>
     </>
   );
@@ -1135,6 +1316,7 @@ function Delivery({
 }) {
   const projectId = product?.project_id ?? null;
   const guard = useScriptGateGuard(projectId);
+  const renderJob = useShellRender(projectId);
   const ready = !guard.loading && !guard.blocked;
   return (
     <>
@@ -1150,7 +1332,13 @@ function Delivery({
             <p className="ot-page-sub">{guard.message}</p>
           </section>
         ) : null}
-        {ready ? <RenderSlot projectId={projectId} enabled /> : null}
+        {product ? (
+          <RenderSlot
+            renderJob={renderJob}
+            allowSubmit={false}
+            onBackToGenerate={() => onNavigate("generate", projectId)}
+          />
+        ) : null}
         <section className="ot-panel">
           <div className="ot-checkline">商品：{product?.product_name ?? "未选择"}</div>
           <div className="ot-checkline">{deliveryPresenterCheck(presenter)}</div>
