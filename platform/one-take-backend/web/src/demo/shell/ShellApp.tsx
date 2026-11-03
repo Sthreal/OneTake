@@ -33,8 +33,10 @@ import {
   switchStudioPath,
   readBrands,
   readGsDone,
+  readSkuEnrichment,
   readStudioDraft,
   resolveSelectedProduct,
+  skuEnrichmentSummary,
   writeBrands,
   writeStudioDraft,
   type ImageAdRatio,
@@ -609,6 +611,8 @@ function BrandSpace({
   onAddProduct: (name: string, note: string) => Promise<void>;
   onNavigate: (view: UrlView, projectId?: string | null) => void;
 }) {
+  const [openProductId, setOpenProductId] = useState<string | null>(null);
+  const openProduct = products.find((item) => item.project_id === openProductId) ?? null;
   return (
     <>
       <header className="ot-top">
@@ -639,30 +643,85 @@ function BrandSpace({
         <section className="ot-brand-block">
           <h2 className="ot-brand-h">商品</h2>
           <p className="ot-hint">商品在这里添加。准备步只选用已有商品，不能在准备步从零新建。</p>
-          <div className="ot-brand-grid">
-            <button type="button" className="ot-brand-card add" onClick={onToggleProduct}>
-              <span className="ot-plus">+</span>
-              <span className="ot-add-title">添加商品</span>
-              <span className="ot-add-sub">含实物与数字商品</span>
-            </button>
-            {addingProduct ? (
-              <ProductForm saving={saving} onSubmit={onAddProduct} />
-            ) : null}
-            {products.map((product) => (
-              <button key={product.project_id} type="button" className="ot-brand-card" onClick={() => onNavigate("prepare", product.project_id)}>
-                <div className="ot-brand-thumb" />
-                <div className="ot-brand-info">
-                  <div className="ot-brand-name">{product.product_name}</div>
-                  <div className="ot-brand-status"><i className="ot-dot" />已绑定 · 可出片</div>
-                </div>
+          {openProduct ? (
+            <ProductDraftDetail
+              product={openProduct}
+              onBack={() => setOpenProductId(null)}
+              onPrepare={() => onNavigate("prepare", openProduct.project_id)}
+            />
+          ) : (
+            <div className="ot-brand-grid">
+              <button type="button" className="ot-brand-card add" onClick={onToggleProduct}>
+                <span className="ot-plus">+</span>
+                <span className="ot-add-title">添加商品</span>
+                <span className="ot-add-sub">含实物与数字商品</span>
               </button>
-            ))}
-          </div>
+              {addingProduct ? (
+                <ProductForm saving={saving} onSubmit={onAddProduct} />
+              ) : null}
+              {products.map((product) => {
+                const sku = readSkuEnrichment(product.project_id);
+                const thumb = sku.images[0]?.preview;
+                return (
+                  <button key={product.project_id} type="button" className="ot-brand-card" onClick={() => setOpenProductId(product.project_id)}>
+                    <div className="ot-brand-thumb">
+                      {thumb ? <img src={thumb} alt="" /> : null}
+                    </div>
+                    <div className="ot-brand-info">
+                      <div className="ot-brand-name">{product.product_name}</div>
+                      <div className="ot-brand-summary">{skuEnrichmentSummary(sku)}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
           {loading ? <p className="ot-hint">正在读取商品…</p> : null}
           {error ? <p className="ot-error">{error}</p> : null}
         </section>
       </div>
     </>
+  );
+}
+
+function ProductDraftDetail({
+  product,
+  onBack,
+  onPrepare,
+}: {
+  product: Project;
+  onBack: () => void;
+  onPrepare: () => void;
+}) {
+  const sku = readSkuEnrichment(product.project_id);
+  const points = sku.selling_points.map((item) => item.trim()).filter(Boolean);
+  return (
+    <section className="ot-panel ot-sku-detail" aria-label="商品详情">
+      <div className="ot-label-row">
+        <h3>{product.product_name}</h3>
+        <button type="button" className="ot-link" onClick={onBack}>返回商品</button>
+      </div>
+      <ul className="ot-sku-facts">
+        <li><b>痛点</b> {sku.pain_point.trim() || "未填写"}</li>
+        <li><b>卖点</b> {points.length > 0 ? points.join("、") : "未填写"}</li>
+        <li><b>使用场景</b> {sku.usage_scenario.trim() || "未填写"}</li>
+        {sku.offer.trim() ? <li><b>优惠活动</b> {sku.offer.trim()}</li> : null}
+      </ul>
+      {sku.images.length > 0 ? (
+        <div className="ot-image-grid">
+          {sku.images.map((image) => (
+            <div key={image.id} className="ot-image-tile">
+              <img src={image.preview} alt={image.name} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="ot-hint">还没有商品图</p>
+      )}
+      <div className="ot-sku-actions">
+        <button type="button" className="ot-btn ot-btn-primary" onClick={onPrepare}>继续准备出片</button>
+      </div>
+    </section>
   );
 }
 

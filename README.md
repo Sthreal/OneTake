@@ -110,7 +110,7 @@ docker compose up -d --build
 
 启动后：
 
-- One Take Web：http://localhost:5173
+- One Take Web：http://localhost:5173（请用 localhost，不要用 127.0.0.1；打开 `127.0.0.1:5173` 会跳回 localhost，避免商品草稿被拆进两套 localStorage）
 - API 文档：http://localhost:8000/docs
 - Provider 状态：http://localhost:8000/api/v1/providers/status
 - MCP：http://localhost:8010/mcp

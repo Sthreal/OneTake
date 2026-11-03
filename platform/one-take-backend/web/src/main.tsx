@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 
 import App from "./App";
+import { redirectLoopbackDevOrigin } from "./canonicalOrigin";
 
 /** 清掉历史遗留的 Service Worker / Cache。
  *
@@ -33,10 +34,12 @@ async function cleanupLegacyShell(): Promise<void> {
   }
 }
 
-void cleanupLegacyShell();
+if (!redirectLoopbackDevOrigin(window.location)) {
+  void cleanupLegacyShell();
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);
+  ReactDOM.createRoot(document.getElementById("root")!).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>,
+  );
+}
