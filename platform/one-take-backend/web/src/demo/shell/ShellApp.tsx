@@ -874,6 +874,13 @@ function Studio({
   const [startError, setStartError] = useState<string | null>(null);
   const [pathHint, setPathHint] = useState<string | null>(null);
   const pathHintRequest = useRef(0);
+  const startInFlight = useRef(false);
+
+  useEffect(() => {
+    // 回到准备步时清掉残留。正在执行的 start 不在这里打断。
+    if (view !== "prepare" || startInFlight.current) return;
+    setPresenterSyncing(false);
+  }, [view]);
 
   useEffect(() => {
     return () => {
@@ -930,33 +937,37 @@ function Studio({
   }
 
   async function startProduction() {
-    if (!product || presenterSyncing) return;
+    if (!product || presenterSyncing || startInFlight.current) return;
+    startInFlight.current = true;
     setPresenterSyncing(true);
     setStartError(null);
     setPresenterSyncError(null);
-    if (charactersLoading || charactersError) {
-      setStartError(charactersError ? `出镜人库加载失败：${charactersError}` : "正在读取出镜人库，请稍后再开始。");
-      setPresenterSyncing(false);
-      return;
-    }
-    const presenterError = libraryPresenterStartError(draft, characters);
-    if (presenterError) {
-      setStartError(presenterError);
-      if (draft.path === "talking_head") setCastOpen(true);
-      setPresenterSyncing(false);
-      return;
-    }
     try {
-      await ensureShellMainImage(product.project_id);
-    } catch (error) {
-      setStartError(error instanceof Error && error.message ? error.message : "主图校验失败");
+      if (charactersLoading || charactersError) {
+        setStartError(charactersError ? `出镜人库加载失败：${charactersError}` : "正在读取出镜人库，请稍后再开始。");
+        return;
+      }
+      const presenterError = libraryPresenterStartError(draft, characters);
+      if (presenterError) {
+        setStartError(presenterError);
+        if (draft.path === "talking_head") onCastOpen(true);
+        return;
+      }
+      try {
+        await ensureShellMainImage(product.project_id);
+      } catch (error) {
+        setStartError(error instanceof Error && error.message ? error.message : "主图校验失败");
+        return;
+      }
+      const ok = await syncPresenter(product.project_id);
+      if (!ok) return;
+      onDraft({ projectId: product.project_id });
+      onNavigate("review", product.project_id);
+    } finally {
+      // Studio 跨准备/审稿不卸载。成功跳转前也要清掉，否则回准备步按钮一直 disabled，点击被静默吃掉。
+      startInFlight.current = false;
       setPresenterSyncing(false);
-      return;
     }
-    const ok = await syncPresenter(product.project_id);
-    if (!ok) return;
-    onDraft({ projectId: product.project_id });
-    onNavigate("review", product.project_id);
   }
 
   return (
