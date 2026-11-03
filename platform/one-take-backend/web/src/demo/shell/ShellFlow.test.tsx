@@ -677,6 +677,41 @@ describe("iter18 图片广告与工作室解耦", () => {
     expect(screen.queryByRole("heading", { name: "审稿确认" })).not.toBeInTheDocument();
   });
 
+  it("开始制作进入审稿后再回准备，开始制作仍可点且会再次启动", async () => {
+    const user = userEvent.setup();
+    open("/?view=prepare&project=prj_skin");
+    render(<StudioShell />);
+    await fillPrepare(user);
+    expect(await screen.findByRole("heading", { name: "审稿确认" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /准备素材/ }));
+    expect(await screen.findByRole("heading", { name: "准备" })).toBeInTheDocument();
+    expect(screen.queryByText("正在校验主图并写入出镜人…")).not.toBeInTheDocument();
+    const start = screen.getByRole("button", { name: "开始制作" });
+    await waitFor(() => expect(start).toBeEnabled());
+
+    let release!: () => void;
+    vi.mocked(ensureShellMainImage).mockImplementationOnce(
+      () => new Promise<void>((resolve) => {
+        release = () => resolve();
+      }),
+    );
+    const imageCalls = vi.mocked(ensureShellMainImage).mock.calls.length;
+    const projectCalls = vi.mocked(updateProject).mock.calls.length;
+    await user.click(start);
+    expect(await screen.findByText("正在校验主图并写入出镜人…")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "开始制作" })).toBeDisabled();
+
+    await act(async () => {
+      release();
+    });
+    expect(await screen.findByRole("heading", { name: "审稿确认" })).toBeInTheDocument();
+    expect(ensureShellMainImage).toHaveBeenCalledTimes(imageCalls + 1);
+    expect(ensureShellMainImage).toHaveBeenLastCalledWith("prj_skin");
+    expect(updateProject).toHaveBeenCalledTimes(projectCalls + 1);
+    expect(updateProject).toHaveBeenLastCalledWith("prj_skin", { characterId: null });
+  });
+
   it("等长失败不能应用改写，保留原稿后才能进生成", async () => {
     const backend = installScriptBackend();
     backend.failLength();
