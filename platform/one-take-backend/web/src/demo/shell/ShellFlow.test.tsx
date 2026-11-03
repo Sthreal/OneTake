@@ -1026,10 +1026,15 @@ describe("iter18 图片广告与工作室解耦", () => {
       offer: "",
       images: [],
     });
-    vi.useFakeTimers();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] });
     try {
       open("/?view=review&project=prj_skin");
       render(<StudioShell />);
+      // 商品加载和审稿 effect 都要等计时器冲掉才挂上第一次轮询。
+      // 先推进 0，让 800ms 的 sleep 落在窗口内，再走完 40 次。
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
       await act(async () => {
         await vi.advanceTimersByTimeAsync(40 * 800 + 100);
       });
@@ -1298,7 +1303,7 @@ describe("iter18 图片广告与工作室解耦", () => {
     expect(await screen.findByRole("heading", { name: "提交渲染" })).toBeInTheDocument();
     expect(screen.getByText("声线：旁白字幕")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "出镜人未通过启动校验" }).closest("[role=alert]")).toHaveTextContent(
-      "口播出镜路径请选择一位出镜人",
+      "口播出镜必须选择当前出镜人库中的角色",
     );
     expect(screen.queryByText("林晓")).not.toBeInTheDocument();
     expect(screen.queryByText(/唇形已同步|克隆声驱动|live Wan 已生成/)).not.toBeInTheDocument();

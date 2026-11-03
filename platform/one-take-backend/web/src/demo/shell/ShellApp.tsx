@@ -25,6 +25,7 @@ import {
   imageAdExportPayload,
   isStudioView,
   libraryPresenterStartError,
+  talkingHeadStartError,
   markGsDone,
   nextStudioView,
   presenterById,
