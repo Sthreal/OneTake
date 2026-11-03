@@ -273,7 +273,8 @@ body:has(.ot-light) { background: #f4f4f5; }
 }
 .ot-add-title { font-size: 13px; font-weight: 500; color: #000; }
 .ot-add-sub { font-size: 12px; color: #71717a; text-align: center; }
-.ot-brand-thumb { height: 100px; background: linear-gradient(145deg, #e8eef4, #d4dce6 45%, #c8b8b0); border-bottom: 1px solid #efefef; }
+.ot-brand-thumb { height: 100px; background: linear-gradient(145deg, #e8eef4, #d4dce6 45%, #c8b8b0); border-bottom: 1px solid #efefef; position: relative; overflow: hidden; }
+.ot-brand-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ot-brand-thumb.checker {
   background:
     linear-gradient(45deg, #efefef 25%, transparent 25%),
@@ -286,7 +287,14 @@ body:has(.ot-light) { background: #f4f4f5; }
 }
 .ot-brand-info { padding: 12px 14px 14px; }
 .ot-brand-name { font-size: 13px; font-weight: 600; color: #000; margin-bottom: 4px; }
+.ot-brand-summary { font-size: 12px; line-height: 1.4; color: #3f3f46; }
 .ot-brand-status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #71717a; }
+.ot-sku-detail { max-width: 640px; }
+.ot-sku-detail h3 { margin: 0; font-size: 16px; font-weight: 600; color: #000; }
+.ot-sku-facts { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ot-sku-facts li { font-size: 13px; line-height: 1.45; color: #3f3f46; }
+.ot-sku-facts b { color: #000; font-weight: 600; margin-right: 6px; }
+.ot-sku-actions { display: flex; gap: 8px; margin-top: 12px; }
 .ot-dot { width: 6px; height: 6px; border-radius: 50%; background: #f5c542; display: block; }
 .ot-form { display: flex; flex-direction: column; gap: 8px; width: 200px; padding: 12px; border: 1px dashed #e4e4e7; border-radius: 12px; background: #fafafa; }
 .ot-input {

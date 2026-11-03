@@ -238,7 +238,7 @@ export interface StudioDraft {
   lastPresenterId: string | null;
   ratio: StudioRatio;
   duration: StudioDuration;
-  /** 勾选后，下面的文本只覆盖这一次出片，不写回商品草稿。 */
+  /** 勾选后，文本和图片只覆盖这一次出片，不写回商品草稿。 */
   sessionOnly: boolean;
   /** null = 没有本场覆盖，用商品草稿。空字符串 = 本场明确清空。 */
   pain_point: string | null;
@@ -432,7 +432,9 @@ export function writeStudioDraft(draft: StudioDraft): StudioDraft {
   return next;
 }
 
-/** 商品富化还没进 Product API。文本记在本机；图片只活在本次页面内存里。PR-B 再换成真正的商品字段。 */
+/** 商品富化还没进 Product API。文字和图片 data URL 记在本机 `onetake.skuEnrichment.v1`。
+ * 勾选「仅用于本次出片」的覆盖不写这里。单张过大、localStorage 放不下时，这一次仍用内存里的 File。
+ */
 const SKU_KEY = "onetake.skuEnrichment.v1";
 
 export const PREPARE_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
@@ -448,13 +450,17 @@ export const PREPARE_REQUIRED_COPY = {
 export const PREPARE_IMAGE_OPTIONAL_COPY = "启动时校验";
 export const PREPARE_IMAGE_CHECK_COPY = "开始制作时会自动确认已有主图；没有可用素材时请在这里上传。";
 
+/** 未勾选：商品草稿（刷新后还能接着改）。勾选：只覆盖这一次出片。 */
+export const PREPARE_SESSION_HINT =
+  "未勾选时写入商品草稿，文字和图片都会留下，下次进入可以接着改。勾选后只用于本次出片，不改商品草稿。";
+
 export interface PrepareImage {
   id: string;
   name: string;
   mime: string;
   size: number;
   preview: string;
-  /** 只活在本次页面内存里，用来在出稿前上传成素材。不进 localStorage。 */
+  /** 本次页面里的原文件。刷新后若草稿里有 data URL，会再还原成 File 供出稿前上传。 */
   file?: File;
 }
 
@@ -473,12 +479,22 @@ interface StoredSkuText {
   offer: string;
 }
 
+interface StoredSkuImage {
+  id: string;
+  name: string;
+  mime: string;
+  size: number;
+  dataUrl: string;
+}
+
 const EMPTY_SKU_TEXT: StoredSkuText = {
   pain_point: "",
   selling_points: [],
   usage_scenario: "",
   offer: "",
 };
+
+const SUMMARY_PAIN_MAX = 36;
 
 let skuTextCache: Map<string, StoredSkuText> | null = null;
 const skuImages = new Map<string, PrepareImage[]>();
@@ -490,7 +506,35 @@ export function resetPrepareMemory(): void {
   sessionImages.clear();
 }
 
-function loadSkuText(): Map<string, StoredSkuText> {
+function storedImageList(value: unknown): StoredSkuImage[] {
+  if (!Array.isArray(value)) return [];
+  const images: StoredSkuImage[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const record = item as Partial<StoredSkuImage>;
+    if (typeof record.id !== "string" || typeof record.dataUrl !== "string" || !record.dataUrl.startsWith("data:")) continue;
+    images.push({
+      id: record.id,
+      name: typeof record.name === "string" && record.name.trim() ? record.name : "image",
+      mime: typeof record.mime === "string" && record.mime.trim() ? record.mime : "image/jpeg",
+      size: typeof record.size === "number" && Number.isFinite(record.size) ? record.size : 0,
+      dataUrl: record.dataUrl,
+    });
+  }
+  return images;
+}
+
+function hydrateImage(image: StoredSkuImage): PrepareImage {
+  return {
+    id: image.id,
+    name: image.name,
+    mime: image.mime,
+    size: image.size,
+    preview: image.dataUrl,
+  };
+}
+
+function loadSkuStore(): Map<string, StoredSkuText> {
   const map = new Map<string, StoredSkuText>();
   try {
     const raw = localStorage.getItem(SKU_KEY);
@@ -498,7 +542,7 @@ function loadSkuText(): Map<string, StoredSkuText> {
     if (!parsed || typeof parsed !== "object") return map;
     for (const [id, value] of Object.entries(parsed as Record<string, unknown>)) {
       if (!value || typeof value !== "object") continue;
-      const record = value as Partial<StoredSkuText>;
+      const record = value as Partial<StoredSkuText> & { images?: unknown };
       map.set(id, {
         pain_point: typeof record.pain_point === "string" ? record.pain_point : "",
         selling_points: Array.isArray(record.selling_points)
@@ -507,6 +551,7 @@ function loadSkuText(): Map<string, StoredSkuText> {
         usage_scenario: typeof record.usage_scenario === "string" ? record.usage_scenario : "",
         offer: typeof record.offer === "string" ? record.offer : "",
       });
+      if (!skuImages.has(id)) skuImages.set(id, storedImageList(record.images).map(hydrateImage));
     }
   } catch {
     /* 坏草稿就当没有 */
@@ -515,15 +560,56 @@ function loadSkuText(): Map<string, StoredSkuText> {
 }
 
 function skuTexts(): Map<string, StoredSkuText> {
-  if (!skuTextCache) skuTextCache = loadSkuText();
+  if (!skuTextCache) skuTextCache = loadSkuStore();
   return skuTextCache;
 }
 
-function persistSkuText(): void {
-  const payload: Record<string, StoredSkuText> = {};
-  for (const [id, value] of skuTexts()) payload[id] = value;
+function serializableImages(images: PrepareImage[]): StoredSkuImage[] {
+  return images.flatMap((image) => {
+    if (!image.preview.startsWith("data:")) return [];
+    return [{
+      id: image.id,
+      name: image.name,
+      mime: image.mime,
+      size: image.size,
+      dataUrl: image.preview,
+    }];
+  });
+}
+
+function persistedImageMap(): Map<string, StoredSkuImage[]> {
+  const map = new Map<string, StoredSkuImage[]>();
   try {
-    localStorage.setItem(SKU_KEY, JSON.stringify(payload));
+    const raw = localStorage.getItem(SKU_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : null;
+    if (!parsed || typeof parsed !== "object") return map;
+    for (const [id, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (!value || typeof value !== "object") continue;
+      map.set(id, storedImageList((value as { images?: unknown }).images));
+    }
+  } catch {
+    /* 读不到旧图就当没有 */
+  }
+  return map;
+}
+
+function persistSkuText(): void {
+  const texts = skuTexts();
+  const withImages: Record<string, StoredSkuText & { images: StoredSkuImage[] }> = {};
+  for (const [id, value] of texts) {
+    withImages[id] = { ...value, images: serializableImages(skuImages.get(id) ?? []) };
+  }
+  try {
+    localStorage.setItem(SKU_KEY, JSON.stringify(withImages));
+    return;
+  } catch {
+    /* 新图放不下时保留已存的 data URL，至少把文字写回去。 */
+  }
+  try {
+    const prior = persistedImageMap();
+    const kept: Record<string, StoredSkuText & { images: StoredSkuImage[] }> = {};
+    for (const [id, value] of texts) kept[id] = { ...value, images: prior.get(id) ?? [] };
+    localStorage.setItem(SKU_KEY, JSON.stringify(kept));
   } catch {
     /* 配额不够就只留内存，刷新后要重填 */
   }
@@ -533,8 +619,27 @@ function cloneImages(images: PrepareImage[]): PrepareImage[] {
   return images.map((image) => ({ ...image }));
 }
 
+/** 同一次编辑若还拿着 blob: 预览，别把已经记下来的 data URL 冲掉。 */
+function mergeStoredPreviews(previous: PrepareImage[] | undefined, next: PrepareImage[]): PrepareImage[] {
+  return next.map((image) => {
+    if (image.preview.startsWith("data:")) return { ...image };
+    const prior = previous?.find((item) => item.id === image.id);
+    if (!prior?.preview.startsWith("data:")) return { ...image };
+    return { ...image, preview: prior.preview };
+  });
+}
+
 export function emptySkuEnrichment(): SkuEnrichment {
   return { ...EMPTY_SKU_TEXT, selling_points: [], images: [] };
+}
+
+/** 品牌空间卡片上的一行：痛点 · 前两条卖点。都空就说明还没写过。 */
+export function skuEnrichmentSummary(sku: Pick<SkuEnrichment, "pain_point" | "selling_points">): string {
+  const pain = sku.pain_point.trim();
+  const painShort = pain.length > SUMMARY_PAIN_MAX ? `${pain.slice(0, SUMMARY_PAIN_MAX)}…` : pain;
+  const pointText = sku.selling_points.map((item) => item.trim()).filter(Boolean).slice(0, 2).join("、");
+  if (painShort && pointText) return `${painShort} · ${pointText}`;
+  return painShort || pointText || "还没有痛点和卖点";
 }
 
 export function readSkuEnrichment(projectId: string): SkuEnrichment {
@@ -557,9 +662,44 @@ export function writeSkuEnrichment(projectId: string, fields: SkuEnrichment): Sk
     offer: fields.offer,
   };
   skuTexts().set(projectId, text);
-  skuImages.set(projectId, cloneImages(fields.images));
+  const images = mergeStoredPreviews(skuImages.get(projectId), fields.images);
+  skuImages.set(projectId, cloneImages(images));
   persistSkuText();
   return readSkuEnrichment(projectId);
+}
+
+/** 上传时先用 blob: 预览，读完 data URL 再补进商品草稿（或本场覆盖）。不改工作室草稿。 */
+export function attachPrepareImageDataUrls(projectId: string, updates: { id: string; dataUrl: string }[]): void {
+  if (updates.length === 0) return;
+  skuTexts();
+  const apply = (images: PrepareImage[]) => images.map((image) => {
+    const update = updates.find((item) => item.id === image.id && item.dataUrl.startsWith("data:"));
+    return update ? { ...image, preview: update.dataUrl } : image;
+  });
+  const durable = skuImages.get(projectId);
+  const durableHit = durable?.some((image) => updates.some((item) => item.id === image.id)) ?? false;
+  if (durable && durableHit) skuImages.set(projectId, apply(durable));
+  const session = sessionImages.get(projectId);
+  if (session?.some((image) => updates.some((item) => item.id === image.id))) {
+    sessionImages.set(projectId, apply(session));
+  }
+  if (durableHit) persistSkuText();
+}
+
+export function readPrepareImageDataUrl(file: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result === "string" && result.startsWith("data:")) {
+        resolve(result);
+        return;
+      }
+      reject(new Error("图片读取失败"));
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("图片读取失败"));
+    reader.readAsDataURL(file);
+  });
 }
 
 export function clearSessionImages(projectId?: string): void {
@@ -567,11 +707,32 @@ export function clearSessionImages(projectId?: string): void {
   else sessionImages.clear();
 }
 
-/** 出稿前奏要上传的那张图。本场覆盖优先，否则用商品草稿里还留着的 File。 */
+function fileFromDataUrl(image: PrepareImage): File | null {
+  const preview = image.preview;
+  const comma = preview.indexOf(",");
+  if (!preview.startsWith("data:") || comma < 0) return null;
+  const header = preview.slice("data:".length, comma);
+  const payload = preview.slice(comma + 1);
+  const mime = image.mime || header.split(";")[0] || "application/octet-stream";
+  try {
+    const bytes = header.includes(";base64")
+      ? Uint8Array.from(atob(payload), (char) => char.charCodeAt(0))
+      : new TextEncoder().encode(decodeURIComponent(payload));
+    return new File([bytes], image.name || "image", { type: mime });
+  } catch {
+    return null;
+  }
+}
+
+/** 出稿前奏要上传的那张图。本场覆盖优先；否则用商品草稿里的 File，或 data URL 还原出来的文件。 */
 export function prepareUploadFile(projectId: string): File | null {
+  skuTexts();
   const session = sessionImages.get(projectId);
   const stored = session ?? skuImages.get(projectId) ?? [];
-  return stored.find((item) => item.file)?.file ?? null;
+  const withFile = stored.find((item) => item.file);
+  if (withFile?.file) return withFile.file;
+  const encoded = stored.find((item) => item.preview.startsWith("data:"));
+  return encoded ? fileFromDataUrl(encoded) : null;
 }
 
 export function effectivePrepareFields(projectId: string, draft: StudioDraft): SkuEnrichment {

@@ -145,7 +145,7 @@ import {
 import { ensureShellMainImage } from "./mainImagePrelude";
 import { PREPARE_FACTS_CHANGED_HINT } from "./scriptGate";
 import { StudioShell } from "../StudioShell";
-import { DEFAULT_STUDIO_DRAFT, PATH_CHANGED_HINT, PRESENTER_CLEAR_FAILED, TALKING_HEAD_PRESENTER_REQUIRED, writeSkuEnrichment, writeStudioDraft } from "./model";
+import { DEFAULT_STUDIO_DRAFT, PATH_CHANGED_HINT, PREPARE_SESSION_HINT, PRESENTER_CLEAR_FAILED, TALKING_HEAD_PRESENTER_REQUIRED, readSkuEnrichment, resetPrepareMemory, writeSkuEnrichment, writeStudioDraft } from "./model";
 
 const product = {
   project_id: "prj_skin",
@@ -792,6 +792,8 @@ describe("iter18 图片广告与工作室解耦", () => {
     render(<StudioShell />);
     expect(await screen.findByRole("textbox", { name: "痛点" })).toHaveValue("甲的痛点");
     expect(screen.getByRole("textbox", { name: "卖点 1" })).toHaveValue("甲的卖点");
+    expect(screen.getByText(PREPARE_SESSION_HINT)).toBeInTheDocument();
+    expect(screen.queryByText(/下次进入仍会带上/)).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "规格要点" })).not.toBeInTheDocument();
     expect(screen.queryByDisplayValue("乙的卖点")).not.toBeInTheDocument();
 
@@ -801,11 +803,90 @@ describe("iter18 图片广告与工作室解耦", () => {
     await user.type(pain, "只在这一次");
     await user.click(screen.getByRole("button", { name: "更换 →" }));
     expect(await screen.findByRole("heading", { name: "品牌空间" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /甲精华/ })).toHaveTextContent("甲的痛点");
+    expect(screen.getByRole("button", { name: /甲精华/ })).not.toHaveTextContent("只在这一次");
     await user.click(screen.getByRole("button", { name: /乙水杯/ }));
+    expect(await screen.findByRole("region", { name: "商品详情" })).toHaveTextContent("乙的痛点");
+    expect(screen.queryByRole("textbox", { name: "痛点" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "继续准备出片" }));
     expect(await screen.findByRole("textbox", { name: "痛点" })).toHaveValue("乙的痛点");
     expect(screen.getByRole("textbox", { name: "卖点 1" })).toHaveValue("乙的卖点");
     expect(screen.queryByDisplayValue("只在这一次")).not.toBeInTheDocument();
     expect(screen.queryByDisplayValue("甲的卖点")).not.toBeInTheDocument();
+  });
+
+  it("品牌空间读商品草稿：缩略图和痛点卖点，点开详情再去准备", async () => {
+    const user = userEvent.setup();
+    const dataUrl = "data:image/png;base64,AQIDBA==";
+    writeSkuEnrichment("prj_skin", {
+      pain_point: "干燥起皮",
+      selling_points: ["补水快", "不黏腻"],
+      usage_scenario: "通勤补水",
+      offer: "第二件半价",
+      images: [
+        { id: "img", name: "skin.png", mime: "image/png", size: 4, preview: dataUrl },
+        { id: "img2", name: "side.png", mime: "image/png", size: 4, preview: "data:image/png;base64,Qg==" },
+      ],
+    });
+    open("/?view=brand");
+    render(<StudioShell />);
+    const card = await screen.findByRole("button", { name: /春季护肤精华液/ });
+    expect(card.querySelector("img")).toHaveAttribute("src", dataUrl);
+    expect(card).toHaveTextContent("干燥起皮 · 补水快、不黏腻");
+    expect(screen.queryByRole("textbox", { name: "痛点" })).not.toBeInTheDocument();
+
+    await user.click(card);
+    const detail = await screen.findByRole("region", { name: "商品详情" });
+    expect(detail).toHaveTextContent("干燥起皮");
+    expect(detail).toHaveTextContent("补水快、不黏腻");
+    expect(detail).toHaveTextContent("通勤补水");
+    expect(detail).toHaveTextContent("第二件半价");
+    expect(within(detail).getByRole("img", { name: "skin.png" })).toHaveAttribute("src", dataUrl);
+    expect(within(detail).getByRole("img", { name: "side.png" })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "痛点" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "继续准备出片" }));
+    expect(await screen.findByRole("textbox", { name: "痛点" })).toHaveValue("干燥起皮");
+    expect(screen.getByRole("textbox", { name: "卖点 1" })).toHaveValue("补水快");
+    expect(screen.getByRole("img", { name: "skin.png" })).toHaveAttribute("src", dataUrl);
+  });
+
+  it("未勾选仅用于本次出片时，上传的图片刷新后还在", async () => {
+    const user = userEvent.setup();
+    open("/?view=prepare&project=prj_skin");
+    const first = render(<StudioShell />);
+    const input = await screen.findByLabelText("选择商品图片");
+    await user.upload(input, new File([Uint8Array.from([1, 2, 3, 4])], "keep.png", { type: "image/png" }));
+    await waitFor(() => expect(screen.getByRole("img", { name: "keep.png" })).toHaveAttribute("src", expect.stringMatching(/^data:image\/png/)));
+    expect(localStorage.getItem("onetake.skuEnrichment.v1")).toContain("keep.png");
+    first.unmount();
+    resetPrepareMemory();
+    open("/?view=prepare&project=prj_skin");
+    render(<StudioShell />);
+    expect(await screen.findByRole("img", { name: "keep.png" })).toHaveAttribute("src", expect.stringMatching(/^data:image\/png/));
+  });
+
+  it("勾选仅用于本次出片后上传的图片不写回商品草稿", async () => {
+    const user = userEvent.setup();
+    const durable = "data:image/png;base64,AQIDBA==";
+    writeSkuEnrichment("prj_skin", {
+      pain_point: "原痛点",
+      selling_points: ["原卖点"],
+      usage_scenario: "原场景",
+      offer: "",
+      images: [{ id: "old", name: "old.png", mime: "image/png", size: 4, preview: durable }],
+    });
+    open("/?view=prepare&project=prj_skin");
+    render(<StudioShell />);
+    await user.click(await screen.findByRole("checkbox", { name: "仅用于本次出片" }));
+    await user.upload(screen.getByLabelText("选择商品图片"), new File([Uint8Array.from([9, 9, 9])], "temp.png", { type: "image/png" }));
+    await waitFor(() => expect(screen.getByRole("img", { name: "temp.png" })).toHaveAttribute("src", expect.stringMatching(/^data:/)));
+    const raw = localStorage.getItem("onetake.skuEnrichment.v1") ?? "";
+    expect(raw).toContain("old.png");
+    expect(raw).toContain(durable);
+    expect(raw).not.toContain("temp.png");
+    expect(readSkuEnrichment("prj_skin").pain_point).toBe("原痛点");
+    expect(readSkuEnrichment("prj_skin").images.map((image) => image.name)).toEqual(["old.png"]);
   });
 
   it("非白名单图片不能上传，开始制作保持禁用", async () => {

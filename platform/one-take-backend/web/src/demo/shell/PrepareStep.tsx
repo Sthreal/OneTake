@@ -9,6 +9,7 @@ import {
   PREPARE_IMAGE_ACCEPT,
   PREPARE_IMAGE_CHECK_COPY,
   PREPARE_IMAGE_OPTIONAL_COPY,
+  PREPARE_SESSION_HINT,
   PRODUCT_ONLY_CAST_HINT,
   PRODUCT_ONLY_CAST_TITLE,
   STUDIO_DURATIONS,
@@ -16,10 +17,12 @@ import {
   STUDIO_RATIOS,
   applyPrepareEdit,
   assignPresenter,
+  attachPrepareImageDataUrls,
   effectivePrepareFields,
   libraryPresenterStartError,
   prepareImageRejection,
   prepareSubmitErrors,
+  readPrepareImageDataUrl,
   presenterOptions,
   setPrepareSessionOnly,
   studioPathName,
@@ -151,6 +154,8 @@ function PrepareLoaded({
   const [offer, setOffer] = useState(initial.offer);
   const [images, setImages] = useState<PrepareImage[]>(initial.images);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const fieldsRef = useRef({ pain, rows, scene, offer, images, draft });
+  fieldsRef.current = { pain, rows, scene, offer, images, draft };
   const options = presenterOptions(characters);
   const errors = prepareSubmitErrors({
     painPoint: pain,
@@ -168,18 +173,19 @@ function PrepareLoaded({
   const ready = errors.length === 0;
 
   function snapshot(overrides: Partial<SkuEnrichment> = {}): SkuEnrichment {
+    const current = fieldsRef.current;
     return {
-      pain_point: pain,
-      selling_points: rows.map((row) => row.text),
-      usage_scenario: scene,
-      offer,
-      images,
+      pain_point: current.pain,
+      selling_points: current.rows.map((row) => row.text),
+      usage_scenario: current.scene,
+      offer: current.offer,
+      images: current.images,
       ...overrides,
     };
   }
 
   function commit(next: SkuEnrichment) {
-    onDraft(applyPrepareEdit(product.project_id, draft, next));
+    onDraft(applyPrepareEdit(product.project_id, fieldsRef.current.draft, next));
   }
 
   function onFiles(list: FileList | null) {
@@ -203,9 +209,32 @@ function PrepareLoaded({
     }
     setUploadError(rejected);
     if (accepted.length === 0) return;
-    const nextImages = [...images, ...accepted];
+    const nextImages = [...fieldsRef.current.images, ...accepted];
+    fieldsRef.current = { ...fieldsRef.current, images: nextImages };
     setImages(nextImages);
     commit(snapshot({ images: nextImages }));
+    const projectId = product.project_id;
+    void Promise.all(accepted.map(async (image) => {
+      if (!image.file) return null;
+      try {
+        return { id: image.id, dataUrl: await readPrepareImageDataUrl(image.file) };
+      } catch {
+        return null;
+      }
+    })).then((items) => {
+      const updates = items.filter((item): item is { id: string; dataUrl: string } => item !== null);
+      if (updates.length === 0) {
+        setUploadError((current) => current ?? "图片读取失败，这一次还能用，刷新后需要重传");
+        return;
+      }
+      attachPrepareImageDataUrls(projectId, updates);
+      const refreshed = fieldsRef.current.images.map((image) => {
+        const update = updates.find((item) => item.id === image.id);
+        return update ? { ...image, preview: update.dataUrl } : image;
+      });
+      fieldsRef.current = { ...fieldsRef.current, images: refreshed };
+      setImages(refreshed);
+    });
   }
 
   return (
@@ -248,7 +277,8 @@ function PrepareLoaded({
                         aria-label={`移除图片 ${image.name}`}
                         onClick={() => {
                           if (image.preview.startsWith("blob:")) URL.revokeObjectURL(image.preview);
-                          const nextImages = images.filter((item) => item.id !== image.id);
+                          const nextImages = fieldsRef.current.images.filter((item) => item.id !== image.id);
+                          fieldsRef.current = { ...fieldsRef.current, images: nextImages };
                           setImages(nextImages);
                           commit(snapshot({ images: nextImages }));
                         }}
@@ -370,7 +400,7 @@ function PrepareLoaded({
                 />
                 仅用于本次出片
               </label>
-              <p className="ot-hint">默认写回该商品，下次进入仍会带上。勾选后只影响这一次出片。</p>
+              <p className="ot-hint">{PREPARE_SESSION_HINT}</p>
             </section>
           </div>
           <div className="ot-side-col">

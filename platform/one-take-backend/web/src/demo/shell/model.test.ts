@@ -8,8 +8,10 @@ import {
   IMAGE_AD_CELLS,
   PREPARE_IMAGE_MAX_BYTES,
   PREPARE_REQUIRED_COPY,
+  PREPARE_SESSION_HINT,
   STUDIO_STEPS,
   applyPrepareEdit,
+  attachPrepareImageDataUrls,
   effectivePrepareFields,
   emptySkuEnrichment,
   gsDestinations,
@@ -18,6 +20,8 @@ import {
   normalizeStudioDraft,
   prepareImageRejection,
   prepareSubmitErrors,
+  prepareUploadFile,
+  resetPrepareMemory,
   PATH_CHANGED_HINT,
   PREMADE_PRESENTER,
   PRODUCT_ONLY_CAST_HINT,
@@ -35,6 +39,7 @@ import {
   projectCharacterSync,
   readSkuEnrichment,
   readStudioDraft,
+  skuEnrichmentSummary,
   resolveSelectedProduct,
   reviewFeeHint,
   studioPathName,
@@ -169,6 +174,72 @@ describe("准备步草稿与商品富化", () => {
     expect(effectivePrepareFields("prj_b", session).selling_points).toEqual(["乙卖点"]);
   });
 
+  it("未勾选本次出片时，图片 data URL 和文字一起留下，刷新后还能还原文件", () => {
+    const draft = { ...DEFAULT_STUDIO_DRAFT, projectId: "prj_a", sessionOnly: false };
+    const dataUrl = "data:image/png;base64,AQIDBA==";
+    applyPrepareEdit("prj_a", draft, {
+      ...emptySkuEnrichment(),
+      pain_point: "清洗麻烦",
+      selling_points: ["杯身可拆"],
+      usage_scenario: "通勤",
+      images: [{ id: "img1", name: "keep.png", mime: "image/png", size: 4, preview: dataUrl }],
+    });
+    expect(localStorage.getItem("onetake.skuEnrichment.v1")).toContain(dataUrl);
+    resetPrepareMemory();
+    const sku = readSkuEnrichment("prj_a");
+    expect(sku.pain_point).toBe("清洗麻烦");
+    expect(sku.selling_points).toEqual(["杯身可拆"]);
+    expect(sku.images).toEqual([
+      { id: "img1", name: "keep.png", mime: "image/png", size: 4, preview: dataUrl },
+    ]);
+    const file = prepareUploadFile("prj_a");
+    expect(file).toBeInstanceOf(File);
+    expect(file?.name).toBe("keep.png");
+    expect(file?.type).toBe("image/png");
+    expect(file?.size).toBe(4);
+    expect(skuEnrichmentSummary(sku)).toBe("清洗麻烦 · 杯身可拆");
+  });
+
+  it("blob 预览先不进草稿，读完 data URL 再补上；勾选本次出片则不写回", () => {
+    const file = new File(["png"], "cup.png", { type: "image/png" });
+    writeSkuEnrichment("prj_a", {
+      ...emptySkuEnrichment(),
+      pain_point: "原痛点",
+      selling_points: ["原卖点"],
+      usage_scenario: "原场景",
+      images: [{ id: "keep", name: "keep.png", mime: "image/png", size: 4, preview: "data:image/png;base64,AQIDBA==" }],
+    });
+    writeSkuEnrichment("prj_a", {
+      ...readSkuEnrichment("prj_a"),
+      images: [{ id: "keep", name: "keep.png", mime: "image/png", size: 3, preview: "blob:cup", file }],
+    });
+    expect(readSkuEnrichment("prj_a").images[0]?.preview).toBe("data:image/png;base64,AQIDBA==");
+
+    const durable = localStorage.getItem("onetake.skuEnrichment.v1");
+    const sessionFile = new File(["b"], "temp.png", { type: "image/png" });
+    applyPrepareEdit("prj_a", { ...DEFAULT_STUDIO_DRAFT, projectId: "prj_a", sessionOnly: true }, {
+      ...emptySkuEnrichment(),
+      pain_point: "临时痛点",
+      selling_points: ["临时卖点"],
+      usage_scenario: "临时场景",
+      images: [{ id: "temp", name: "temp.png", mime: "image/png", size: 1, preview: "blob:temp", file: sessionFile }],
+    });
+    attachPrepareImageDataUrls("prj_a", [{ id: "temp", dataUrl: "data:image/png;base64,Qg==" }]);
+    expect(localStorage.getItem("onetake.skuEnrichment.v1")).toBe(durable);
+    expect(readSkuEnrichment("prj_a").pain_point).toBe("原痛点");
+    expect(readSkuEnrichment("prj_a").images.map((image) => image.id)).toEqual(["keep"]);
+    expect(prepareUploadFile("prj_a")).toBe(sessionFile);
+    resetPrepareMemory();
+    expect(readSkuEnrichment("prj_a").images.map((image) => image.preview)).toEqual(["data:image/png;base64,AQIDBA=="]);
+    expect(readSkuEnrichment("prj_a").pain_point).toBe("原痛点");
+    expect(prepareUploadFile("prj_a")?.name).toBe("keep.png");
+    expect(PREPARE_SESSION_HINT).toContain("商品草稿");
+    expect(PREPARE_SESSION_HINT).toContain("本次出片");
+    expect(PREPARE_SESSION_HINT).not.toContain("下次进入仍会带上");
+    expect(skuEnrichmentSummary({ pain_point: `痛${"点".repeat(40)}`, selling_points: ["  ", "卖"] })).toBe(`${`痛${"点".repeat(35)}`}… · 卖`);
+    expect(skuEnrichmentSummary({ pain_point: "  ", selling_points: ["", "  "] })).toBe("还没有痛点和卖点");
+  });
+
   it("图片只收 PNG / JPEG / JPG / WEBP，且不超过 10MB；痛点卖点场景仍拦截，商品图不拦", () => {
     expect(prepareImageRejection({ name: "a.heic", type: "image/heic", size: 100 })).toBe("仅支持 PNG / JPEG / JPG / WEBP");
     expect(prepareImageRejection({ name: "a.gif", type: "image/gif", size: 100 })).toBe("仅支持 PNG / JPEG / JPG / WEBP");
@@ -200,6 +271,7 @@ describe("准备步草稿与商品富化", () => {
     const sku = readSkuEnrichment("prj_a");
     expect(sku).not.toHaveProperty("specs");
     expect(sku.selling_points).toEqual(["卖点"]);
+    expect(sku.images).toEqual([]);
     const draft = normalizeStudioDraft({ selling_points: ["杯身可拆"] });
     expect(draft).not.toHaveProperty("specs");
     expect(draft.selling_points).toEqual(["杯身可拆"]);
