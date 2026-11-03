@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -121,6 +121,8 @@ import { approveCost } from "../api";
 import { ApiError } from "../../shared/api/client";
 import { listCharacters } from "../../shared/api/characterApi";
 import { confirmContentPlan, generateContentPlan, getContentPlan } from "../../shared/api/contentPlanApi";
+import { confirmAudioSubtitle } from "../../shared/api/subtitleApi";
+import { getVoice, requestVoice } from "../../shared/api/voiceApi";
 import { listProjects, updateProject } from "../../shared/api/projectApi";
 import {
   createVideoPlan,
@@ -141,6 +143,7 @@ import {
   selectScript,
 } from "../../shared/api/scriptApi";
 import { ensureShellMainImage } from "./mainImagePrelude";
+import { PREPARE_FACTS_CHANGED_HINT } from "./scriptGate";
 import { StudioShell } from "../StudioShell";
 import { DEFAULT_STUDIO_DRAFT, PATH_CHANGED_HINT, PRESENTER_CLEAR_FAILED, TALKING_HEAD_PRESENTER_REQUIRED, writeSkuEnrichment, writeStudioDraft } from "./model";
 
@@ -483,6 +486,8 @@ describe("iter18 图片广告与工作室解耦", () => {
     vi.mocked(getContentPlan).mockClear();
     vi.mocked(generateContentPlan).mockClear();
     vi.mocked(confirmContentPlan).mockClear();
+    vi.mocked(confirmAudioSubtitle).mockClear();
+    vi.mocked(requestVoice).mockClear();
     vi.mocked(listCharacters).mockResolvedValue({
       characters: [{
         character_id: "chr_zhou",
@@ -539,26 +544,26 @@ describe("iter18 图片广告与工作室解耦", () => {
     expect(screen.getByRole("button", { name: "开始制作" })).toBeDisabled();
     expect(screen.getByText(/选角 \/ 过闸/)).toBeInTheDocument();
     expect(screen.queryByText("下一步审稿九宫格 · 本步不扣费")).not.toBeInTheDocument();
-    expect(screen.getByText("可选示意")).toBeInTheDocument();
+    expect(screen.getByText("启动时校验")).toBeInTheDocument();
     expect(screen.queryByText("请至少上传 1 张商品图")).not.toBeInTheDocument();
     expect(screen.getByText("请填写痛点")).toBeInTheDocument();
     expect(screen.getByText("请至少添加 1 条卖点（最多 5 条）")).toBeInTheDocument();
     expect(screen.getByText("请填写使用场景")).toBeInTheDocument();
 
     await choosePath(user, /口播出镜/);
-    expect(screen.getByText("林晓")).toBeInTheDocument();
+    expect(screen.getByText("尚未选择库内出镜人")).toBeInTheDocument();
+    expect(screen.queryByText("林晓")).not.toBeInTheDocument();
     expect(document.querySelector(".ot-chips")).toHaveTextContent("口播出镜");
-    expect(document.querySelector(".ot-chips")).not.toHaveTextContent("林晓");
 
-    await user.click(screen.getByRole("button", { name: "从出镜人库更换 →" }));
     const castButtons = within(document.querySelector(".ot-cast") as HTMLElement).getAllByRole("button");
     expect(castButtons[0]).toHaveTextContent("无出镜人");
     expect(castButtons[0]).toHaveTextContent("商品镜头为主，不出现人物");
-    expect(screen.getByRole("button", { name: /周予/ })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /周予/ }));
+    expect(document.querySelector(".ot-talent")).toHaveTextContent("周予");
     expect(screen.queryByRole("textbox", { name: /提示词|描述出镜人|prompt/ })).not.toBeInTheDocument();
 
     await choosePath(user, /多角度口播/);
-    expect(document.querySelector(".ot-talent")).toHaveTextContent("林晓");
+    expect(document.querySelector(".ot-talent")).toHaveTextContent("周予");
     expect(screen.getByRole("textbox", { name: "痛点" })).toHaveValue("");
 
     await fillPrepare(user);
@@ -583,15 +588,15 @@ describe("iter18 图片广告与工作室解耦", () => {
       vi.mocked(generateScript).mock.invocationCallOrder[0],
     );
     expect(screen.getByRole("button", { name: "痛点种草" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByText("请先选择角度")).toBeInTheDocument();
-    expect(screen.getByText("先点选一套角度，再审稿确认")).toBeInTheDocument();
+    expect(screen.getByText(/当前高亮角度已选中/)).toBeInTheDocument();
+    expect(screen.getByText("当前高亮角度已选中；可直接审稿，也可以先切换角度")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /确认并提交渲染/ })).toBeDisabled();
 
     await user.click(screen.getByRole("button", { name: "场景安利" }));
     await waitFor(() => expect(selectScript).toHaveBeenCalledWith("prj_skin", "scr_scene"));
-    expect(screen.queryByText("请先选择角度")).not.toBeInTheDocument();
+    expect(screen.getByText(/当前高亮角度已选中/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "场景安利" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("textbox", { name: "钩子" })).toHaveValue("出门时怎么还不用这瓶？");
+    expect(screen.queryByRole("textbox", { name: "钩子" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "审稿" }));
     expect(await screen.findByText("审稿闸：已审，还没过闸")).toBeInTheDocument();
@@ -609,11 +614,16 @@ describe("iter18 图片广告与工作室解耦", () => {
     expect(screen.getByText(/不经过图片广告/)).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "编排预览" })).not.toBeInTheDocument();
     expect(screen.queryByText(/不会在这里跑完付费视频/)).not.toBeInTheDocument();
-    expect(screen.getByText("出镜人：林晓 · 女声 · 温和种草 · 预制")).toBeInTheDocument();
+    expect(screen.getByText("出镜人：周予 · 男声 · 库")).toBeInTheDocument();
     await waitFor(() => expect(confirmScript).toHaveBeenCalledTimes(1));
     expect(confirmScript).toHaveBeenCalledWith("prj_skin");
     expect(selectScript).toHaveBeenCalledTimes(1);
     expect(selectScript).toHaveBeenCalledWith("prj_skin", "scr_scene");
+    const submit = await screen.findByRole("button", { name: "确认提交渲染" });
+    expect(screen.getByRole("status")).toHaveTextContent("尚未提交渲染");
+    expect(requestVideo).not.toHaveBeenCalled();
+    expect(approveCost).not.toHaveBeenCalled();
+    await user.click(submit);
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Mock 成片就绪"));
     expect(screen.getByRole("status")).toHaveTextContent("成片可播");
     expect(screen.getByRole("status")).not.toHaveTextContent("可播预览");
@@ -652,7 +662,7 @@ describe("iter18 图片广告与工作室解耦", () => {
     expect(requestVideo).toHaveBeenCalledTimes(1);
   });
 
-  it("主图前奏失败时停在审稿说明，不会去 generate，也没有确认主图按钮", async () => {
+  it("主图启动校验失败时停在准备步，原位保留上传入口且不再静默进入审稿", async () => {
     vi.mocked(ensureShellMainImage).mockRejectedValue(
       new Error("请先在准备步上传一张商品图。没有已确认主图时不能生成文案。"),
     );
@@ -661,9 +671,10 @@ describe("iter18 图片广告与工作室解耦", () => {
     render(<StudioShell />);
     await fillPrepare(user);
     expect(await screen.findByText("请先在准备步上传一张商品图。没有已确认主图时不能生成文案。")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "准备" })).toBeInTheDocument();
     expect(generateScript).not.toHaveBeenCalled();
-    expect(screen.queryByRole("button", { name: "确认主图" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "重新生成三套口播" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "上传图片" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "审稿确认" })).not.toBeInTheDocument();
   });
 
   it("等长失败不能应用改写，保留原稿后才能进生成", async () => {
@@ -683,21 +694,18 @@ describe("iter18 图片广告与工作室解耦", () => {
     expect(screen.getByRole("button", { name: /确认并提交渲染/ })).toBeEnabled();
   });
 
-  it("手改文案会清闸，要重新审稿", async () => {
+  it("审稿页只保留角度、四维与过闸，不再编辑痛点卖点等事实", async () => {
     const user = userEvent.setup();
     open("/?view=prepare&project=prj_skin");
     render(<StudioShell />);
     await fillPrepare(user);
     await user.click(await screen.findByRole("button", { name: "审稿" }));
     expect(await screen.findByText("审稿闸：已审，还没过闸")).toBeInTheDocument();
-    const hook = screen.getByRole("textbox", { name: "钩子" });
-    await user.clear(hook);
-    await user.type(hook, "换成一句新的开头。");
-    await user.click(screen.getByRole("button", { name: "保存手改" }));
-    expect(await screen.findByText("手改文案已清掉审稿闸，需要重新审稿。")).toBeInTheDocument();
-    expect(editScript).toHaveBeenCalledWith("prj_skin", expect.objectContaining({ hook: "换成一句新的开头。" }));
-    expect(screen.getByRole("button", { name: /确认并提交渲染/ })).toBeDisabled();
-    expect(screen.getByText("审稿闸：未开始")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "钩子" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "保存手改" })).not.toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "四维审稿" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "保留原稿" })).toBeEnabled();
+    expect(editScript).not.toHaveBeenCalled();
   });
 
   it("已确认后再切角度会展示 409，生成步在过闸前拦住", async () => {
@@ -725,7 +733,7 @@ describe("iter18 图片广告与工作室解耦", () => {
     render(<StudioShell />);
     expect(await screen.findByRole("heading", { name: "提交渲染" })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("SCRIPT_REVIEW_REQUIRED"));
-    expect(screen.getByRole("button", { name: "查看成片" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "查看进度" })).toBeDisabled();
     expect(requestVideo).not.toHaveBeenCalled();
     expect(approveCost).not.toHaveBeenCalled();
     expect(createVideoPlan).not.toHaveBeenCalled();
@@ -811,7 +819,7 @@ describe("iter18 图片广告与工作室解耦", () => {
     expect(screen.getByText("请填写痛点")).toBeInTheDocument();
   });
 
-  it("已有 ready 稿时，准备步是空的也不会重新 generate", async () => {
+  it("已有 ready 稿时，准备步是空的也不会重新 generate，审稿只读展示", async () => {
     const ready = makeVersion({ hook: "已经写好的钩子" });
     vi.mocked(getScript).mockResolvedValue({
       version: ready,
@@ -820,7 +828,8 @@ describe("iter18 图片广告与工作室解耦", () => {
     });
     open("/?view=review&project=prj_skin");
     render(<StudioShell />);
-    expect(await screen.findByRole("textbox", { name: "钩子" })).toHaveValue("已经写好的钩子");
+    expect(await screen.findByRole("button", { name: "痛点种草" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByRole("textbox", { name: "钩子" })).not.toBeInTheDocument();
     expect(generateScript).not.toHaveBeenCalled();
   });
 
@@ -839,11 +848,14 @@ describe("iter18 图片广告与工作室解耦", () => {
     await user.click(screen.getByRole("button", { name: "开始制作" }));
     expect(await screen.findByRole("heading", { name: "审稿确认" })).toBeInTheDocument();
     expect(generateScript).toHaveBeenCalledTimes(generated);
+    expect(screen.getByText(PREPARE_FACTS_CHANGED_HINT)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "按新事实重新生成" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /准备素材/ }));
     expect(await screen.findByRole("textbox", { name: "卖点 1" })).toHaveValue("换成新卖点");
     const beforePath = vi.mocked(generateScript).mock.calls.length;
     await choosePath(user, /口播出镜/);
+    await user.click(screen.getByRole("button", { name: /周予/ }));
     expect(await screen.findByText(PATH_CHANGED_HINT)).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "痛点" })).toHaveValue("清洗麻烦");
     expect(screen.getByRole("textbox", { name: "卖点 1" })).toHaveValue("换成新卖点");
@@ -917,6 +929,7 @@ describe("iter18 图片广告与工作室解耦", () => {
     expect(document.querySelector(".ot-talent")).toBeNull();
     expect(screen.queryByText(/演示数字人|数字人预览/)).not.toBeInTheDocument();
     expect(screen.queryByText("声线：TTS + 库选数字人")).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "确认提交渲染" }));
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Mock 成片就绪"));
     expect(screen.getByText("声线：旁白字幕")).toBeInTheDocument();
     expect(requestVideo).toHaveBeenCalledWith("prj_skin");
@@ -946,6 +959,20 @@ describe("iter18 图片广告与工作室解耦", () => {
     expect(screen.queryByText("出镜人：林晓")).not.toBeInTheDocument();
   });
 
+  it("出镜人库加载失败时显示错误并阻止口播启动，不回退成预制人", async () => {
+    vi.mocked(listCharacters).mockRejectedValueOnce(new Error("network"));
+    const user = userEvent.setup();
+    open("/?view=prepare&project=prj_skin");
+    render(<StudioShell />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("出镜人库加载失败：network");
+    await choosePath(user, /口播出镜/);
+    expect(screen.getByText("尚未选择库内出镜人")).toBeInTheDocument();
+    expect(screen.queryByText("林晓")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "开始制作" })).toBeDisabled();
+    expect(generateScript).not.toHaveBeenCalled();
+  });
+
   it("直接打开生成步时，无人仍清空 character_id，失败则拦住且不注入预制人", async () => {
     writeStudioDraft({ ...DEFAULT_STUDIO_DRAFT, projectId: "prj_skin", presenterId: null });
     vi.mocked(updateProject).mockRejectedValueOnce(new Error("network"));
@@ -955,14 +982,73 @@ describe("iter18 图片广告与工作室解耦", () => {
     expect(screen.getByText("出镜：无（纯商品）")).toBeInTheDocument();
     expect(await screen.findByText(PRESENTER_CLEAR_FAILED)).toBeInTheDocument();
     await waitFor(() => expect(updateProject).toHaveBeenCalledWith("prj_skin", { characterId: null }));
-    expect(screen.getByRole("button", { name: "查看成片" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "查看进度" })).toBeDisabled();
     expect(requestVideo).not.toHaveBeenCalled();
     expect(screen.queryByText("林晓")).not.toBeInTheDocument();
     expect(document.querySelector(".ot-talent")).toBeNull();
     expect(screen.getByRole("heading", { name: "付费生成已拦住" }).closest("[role=alert]")).toHaveTextContent(/SCRIPT_REVIEW_REQUIRED/);
   });
 
-  it("本场草稿 v2 覆盖和无人出镜仍按 studioScriptInput 出稿，默认角要点过才确认", async () => {
+  it("成片交付页只读已有渲染，直接打开不会创建方案、批准费用或提交视频", async () => {
+    installRenderBackend("playable");
+    const passed = makeVersion({
+      status: "confirmed",
+      review_gate: { mode: "enforce", status: "passed", decision: "acked", length_ok: true, error_code: null },
+    });
+    vi.mocked(getScript).mockResolvedValue({
+      version: passed,
+      candidates: [passed],
+      selected_version_id: passed.version_id,
+    });
+    open("/?view=delivery&project=prj_skin");
+    render(<StudioShell />);
+
+    expect(await screen.findByRole("heading", { name: "成片交付" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("尚未提交渲染"));
+    expect(screen.getByRole("button", { name: "回生成页确认提交" })).toBeInTheDocument();
+    expect(createVideoPlan).not.toHaveBeenCalled();
+    expect(getVideoEstimate).not.toHaveBeenCalled();
+    expect(approveCost).not.toHaveBeenCalled();
+    expect(requestVideo).not.toHaveBeenCalled();
+  });
+
+  it("口播轮询超时后露出继续等待、重新生成和回准备三个恢复入口", async () => {
+    const queued = makeVersion({ status: "generating", hook: "" });
+    vi.mocked(getScript).mockResolvedValue({
+      version: queued,
+      candidates: [queued],
+      selected_version_id: queued.version_id,
+    });
+    writeSkuEnrichment("prj_skin", {
+      pain_point: "清洗麻烦",
+      selling_points: ["杯身可拆"],
+      usage_scenario: "通勤路上",
+      offer: "",
+      images: [],
+    });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] });
+    try {
+      open("/?view=review&project=prj_skin");
+      render(<StudioShell />);
+      // 商品加载和审稿 effect 都要等计时器冲掉才挂上第一次轮询。
+      // 先推进 0，让 800ms 的 sleep 落在窗口内，再走完 40 次。
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(40 * 800 + 100);
+      });
+      expect(screen.getByText(/口播生成超过等待上限/)).toBeInTheDocument();
+      const recovery = screen.getByRole("group", { name: "口播生成超时恢复" });
+      expect(within(recovery).getByRole("button", { name: "继续等待" })).toBeEnabled();
+      expect(within(recovery).getByRole("button", { name: "重新生成" })).toBeEnabled();
+      expect(within(recovery).getByRole("button", { name: "回准备步" })).toBeEnabled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("本场草稿 v2 覆盖和无人出镜仍按 studioScriptInput 出稿，默认角已选即可确认", async () => {
     writeSkuEnrichment("prj_skin", {
       pain_point: "库里的痛点",
       selling_points: ["库里的卖点"],
@@ -993,25 +1079,20 @@ describe("iter18 图片广告与工作室解耦", () => {
       offer: "本次优惠",
     }));
     expect(screen.getByRole("button", { name: "痛点种草" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByText("请先选择角度")).toBeInTheDocument();
+    expect(screen.getByText(/当前高亮角度已选中/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "审稿" }));
     expect(await screen.findByText("审稿闸：已审，还没过闸")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "保留原稿" }));
     expect(await screen.findByText("审稿闸：已通过（保留原稿）")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /确认并提交渲染/ })).toBeDisabled();
-    expect(screen.getByText("请先选择角度")).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "痛点种草" }));
-    expect(selectScript).not.toHaveBeenCalled();
-    expect(screen.queryByText("请先选择角度")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /确认并提交渲染/ })).toBeEnabled();
-    expect(screen.getByRole("textbox", { name: "钩子" })).toHaveValue("还在为轻薄不粘腻烦恼？");
+    expect(screen.getByText(/当前高亮角度已选中/)).toBeInTheDocument();
+    expect(selectScript).not.toHaveBeenCalled();
+    expect(screen.queryByRole("textbox", { name: "钩子" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "场景安利" }));
     await waitFor(() => expect(selectScript).toHaveBeenCalledTimes(1));
     expect(selectScript).toHaveBeenCalledWith("prj_skin", "scr_scene");
-    expect(screen.getByRole("textbox", { name: "钩子" })).toHaveValue("出门时怎么还不用这瓶？");
     expect(screen.getByRole("button", { name: /确认并提交渲染/ })).toBeDisabled();
 
     await user.click(screen.getByRole("button", { name: "审稿" }));
@@ -1025,7 +1106,7 @@ describe("iter18 图片广告与工作室解耦", () => {
     expect(selectScript).toHaveBeenCalledTimes(1);
   });
 
-  it("重新生成一批后，默认角高亮仍要再点一次", async () => {
+  it("重新生成一批后，默认高亮角直接视为已选", async () => {
     writeSkuEnrichment("prj_skin", {
       pain_point: "清洗麻烦",
       selling_points: ["杯身可拆"],
@@ -1066,21 +1147,19 @@ describe("iter18 图片广告与工作室解耦", () => {
       ...DEFAULT_STUDIO_DRAFT,
       projectId: "prj_skin",
       path: "multi_angle",
-      presenterId: "premade:linxiao",
+      presenterId: "chr_zhou",
     });
     const user = userEvent.setup();
     open("/?view=review&project=prj_skin");
     render(<StudioShell />);
 
-    await user.click(await screen.findByRole("button", { name: "痛点种草" }));
-    expect(selectScript).not.toHaveBeenCalled();
-    expect(screen.queryByText("请先选择角度")).not.toBeInTheDocument();
+    await screen.findByRole("button", { name: "痛点种草" });
     await user.click(screen.getByRole("button", { name: "重新生成三套口播" }));
-    expect(await screen.findByText("请先选择角度")).toBeInTheDocument();
+    expect(await screen.findByText(/当前高亮角度已选中/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "痛点种草" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: /确认并提交渲染/ })).toBeDisabled();
+    expect(selectScript).not.toHaveBeenCalled();
     expect(screen.getByRole("group", { name: "口播角度" })).toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "钩子" })).toHaveValue("新的一批仍是默认角");
+    expect(screen.queryByRole("textbox", { name: "钩子" })).not.toBeInTheDocument();
   });
 
   it("纯商品无人：默认路径不出镜，审稿用旁白角度且不软强制", async () => {
@@ -1120,17 +1199,18 @@ describe("iter18 图片广告与工作室解耦", () => {
     expect(generateScript).toHaveBeenCalledTimes(1);
   });
 
-  it("口播出镜：无人不能开始，预填预制人后可以，审稿不软强制", async () => {
+  it("口播出镜：必须从当前库选择真实角色并同步库 id 后才能开始", async () => {
     const user = userEvent.setup();
     open("/?view=prepare&project=prj_skin");
     render(<StudioShell />);
     await screen.findByRole("group", { name: "创作路径" });
     await choosePath(user, /口播出镜/);
-    expect(document.querySelector(".ot-talent")).toHaveTextContent("林晓");
+    expect(document.querySelector(".ot-talent")).toBeNull();
+    expect(screen.getByText("尚未选择库内出镜人")).toBeInTheDocument();
+    expect(screen.queryByText("林晓")).not.toBeInTheDocument();
     expect(document.querySelector(".ot-chips")).toHaveTextContent("口播出镜");
     expect(screen.queryByText("本路径不出镜人")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "从出镜人库更换 →" }));
     await user.click(screen.getByRole("button", { name: /无出镜人/ }));
     expect(screen.getByText(TALKING_HEAD_PRESENTER_REQUIRED)).toBeInTheDocument();
     expect(document.querySelector(".ot-talent")).toBeNull();
@@ -1146,14 +1226,13 @@ describe("iter18 图片广告与工作室解耦", () => {
     await waitFor(() => expect(start).toBeEnabled());
     await user.click(start);
     expect(await screen.findByRole("group", { name: "口播角度" })).toBeInTheDocument();
-    expect(screen.queryByText("请先选择角度")).not.toBeInTheDocument();
-    expect(screen.queryByText("先点选一套角度，再审稿确认")).not.toBeInTheDocument();
+    expect(updateProject).toHaveBeenCalledWith("prj_skin", { characterId: "chr_zhou" });
     expect(screen.getByText(/配音人 周予/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /确认并提交渲染/ })).toBeDisabled();
     expect(screen.queryByRole("textbox", { name: /音色/ })).not.toBeInTheDocument();
   });
 
-  it("多角度口播：无人也能开始，选角是主交互", async () => {
+  it("多角度口播：默认高亮角已选，可直接审稿也可切换", async () => {
     const user = userEvent.setup();
     open("/?view=prepare&project=prj_skin");
     render(<StudioShell />);
@@ -1168,14 +1247,10 @@ describe("iter18 图片广告与工作室解耦", () => {
 
     await fillPrepare(user);
     expect(await screen.findByRole("group", { name: "旁白角度" })).toBeInTheDocument();
-    expect(screen.getByText("请先选择角度")).toBeInTheDocument();
-    expect(screen.getByText("先点选一套角度，再审稿确认")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /确认并提交渲染/ })).toBeDisabled();
+    expect(screen.getByText(/当前高亮角度已选中/)).toBeInTheDocument();
+    expect(screen.getByText("当前高亮角度已选中；可直接审稿，也可以先切换角度")).toBeInTheDocument();
     expect(screen.getByText(/本场无出镜人/)).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "痛点种草" }));
-    expect(selectScript).not.toHaveBeenCalled();
-    expect(screen.queryByText("请先选择角度")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "对比测评" }));
     await waitFor(() => expect(selectScript).toHaveBeenCalledWith("prj_skin", "scr_cmp"));
   });
@@ -1215,7 +1290,8 @@ describe("iter18 图片广告与工作室解耦", () => {
     expect(screen.queryByText(/唇形已同步|克隆声驱动|live Wan 已生成/)).not.toBeInTheDocument();
   });
 
-  it("口播草稿在审稿闸拦住时仍显示 TTS，纯商品路径不因旧人选改口", async () => {
+  it("口播旧预制人草稿不会冒充库内角色，生成页明确阻断并回准备", async () => {
+    const user = userEvent.setup();
     writeStudioDraft({
       ...DEFAULT_STUDIO_DRAFT,
       projectId: "prj_skin",
@@ -1225,12 +1301,15 @@ describe("iter18 图片广告与工作室解耦", () => {
     open("/?view=generate&project=prj_skin");
     render(<StudioShell />);
     expect(await screen.findByRole("heading", { name: "提交渲染" })).toBeInTheDocument();
-    expect(screen.getByText("声线：TTS + 库选数字人")).toBeInTheDocument();
-    expect(screen.getByText(/不做原声对口型/)).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "付费生成已拦住" })).toBeInTheDocument();
-    expect(screen.queryByText("声线：旁白字幕")).not.toBeInTheDocument();
+    expect(screen.getByText("声线：旁白字幕")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "出镜人未通过启动校验" }).closest("[role=alert]")).toHaveTextContent(
+      "口播出镜必须选择当前出镜人库中的角色",
+    );
+    expect(screen.queryByText("林晓")).not.toBeInTheDocument();
     expect(screen.queryByText(/唇形已同步|克隆声驱动|live Wan 已生成/)).not.toBeInTheDocument();
     expect(requestVideo).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "回准备步选择" }));
+    expect(await screen.findByRole("heading", { name: "准备" })).toBeInTheDocument();
   });
 
   it("渲染排队时不假装成片已出", async () => {
@@ -1243,8 +1322,12 @@ describe("iter18 图片广告与工作室解耦", () => {
     await user.click(screen.getByRole("button", { name: "保留原稿" }));
     await user.click(screen.getByRole("button", { name: /确认并提交渲染/ }));
     expect(await screen.findByRole("heading", { name: "提交渲染" })).toBeInTheDocument();
+    const submit = await screen.findByRole("button", { name: "确认提交渲染" });
+    expect(screen.getByRole("status")).toHaveTextContent("尚未提交渲染");
+    await user.click(submit);
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("排队中"));
     const status = screen.getByRole("status");
+    expect(screen.getByRole("button", { name: "查看进度" })).toBeEnabled();
     expect(status).not.toHaveTextContent("Mock 成片就绪");
     expect(status).not.toHaveTextContent("可播预览");
     expect(status).not.toHaveTextContent("成片可播");
@@ -1275,6 +1358,7 @@ describe("iter18 图片广告与工作室解耦", () => {
       selected_version_id: passed.version_id,
     });
     render(<StudioShell />);
+    await user.click(await screen.findByRole("button", { name: "确认提交渲染" }));
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("失败可重试"));
     const status = screen.getByRole("status");
     expect(status).not.toHaveTextContent("可播预览");
@@ -1283,5 +1367,79 @@ describe("iter18 图片广告与工作室解耦", () => {
     expect(screen.queryByLabelText("成片播放")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "重试渲染" }));
     await waitFor(() => expect(requestVideo).toHaveBeenCalledTimes(2));
+  });
+
+  it("配音字幕需要人工确认时生成页展示差异与确认入口，确认后才继续提交", async () => {
+    installRenderBackend("playable");
+    vi.mocked(getVoice)
+      .mockResolvedValueOnce({ run: null })
+      .mockResolvedValueOnce({
+        run: {
+          run_id: "voi_manual",
+          project_id: "prj_skin",
+          script_version_id: "scr_1",
+          status: "ready",
+          enabled: true,
+          subtitle_enabled: true,
+          provider: "mock-cosyvoice-v2",
+          model: "cosyvoice-v2",
+          voice_id: "longxiaochun_v2",
+          language: "zh",
+          speed: 1,
+          duration_seconds: null,
+          audio_url: null,
+          error_code: null,
+          created_at: "2026-10-29T00:00:00Z",
+          updated_at: "2026-10-29T00:00:00Z",
+          completed_at: "2026-10-29T00:00:00Z",
+          confirmed_at: null,
+        },
+      });
+    vi.mocked(requestVoice).mockResolvedValueOnce({
+      run: {
+        run_id: "voi_manual",
+        project_id: "prj_skin",
+        script_version_id: "scr_1",
+        status: "queued",
+        enabled: true,
+        subtitle_enabled: true,
+        provider: "mock-cosyvoice-v2",
+        model: "cosyvoice-v2",
+        voice_id: "longxiaochun_v2",
+        language: "zh",
+        speed: 1,
+        duration_seconds: null,
+        audio_url: null,
+        error_code: null,
+        created_at: "2026-10-29T00:00:00Z",
+        updated_at: "2026-10-29T00:00:00Z",
+        completed_at: null,
+        confirmed_at: null,
+      },
+    });
+    const passed = makeVersion({
+      status: "confirmed",
+      review_gate: { mode: "enforce", status: "passed", decision: "acked", length_ok: true, error_code: null },
+    });
+    vi.mocked(getScript).mockResolvedValue({
+      version: passed,
+      candidates: [passed],
+      selected_version_id: passed.version_id,
+    });
+    const user = userEvent.setup();
+    open("/?view=generate&project=prj_skin");
+    render(<StudioShell />);
+    await user.click(await screen.findByRole("button", { name: "确认提交渲染" }));
+
+    const manual = await screen.findByRole("alert", { name: "人工确认配音与字幕" });
+    expect(manual).toHaveTextContent("配音没有产出有效时长");
+    expect(manual).toHaveTextContent("配音时长：未知");
+    expect(manual).toHaveTextContent("字幕：1 段");
+    expect(confirmAudioSubtitle).not.toHaveBeenCalled();
+    expect(requestVideo).not.toHaveBeenCalled();
+
+    await user.click(within(manual).getByRole("button", { name: "确认配音与字幕并提交" }));
+    await waitFor(() => expect(confirmAudioSubtitle).toHaveBeenCalledWith("prj_skin"));
+    await waitFor(() => expect(requestVideo).toHaveBeenCalledWith("prj_skin"));
   });
 });

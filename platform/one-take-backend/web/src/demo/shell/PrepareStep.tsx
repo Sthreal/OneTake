@@ -7,6 +7,7 @@ import {
   PATH_SECTION_SUB,
   PATH_SECTION_TITLE,
   PREPARE_IMAGE_ACCEPT,
+  PREPARE_IMAGE_CHECK_COPY,
   PREPARE_IMAGE_OPTIONAL_COPY,
   PRODUCT_ONLY_CAST_HINT,
   PRODUCT_ONLY_CAST_TITLE,
@@ -16,6 +17,7 @@ import {
   applyPrepareEdit,
   assignPresenter,
   effectivePrepareFields,
+  libraryPresenterStartError,
   prepareImageRejection,
   prepareSubmitErrors,
   presenterOptions,
@@ -49,12 +51,15 @@ export function PrepareStep(props: {
   presenter: PresenterOption;
   characters: Character[];
   castOpen: boolean;
+  charactersLoading?: boolean;
+  charactersError?: string | null;
   onCastOpen: (open: boolean) => void;
   onDraft: (partial: Partial<StudioDraft>) => void;
   onPath: (path: StudioCreationPath) => void;
   pathHint?: string | null;
   onBrand: () => void;
   onCharacters: () => void;
+  onReloadCharacters?: () => void;
   onStart: () => void | Promise<void>;
   syncing?: boolean;
   syncError?: string | null;
@@ -106,12 +111,15 @@ function PrepareLoaded({
   presenter,
   characters,
   castOpen,
+  charactersLoading = false,
+  charactersError = null,
   onCastOpen,
   onDraft,
   onPath,
   pathHint = null,
   onBrand,
   onCharacters,
+  onReloadCharacters,
   onStart,
   syncing,
   syncError,
@@ -121,12 +129,15 @@ function PrepareLoaded({
   presenter: PresenterOption;
   characters: Character[];
   castOpen: boolean;
+  charactersLoading?: boolean;
+  charactersError?: string | null;
   onCastOpen: (open: boolean) => void;
   onDraft: (partial: Partial<StudioDraft>) => void;
   onPath: (path: StudioCreationPath) => void;
   pathHint?: string | null;
   onBrand: () => void;
   onCharacters: () => void;
+  onReloadCharacters?: () => void;
   onStart: () => void | Promise<void>;
   syncing?: boolean;
   syncError?: string | null;
@@ -148,6 +159,12 @@ function PrepareLoaded({
   });
   const presenterError = talkingHeadStartError(draft);
   if (presenterError) errors.push(presenterError);
+  if (charactersLoading) errors.push("正在读取出镜人库…");
+  if (charactersError) errors.push(`出镜人库加载失败：${charactersError}`);
+  if (draft.path === "talking_head" && !charactersLoading && !charactersError) {
+    const libraryError = libraryPresenterStartError(draft, characters);
+    if (libraryError && libraryError !== presenterError) errors.push(libraryError);
+  }
   const ready = errors.length === 0;
 
   function snapshot(overrides: Partial<SkuEnrichment> = {}): SkuEnrichment {
@@ -198,6 +215,7 @@ function PrepareLoaded({
           <h1 className="ot-page-title">准备</h1>
           <p className="ot-page-sub">完善本场出片所需的商品信息 · 本步不扣费 · 无需先做图片广告</p>
         </div>
+        {charactersError ? <p className="ot-error" role="alert">出镜人库加载失败：{charactersError}</p> : null}
         <div className="ot-split">
           <div className="ot-col">
             <section className="ot-panel" aria-label="已选商品">
@@ -254,7 +272,7 @@ function PrepareLoaded({
                 }}
               />
               <button type="button" className="ot-btn ot-btn-secondary ot-btn-sm" onClick={() => fileRef.current?.click()}>上传图片</button>
-              <p className="ot-hint">不作为开始制作的门槛。支持 PNG / JPEG / JPG / WEBP，单张 ≤10MB。</p>
+              <p className="ot-hint">{PREPARE_IMAGE_CHECK_COPY} 支持 PNG / JPEG / JPG / WEBP，单张 ≤10MB。</p>
               {uploadError ? <p className="ot-error" role="alert">{uploadError}</p> : null}
             </section>
             <section className="ot-panel">
@@ -396,9 +414,12 @@ function PrepareLoaded({
             presenter={presenter}
             options={options}
             castOpen={castOpen}
+            charactersLoading={charactersLoading}
+            charactersError={charactersError}
             onCastOpen={onCastOpen}
             onDraft={onDraft}
             onCharacters={onCharacters}
+            onReloadCharacters={onReloadCharacters}
           />
         </section>
       </div>
@@ -421,17 +442,23 @@ function PresenterBand({
   presenter,
   options,
   castOpen,
+  charactersLoading,
+  charactersError,
   onCastOpen,
   onDraft,
   onCharacters,
+  onReloadCharacters,
 }: {
   draft: StudioDraft;
   presenter: PresenterOption;
   options: PresenterOption[];
   castOpen: boolean;
+  charactersLoading: boolean;
+  charactersError: string | null;
   onCastOpen: (open: boolean) => void;
   onDraft: (partial: Partial<StudioDraft>) => void;
   onCharacters: () => void;
+  onReloadCharacters?: () => void;
 }) {
   if (draft.path === "product_only") {
     return (
@@ -445,8 +472,15 @@ function PresenterBand({
   }
   return (
     <div className="ot-path-cast">
-      <div className="ot-label">出镜人 · 库选</div>
+      <div className="ot-label">出镜人 · 库内</div>
+      {charactersLoading ? <p className="ot-hint" role="status">正在读取出镜人库…</p> : null}
+      {charactersError ? <p className="ot-error" role="alert">出镜人库加载失败：{charactersError}</p> : null}
       {presenter.source === "none" ? (
+        <div className="ot-cast-picked">
+          <b>{draft.path === "talking_head" ? "尚未选择库内出镜人" : presenter.name}</b>
+          <span>{draft.path === "talking_head" ? "口播路径必须从当前库中选择角色" : presenter.role}</span>
+        </div>
+      ) : presenter.source === "missing" ? (
         <div className="ot-cast-picked">
           <b>{presenter.name}</b>
           <span>{presenter.role}</span>
@@ -469,6 +503,9 @@ function PresenterBand({
               <span>{option.role}</span>
             </button>
           ))}
+          {onReloadCharacters ? (
+            <button type="button" disabled={charactersLoading} onClick={onReloadCharacters}>重新读取出镜人库</button>
+          ) : null}
           <button type="button" onClick={onCharacters}>管理出镜人库</button>
         </div>
       ) : null}

@@ -4,12 +4,15 @@ import type { SubtitleVersion, VoiceRun } from "../../features/audio-subtitle/ty
 import type { ContentPlan, ContentPlanStatus } from "../../features/content-plan/types";
 import type { VideoPlan, VideoState } from "../../features/video/types";
 import {
+  AudioSubtitleConfirmationRequiredError,
   describeShellRender,
   enqueueShellRender,
   presenterIsAbsent,
   resetShellRenderFlight,
   SHELL_VOICE_REQUEST,
   shellVoiceCopy,
+  shellRenderProgressUnavailable,
+  SHELL_RENDER_POLL_FAILURE_LIMIT,
   type ShellRenderClient,
 } from "./shellRender";
 
@@ -163,6 +166,12 @@ describe("渲染三态", () => {
       playableUrl: null,
       mockReady: false,
     });
+    expect(shellRenderProgressUnavailable()).toMatchObject({
+      phase: "unavailable",
+      headline: "无法获取进度",
+      errorCode: "SHELL_RENDER_PROGRESS_UNAVAILABLE",
+    });
+    expect(shellRenderProgressUnavailable().detail).toContain(`${SHELL_RENDER_POLL_FAILURE_LIMIT} 次`);
   });
 });
 
@@ -411,7 +420,7 @@ describe("enqueueShellRender", () => {
     expect(client.requestVideo).toHaveBeenCalledWith("prj_skin");
   });
 
-  it("配音已在排队时不再重复请求，字幕为空则不代按、也不建方案", async () => {
+  it("配音字幕需要人工确认时抛结构化闸门，不代按也不建方案", async () => {
     const client = {
       getVideo: vi.fn(async () => state(null)),
       createVideoPlan: vi.fn(async () => {
@@ -431,7 +440,15 @@ describe("enqueueShellRender", () => {
       confirmAudioSubtitle: vi.fn(),
     } as unknown as ShellRenderClient;
 
-    await expect(enqueueShellRender("prj_skin", client, noWait)).rejects.toThrow(/字幕分段为空/);
+    try {
+      await enqueueShellRender("prj_skin", client, noWait);
+      throw new Error("expected manual confirmation");
+    } catch (error) {
+      expect(error).toBeInstanceOf(AudioSubtitleConfirmationRequiredError);
+      expect((error as AudioSubtitleConfirmationRequiredError).reason).toContain("字幕分段为空");
+      expect((error as AudioSubtitleConfirmationRequiredError).voice.status).toBe("ready");
+      expect((error as AudioSubtitleConfirmationRequiredError).subtitle.segments).toEqual([]);
+    }
     expect(client.requestVoice).not.toHaveBeenCalled();
     expect(client.requestSubtitle).not.toHaveBeenCalled();
     expect(client.confirmAudioSubtitle).not.toHaveBeenCalled();

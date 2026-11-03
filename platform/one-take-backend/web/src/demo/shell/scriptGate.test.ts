@@ -10,6 +10,7 @@ import {
   applyAllowed,
   explicitAngleRequired,
   reviewAngleGroupLabel,
+  ScriptPollingTimeoutError,
   editResetGate,
   gateHeadline,
   lengthFailureCopy,
@@ -18,6 +19,7 @@ import {
   regenerateStudioScript,
   orderedCandidates,
   paidVideoBlock,
+  scriptFactChanges,
   studioScriptInput,
 } from "./scriptGate";
 
@@ -194,6 +196,27 @@ describe("工作室审稿闸判断", () => {
     expect(again.version?.version_id).toBe(ready.version_id);
   });
 
+  it("轮询耗尽会抛可恢复超时并保留最后状态，而不是永久返回生成中", async () => {
+    const queued = version({ status: "generating", hook: "" });
+    const api = {
+      getScript: vi.fn(async () => ({
+        version: queued,
+        candidates: [queued],
+        selected_version_id: queued.version_id,
+      })),
+      generateScript: vi.fn(),
+    };
+    try {
+      await loadStudioScript("prj_timeout", input, api, { sleep: async () => {}, maxPolls: 2 });
+      throw new Error("expected timeout");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ScriptPollingTimeoutError);
+      expect((error as ScriptPollingTimeoutError).state.version?.status).toBe("generating");
+      expect((error as ScriptPollingTimeoutError).maxPolls).toBe(2);
+      expect((error as Error).message).toContain("继续等待");
+    }
+  });
+
   it("没有前奏时，请先确认主图会从 generate 原样抛出", async () => {
     const api = {
       getScript: vi.fn(async (): Promise<ScriptState> => ({ version: null, candidates: [], selected_version_id: null })),
@@ -274,6 +297,17 @@ describe("工作室审稿闸判断", () => {
     expect(merged.candidates?.map((item) => item.version_id)).toEqual(["scr_pain", "scr_scene"]);
     expect(merged.candidates?.[1].angle).toBe("scene");
   });
+
+  it("准备事实与旧稿不同时给出字段清单，不自动重出", () => {
+    const changes = scriptFactChanges(version(), {
+      painPoint: "清洗麻烦",
+      sellingPoints: ["杯身可拆卸", "不烫手"],
+      usageScenario: "办公室",
+      offer: "满减",
+    });
+    expect(changes).toEqual(["卖点", "使用场景", "优惠活动"]);
+    expect(scriptFactChanges(null, input)).toEqual([]);
+  });
 });
 
 describe("审稿角度文案和软强制", () => {
@@ -295,7 +329,7 @@ describe("审稿角度文案和软强制", () => {
     expect(explicitAngleRequired("product_only")).toBe(false);
   });
 
-  it("新一批的默认高亮不算选过，点过这一批才放开，换批重新挡", () => {
+  it("默认高亮即已选择，审稿与确认门禁不和视觉选择冲突", () => {
     const pain = version();
     const scene = version({ version_id: "scr_scene", angle: "scene", generation_batch_id: "sbg_1" });
     const state = { version: pain, candidates: [pain, scene], selected_version_id: pain.version_id };
@@ -308,7 +342,7 @@ describe("审稿角度文案和软强制", () => {
       selectedStatus: "ready",
       hasSelectableCandidate: true,
     });
-    expect(fresh).toEqual({ blocked: true, hint: "请先选择角度" });
+    expect(fresh).toEqual({ blocked: false, hint: "当前高亮角度已选中" });
     expect(angleConfirmSoftForce({
       path: "multi_angle",
       batchKey,
@@ -322,7 +356,7 @@ describe("审稿角度文案和软强制", () => {
       pickedBatchKey: batchKey,
       selectedStatus: "ready",
       hasSelectableCandidate: true,
-    })).toEqual({ blocked: true, hint: "请先选择角度" });
+    })).toEqual({ blocked: false, hint: "当前高亮角度已选中" });
     expect(angleConfirmSoftForce({
       path: "talking_head",
       batchKey,

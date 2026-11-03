@@ -111,6 +111,7 @@ export const PATH_SECTION_TITLE = "创作路径";
 export const PATH_SECTION_SUB = "同一商品信息，选不同成片方式 · 不增加费用";
 export const PATH_CHANGED_HINT = "路径已变，如需按新路径重出稿请点重新生成";
 export const TALKING_HEAD_PRESENTER_REQUIRED = "口播出镜路径请选择一位出镜人";
+export const TALKING_HEAD_LIBRARY_PRESENTER_REQUIRED = "口播出镜必须选择当前出镜人库中的角色";
 export const PRODUCT_ONLY_CAST_TITLE = "本路径不出镜人";
 export const PRODUCT_ONLY_CAST_HINT = "如需出镜请改选「口播出镜」或「多角度口播」";
 
@@ -143,13 +144,12 @@ export interface PresenterOption {
   name: string;
   role: string;
   initial: string;
-  source: "none" | "premade" | "library";
+  source: "none" | "premade" | "library" | "missing";
 }
 
 export function presenterOptions(characters: { character_id: string; name: string; voice_style: string | null }[]): PresenterOption[] {
   return [
     { ...NO_PRESENTER },
-    { ...PREMADE_PRESENTER, source: "premade" },
     ...characters.map((character) => ({
       id: character.character_id,
       name: character.name,
@@ -163,7 +163,13 @@ export function presenterOptions(characters: { character_id: string; name: strin
 export function presenterById(id: string | null, characters: { character_id: string; name: string; voice_style: string | null }[]): PresenterOption {
   const options = presenterOptions(characters);
   if (id === null || id === "") return options.find((item) => item.source === "none") ?? { ...NO_PRESENTER };
-  return options.find((item) => item.id === id) ?? { ...PREMADE_PRESENTER, source: "premade" };
+  return options.find((item) => item.id === id) ?? {
+    id,
+    name: "出镜人信息未加载",
+    role: "无法确认当前库内角色",
+    initial: "?",
+    source: "missing",
+  };
 }
 
 export function isLibraryPresenterId(presenterId: string | null): presenterId is string {
@@ -227,7 +233,7 @@ export interface StudioDraft {
    */
   presenterId: string | null;
   /**
-   * 切到口播出镜、而当前又无人时，用来预填。纯商品会清掉 presenterId，但把上一次人选留在这里。
+   * 切到口播出镜、而当前又无人时，只用来恢复上一次真实库内人选。纯商品会清掉 presenterId，但保留这个记忆。
    */
   lastPresenterId: string | null;
   ratio: StudioRatio;
@@ -292,8 +298,8 @@ function readPresenterField(raw: object, key: "presenterId" | "lastPresenterId")
 /**
  * 按路径收出镜人。
  * 纯商品强制无人，但把旧的非空人选留在 lastPresenterId。
- * 口播缺字段时用上次人选或预制；显式 null 先留着，交给开始制作拦截，避免把用户刚点的「无出镜人」立刻填回去。
- * 多角度缺字段默认无人，显式人选保留。
+ * 口播缺字段时只用上次真实库内人选；没有就保持未选，交给开始制作引导选人。
+ * 多角度缺字段默认无人，显式库内人选保留；预制和未知 id 都不冒充库内角色。
  */
 function alignPresenter(
   path: StudioCreationPath,
@@ -302,15 +308,18 @@ function alignPresenter(
   const presenterField = readPresenterField(raw, "presenterId");
   const lastField = readPresenterField(raw, "lastPresenterId") ?? null;
   const explicit = presenterField === undefined ? null : presenterField;
+  const rememberedLibrary = isLibraryPresenterId(lastField) ? lastField : null;
   if (path === "product_only") {
     return { presenterId: null, lastPresenterId: explicit ?? lastField };
   }
   if (path === "talking_head") {
-    const presenterId = presenterField === undefined ? (lastField ?? PREMADE_PRESENTER.id) : presenterField;
-    return { presenterId, lastPresenterId: presenterId ?? lastField };
+    const candidate = presenterField === undefined ? rememberedLibrary : presenterField;
+    const presenterId = isLibraryPresenterId(candidate) ? candidate : null;
+    return { presenterId, lastPresenterId: presenterId ?? rememberedLibrary };
   }
-  const presenterId = presenterField === undefined ? null : presenterField;
-  return { presenterId, lastPresenterId: presenterId ?? lastField };
+  const candidate = presenterField === undefined ? null : presenterField;
+  const presenterId = isLibraryPresenterId(candidate) ? candidate : null;
+  return { presenterId, lastPresenterId: presenterId ?? rememberedLibrary };
 }
 
 /** 旧 v1 的 `points`（checkbox id）直接丢掉，不映射成卖点文案。无 path 的旧稿按纯商品无人。 */
@@ -341,16 +350,23 @@ export function switchStudioPath(draft: StudioDraft, path: StudioCreationPath): 
     return { ...draft, path, presenterId: null, lastPresenterId: remembered };
   }
   if (path === "talking_head") {
-    const presenterId = draft.presenterId ?? remembered ?? PREMADE_PRESENTER.id;
+    const presenterId = isLibraryPresenterId(draft.presenterId)
+      ? draft.presenterId
+      : (isLibraryPresenterId(remembered) ? remembered : null);
     return { ...draft, path, presenterId, lastPresenterId: presenterId };
   }
-  return { ...draft, path, presenterId: draft.presenterId, lastPresenterId: remembered };
+  const presenterId = isLibraryPresenterId(draft.presenterId) ? draft.presenterId : null;
+  return { ...draft, path, presenterId, lastPresenterId: presenterId ?? rememberedLibrary(remembered) };
+}
+
+function rememberedLibrary(presenterId: string | null): string | null {
+  return isLibraryPresenterId(presenterId) ? presenterId : null;
 }
 
 /** 库里点一个人。纯商品路径忽略人选，保持无人。点「无出镜人」不会忘掉上一次库选。 */
 export function assignPresenter(draft: StudioDraft, presenterId: string | null): StudioDraft {
   if (draft.path === "product_only") return { ...draft, presenterId: null };
-  const next = presenterId && presenterId.trim() && presenterId.trim() !== "none" ? presenterId.trim() : null;
+  const next = isLibraryPresenterId(presenterId) ? presenterId.trim() : null;
   return {
     ...draft,
     presenterId: next,
@@ -361,7 +377,21 @@ export function assignPresenter(draft: StudioDraft, presenterId: string | null):
 export function talkingHeadStartError(draft: Pick<StudioDraft, "path" | "presenterId">): string | null {
   if (draft.path !== "talking_head") return null;
   if (draft.presenterId == null || draft.presenterId === "none") return TALKING_HEAD_PRESENTER_REQUIRED;
+  if (!isLibraryPresenterId(draft.presenterId)) return TALKING_HEAD_LIBRARY_PRESENTER_REQUIRED;
   return null;
+}
+
+/** 启动时除了草稿里有 id，还必须能在当前已加载的库中找到同一个 id。 */
+export function libraryPresenterStartError(
+  draft: Pick<StudioDraft, "path" | "presenterId">,
+  characters: { character_id: string }[],
+): string | null {
+  const basic = talkingHeadStartError(draft);
+  if (basic) return basic;
+  if (draft.path !== "talking_head" || draft.presenterId == null) return null;
+  return characters.some((item) => item.character_id === draft.presenterId)
+    ? null
+    : TALKING_HEAD_LIBRARY_PRESENTER_REQUIRED;
 }
 
 export function readStudioDraft(urlProjectId: string | null): StudioDraft {
@@ -414,8 +444,9 @@ export const PREPARE_REQUIRED_COPY = {
   scene: "请填写使用场景",
 } as const;
 
-/** 准备步商品图不做出片门槛。上传仍可留给后续主图前奏，本步不假装必传。 */
-export const PREPARE_IMAGE_OPTIONAL_COPY = "可选示意";
+/** 启动制作时会自动确认已有主图；没有可确认素材时，这张上传图就是原位补充入口。 */
+export const PREPARE_IMAGE_OPTIONAL_COPY = "启动时校验";
+export const PREPARE_IMAGE_CHECK_COPY = "开始制作时会自动确认已有主图；没有可用素材时请在这里上传。";
 
 export interface PrepareImage {
   id: string;

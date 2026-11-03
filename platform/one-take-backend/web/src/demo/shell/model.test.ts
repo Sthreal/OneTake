@@ -24,10 +24,12 @@ import {
   PRODUCT_ONLY_CAST_TITLE,
   STUDIO_PATHS,
   TALKING_HEAD_PRESENTER_REQUIRED,
+  TALKING_HEAD_LIBRARY_PRESENTER_REQUIRED,
   assignPresenter,
   deliveryPresenterCheck,
   deliveryShowsTalent,
   generatePresenterCheck,
+  libraryPresenterStartError,
   presenterById,
   presenterOptions,
   projectCharacterSync,
@@ -69,16 +71,17 @@ describe("iter18 信息架构", () => {
     expect(payload.text).toContain("不把图片广告当作前置步骤");
   });
 
-  it("出镜人只有预制和库，准备步不能从提示词现造一个", () => {
+  it("口播出镜人只提供无出镜人与当前库角色，不再把预制人当可启动选项", () => {
     const options = presenterOptions([
       { character_id: "chr_1", name: "周予", voice_style: "男声 · 库" },
     ]);
-    expect(options.map((item) => item.source)).toEqual(["none", "premade", "library"]);
+    expect(options.map((item) => item.source)).toEqual(["none", "library"]);
     expect(options[0]).toMatchObject({ id: null, name: "无出镜人", role: "商品镜头为主，不出现人物" });
-    expect(options[1].name).toBe("林晓");
+    expect(options[1].name).toBe("周予");
     expect(options.some((item) => typeof item.id === "string" && item.id.startsWith("prompt"))).toBe(false);
     expect(presenterById(null, []).name).toBe("无出镜人");
     expect(presenterById("chr_1", [{ character_id: "chr_1", name: "周予", voice_style: "男声 · 库" }]).source).toBe("library");
+    expect(presenterById(PREMADE_PRESENTER.id, [])).toMatchObject({ source: "missing", id: PREMADE_PRESENTER.id });
   });
 
   it("工作室草稿没有图片广告字段；没有 id 或 id 不存在时都不偷换", () => {
@@ -223,7 +226,7 @@ describe("准备步草稿与商品富化", () => {
     expect(normalizeStudioDraft({ path: "talking_head", presenterId: null }).presenterId).toBeNull();
     expect(normalizeStudioDraft({}).presenterId).toBeNull();
     expect(normalizeStudioDraft({}).path).toBe("product_only");
-    expect(normalizeStudioDraft({ path: "talking_head" }).presenterId).toBe(PREMADE_PRESENTER.id);
+    expect(normalizeStudioDraft({ path: "talking_head" }).presenterId).toBeNull();
 
     expect(projectCharacterSync(null)).toEqual({ characterId: null });
     expect(projectCharacterSync(PREMADE_PRESENTER.id)).toBeNull();
@@ -281,7 +284,18 @@ describe("准备步草稿与商品富化", () => {
     expect(again.presenterId).toBe("chr_zhou");
 
     const fresh = switchStudioPath(normalizeStudioDraft({ path: "product_only" }), "talking_head");
-    expect(fresh.presenterId).toBe(PREMADE_PRESENTER.id);
+    expect(fresh.presenterId).toBeNull();
+    expect(talkingHeadStartError(fresh)).toBe(TALKING_HEAD_PRESENTER_REQUIRED);
+    expect(talkingHeadStartError({ path: "talking_head", presenterId: PREMADE_PRESENTER.id })).toBe(
+      TALKING_HEAD_LIBRARY_PRESENTER_REQUIRED,
+    );
+    expect(libraryPresenterStartError({ path: "talking_head", presenterId: "chr_zhou" }, [])).toBe(
+      TALKING_HEAD_LIBRARY_PRESENTER_REQUIRED,
+    );
+    expect(libraryPresenterStartError(
+      { path: "talking_head", presenterId: "chr_zhou" },
+      [{ character_id: "chr_zhou" }],
+    )).toBeNull();
 
     const multi = switchStudioPath(productOnly, "multi_angle");
     expect(multi.presenterId).toBeNull();
